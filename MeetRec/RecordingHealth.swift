@@ -38,6 +38,35 @@ struct RecordingHealth: Equatable {
     }
 }
 
+/// The fast-changing part of a recording (timer, level meters, CPU). Kept apart from `RecorderModel`
+/// so only the views showing it redraw on every tick, not the whole panel with the recordings list.
+@MainActor
+final class LiveRecording: ObservableObject {
+    /// Whole seconds, so the timer views redraw once a second.
+    @Published private(set) var elapsed: TimeInterval = 0
+    @Published private(set) var health: RecordingHealth?
+    @Published private(set) var load: SystemLoad?
+
+    var elapsedText: String {
+        let total = Int(elapsed)
+        let (h, m, s) = (total / 3600, total / 60 % 60, total % 60)
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%02d:%02d", m, s)
+    }
+
+    func update(elapsed: TimeInterval) {
+        let whole = elapsed.rounded(.down)
+        if whole != self.elapsed { self.elapsed = whole }
+    }
+
+    func update(health: RecordingHealth?) {
+        if health != self.health { self.health = health }
+    }
+
+    func update(load: SystemLoad?) {
+        if load != self.load { self.load = load }
+    }
+}
+
 /// Turns raw `LiveStatus` snapshots into what the UI shows. Called ~5 times a second while recording.
 struct HealthTracker {
     static let floorDB: Float = -60

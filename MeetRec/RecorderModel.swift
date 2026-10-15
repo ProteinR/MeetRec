@@ -62,9 +62,10 @@ final class RecorderModel: ObservableObject {
     @Published private(set) var microphones: [MicrophoneInfo] = []
     @Published private(set) var isRecording = false
     @Published private(set) var isBusy = false
-    @Published private(set) var elapsed: TimeInterval = 0
+    /// Timer, level meters and CPU: published separately so the panel does not redraw on every tick.
+    let live = LiveRecording()
+    var health: RecordingHealth? { live.health }
     @Published private(set) var lastFile: URL?
-    @Published private(set) var health: RecordingHealth?
     @Published var errorMessage: String?
     /// Detector state for the UI ("Жду встречу", "Идёт встреча в Teams"…); nil when detection is off.
     @Published private(set) var detectorStatus: String?
@@ -74,8 +75,11 @@ final class RecorderModel: ObservableObject {
     private var autoStartedAppID: String?
     /// Shown in the panel after a recording stops ("Запись остановлена · 34:12 · …") until the next start.
     @Published var stopNotice: String?
-    /// Whether the menu panel is on screen; drives the microphone level preview.
-    @Published var panelVisible = false
+    /// Whether the menu panel is on screen; drives the microphone level preview and how often the
+    /// recording status refreshes (5×/s for smooth meters while visible, once a second otherwise).
+    @Published var panelVisible = false {
+        didSet { if isRecording, panelVisible != oldValue { scheduleTick() } }
+    }
     /// Moments marked in the current recording (⌃⌥⌘M or the button).
     @Published private(set) var markers: [Marker] = []
     /// The single window being recorded instead of the whole display; nil = whole display.
@@ -88,8 +92,6 @@ final class RecorderModel: ObservableObject {
     @Published private(set) var meetingWindowWarning: String?
     /// The display showing the Teams meeting window, offered as "записывать этот монитор".
     @Published private(set) var meetingWindowDisplay: DisplayInfo?
-    /// CPU (whole Mac and MeetRec) and MeetRec's memory, refreshed every 2 s while recording.
-    @Published private(set) var load: SystemLoad?
 
     static let showPanelNotification = Notification.Name("MeetRecShowPanel")
     private let detector = MeetingDetector()
@@ -419,11 +421,7 @@ final class RecorderModel: ObservableObject {
 
     var folderURL: URL { URL(fileURLWithPath: folderPath, isDirectory: true) }
 
-    var elapsedText: String {
-        let total = Int(elapsed)
-        let (h, m, s) = (total / 3600, total / 60 % 60, total % 60)
-        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%02d:%02d", m, s)
-    }
+    var elapsedText: String { live.elapsedText }
 
     /// The display that will actually be recorded: the chosen one, or in "auto" mode an external
     /// monitor if one is connected, otherwise the built-in screen.
@@ -704,7 +702,7 @@ final class RecorderModel: ObservableObject {
         guard now.timeIntervalSince(lastLoadSample) >= 2 else { return }
         lastLoadSample = now
         guard let sample = loadSampler.sample() else { return }
-        load = sample
+        live.update(load: sample)
         if now.timeIntervalSince(lastLoadLog) >= 30 {
             lastLoadLog = now
             Log.info("Load: \(sample.logText)", "stats")
@@ -801,13 +799,13 @@ final class RecorderModel: ObservableObject {
         Log.info("Recording state: recording")
         isRecording = true
         startedAt = Date()
-        elapsed = 0
+        live.update(elapsed: 0)
         healthTracker = HealthTracker(startedAt: startedAt ?? Date(), microphoneOn: microphone, systemAudioOn: systemAudio,
                                       microphoneName: recordingNames.microphone, displayName: recordingNames.display)
         markers = []
         captureWindow = nil
         meetingTitle = nil
-        load = nil
+        live.update(load: nil)
         loadSampler = LoadSampler()
         _ = loadSampler.sample()
         lastLoadSample = Date()
@@ -827,15 +825,22 @@ final class RecorderModel: ObservableObject {
         lastDiskCheck = .distantPast
         lastTitleCheck = Date() // first look after 15 s, once a meeting window has its title
         freeSpace = DiskSpace.available(at: folderURL)
-        timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
-        }
+        scheduleTick()
     }
 
     /// Updates the timer and the live status panel; logs whenever a source changes state.
+    private func scheduleTick() {
+        timer?.invalidate()
+        let interval = panelVisible ? 0.2 : 1.0
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.tick() }
+        }
+        timer?.tolerance = interval / 5
+    }
+
     private func tick() {
         guard let startedAt, var tracker = healthTracker else { return }
-        elapsed = Date().timeIntervalSince(startedAt)
+        live.update(elapsed: Date().timeIntervalSince(startedAt))
         let muted = microphone && InputMuteState.isMuted(uid: microphoneID.isEmpty ? nil : microphoneID)
         if muted != micMuted {
             micMuted = muted
@@ -853,7 +858,7 @@ final class RecorderModel: ObservableObject {
             logTransition(old.systemAudio, newHealth.systemAudio)
             logTransition(old.screen, newHealth.screen)
         }
-        health = newHealth
+        live.update(health: newHealth)
         checkAlerts(newHealth)
     }
 
@@ -918,7 +923,7 @@ final class RecorderModel: ObservableObject {
         isRecording = false
         timer?.invalidate()
         healthTracker = nil
-        health = nil
+        live.update(health: nil)
         timer = nil
         startedAt = nil
         recordingDisplayID = nil

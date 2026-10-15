@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var panel: MenuPanelController!
     private var cancellables: Set<AnyCancellable> = []
+    private var statusIconKey = ""
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -29,13 +30,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         panel = MenuPanelController(rootView: ContentView(close: { [weak self] in self?.panel.close() })
             .environmentObject(model)
+            .environmentObject(model.live)
             .environmentObject(Transcriber.shared))
         panel.onVisibilityChange = { visible in model.panelVisible = visible }
 
-        Publishers.CombineLatest3(model.$isRecording, model.$elapsed, model.$health)
+        // Only when something visible changes: the second, recording on/off, problem on/off.
+        Publishers.CombineLatest3(model.$isRecording, model.live.$elapsed,
+                                  model.live.$health.map { $0?.hasProblem == true }.removeDuplicates())
             .receive(on: RunLoop.main)
-            .sink { [weak self] recording, _, health in
-                self?.updateStatusItem(recording: recording, problem: health?.hasProblem == true)
+            .sink { [weak self] recording, _, problem in
+                self?.updateStatusItem(recording: recording, problem: problem)
             }
             .store(in: &cancellables)
         updateStatusItem(recording: false, problem: false)
@@ -77,11 +81,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateStatusItem(recording: Bool, problem: Bool) {
         guard let button = statusItem.button else { return }
         let symbol = problem ? "exclamationmark.triangle.fill" : (recording ? "record.circle.fill" : "record.circle")
-        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "MeetRec")
-        image?.isTemplate = !recording
-        button.image = recording ? image?.withSymbolConfiguration(.init(paletteColors: [problem ? .systemYellow : .systemRed])) : image
-        button.title = recording ? " " + RecorderModel.shared.elapsedText : ""
-        button.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        let iconKey = "\(symbol) \(recording)"
+        if iconKey != statusIconKey {
+            statusIconKey = iconKey
+            let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "MeetRec")
+            image?.isTemplate = !recording
+            button.image = recording ? image?.withSymbolConfiguration(.init(paletteColors: [problem ? .systemYellow : .systemRed])) : image
+            button.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        }
+        let title = recording ? " " + RecorderModel.shared.elapsedText : ""
+        if button.title != title { button.title = title }
     }
 
     @objc @MainActor
@@ -146,8 +155,8 @@ struct ContentView: View {
                 RecordingControls()
             }
             Divider()
-            if model.isRecording, let health = model.health {
-                StatusPanel(health: health, load: model.load)
+            if model.isRecording {
+                LiveStatusPanel()
             } else {
                 sources
             }
@@ -216,9 +225,7 @@ struct ContentView: View {
                     .background(Capsule().fill(Color.accentColor.opacity(0.25)))
             }
             if model.isRecording {
-                Label(model.elapsedText, systemImage: "record.circle.fill")
-                    .foregroundStyle(.red)
-                    .monospacedDigit()
+                ElapsedLabel()
             }
         }
     }
@@ -377,6 +384,28 @@ struct ContentView: View {
             return "Авто (\(display.name))"
         }
         return "Авто"
+    }
+}
+
+/// The recording timer; observes only `LiveRecording`, so it redraws once a second on its own.
+struct ElapsedLabel: View {
+    @EnvironmentObject private var live: LiveRecording
+
+    var body: some View {
+        Label(live.elapsedText, systemImage: "record.circle.fill")
+            .foregroundStyle(.red)
+            .monospacedDigit()
+    }
+}
+
+/// `StatusPanel` fed from `LiveRecording`: the meters redraw without redrawing the rest of the panel.
+struct LiveStatusPanel: View {
+    @EnvironmentObject private var live: LiveRecording
+
+    var body: some View {
+        if let health = live.health {
+            StatusPanel(health: health, load: live.load)
+        }
     }
 }
 
