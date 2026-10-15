@@ -24,6 +24,9 @@ struct RecordingHealth: Equatable {
     var systemAudio: SignalHealth
     var screen: SignalHealth
     var file: SignalHealth
+    /// Seconds since the microphone / system audio last had speech-level sound.
+    var micSilentFor: TimeInterval = 0
+    var systemSilentFor: TimeInterval = 0
 
     var hasProblem: Bool {
         [microphone, systemAudio, screen].contains { $0.state == .noSignal }
@@ -49,6 +52,7 @@ struct HealthTracker {
     private var micDB = HealthTracker.floorDB
     private var systemDB = HealthTracker.floorDB
     private var lastLoudMic: Date
+    private var lastLoudSystem: Date
     private var lastFrameCount = 0
     private var lastFrameCountAt: Date
     private var fps: Double = 0
@@ -60,6 +64,7 @@ struct HealthTracker {
         self.microphoneName = microphoneName
         self.displayName = displayName
         self.lastLoudMic = startedAt
+        self.lastLoudSystem = startedAt
         self.lastFrameCountAt = startedAt
     }
 
@@ -71,6 +76,7 @@ struct HealthTracker {
         if micPeak > Self.speechThresholdDB { lastLoudMic = now }
         let systemPeak = Self.decibels(status.systemPeak)
         systemDB = Self.smooth(current: systemDB, new: systemPeak)
+        if systemPeak > Self.speechThresholdDB { lastLoudSystem = now }
 
         let elapsedSinceCount = now.timeIntervalSince(lastFrameCountAt)
         if elapsedSinceCount >= 1 {
@@ -123,7 +129,9 @@ struct HealthTracker {
             microphone: SignalHealth(title: "Микрофон", detail: micDetail, levelDB: microphoneOn ? micDB : nil, state: micState),
             systemAudio: SignalHealth(title: "Звук системы", detail: systemDetail, levelDB: systemAudioOn ? systemDB : nil, state: systemState),
             screen: SignalHealth(title: "Экран", detail: screenDetail, levelDB: nil, state: screenState),
-            file: SignalHealth(title: "Файл", detail: "\(fileSize) · \(status.fileURL?.lastPathComponent ?? "")", levelDB: nil, state: .ok)
+            file: SignalHealth(title: "Файл", detail: "\(fileSize) · \(status.fileURL?.lastPathComponent ?? "")", levelDB: nil, state: .ok),
+            micSilentFor: now.timeIntervalSince(lastLoudMic),
+            systemSilentFor: now.timeIntervalSince(lastLoudSystem)
         )
     }
 

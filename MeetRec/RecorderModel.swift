@@ -68,6 +68,10 @@ final class RecorderModel: ObservableObject {
     @Published private(set) var detectorStatus: String?
     /// Name of the app whose meeting started the current recording; nil for manual recordings.
     @Published private(set) var autoStartedBy: String?
+    /// Shown in the panel after a recording stops ("Запись остановлена · 34:12 · …") until the next start.
+    @Published var stopNotice: String?
+    /// Whether the menu panel is on screen; drives the microphone level preview.
+    @Published var panelVisible = false
 
     static let showPanelNotification = Notification.Name("MeetRecShowPanel")
     private let detector = MeetingDetector()
@@ -76,6 +80,10 @@ final class RecorderModel: ObservableObject {
     private var startedAt: Date?
     private var timer: Timer?
     private var healthTracker: HealthTracker?
+    /// Alerts already sent in the current episode; cleared when the condition recovers.
+    private var firedAlerts: Set<String> = []
+    static let micSilenceAlertAfter: TimeInterval = 60
+    static let systemSilenceAlertAfter: TimeInterval = 120
     private var recordingNames = (microphone: "", display: "")
     private var hotKey: HotKey?
     private var observers: [NSObjectProtocol] = []
@@ -86,6 +94,7 @@ final class RecorderModel: ObservableObject {
 
     init() {
         Self.logLaunch()
+        Notifier.shared.setUp()
         refreshDevices()
         detector.onStatus = { [weak self] status in self?.detectorStatus = status }
         detector.onMeetingStarted = { [weak self] app in self?.meetingStarted(app) }
@@ -93,6 +102,8 @@ final class RecorderModel: ObservableObject {
         configureDetector()
         recorder.onUnexpectedStop = { [weak self] error in
             Log.error("Recording stopped unexpectedly: \(Log.describe(error))")
+            self?.stopNotice = "Запись прервалась: \(error.localizedDescription)"
+            NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
             self?.didStop(file: nil)
             self?.errorMessage = "Запись остановлена: \(error.localizedDescription)"
         }
@@ -237,7 +248,8 @@ final class RecorderModel: ObservableObject {
             return
         }
         Log.info("Auto-stopping recording: \(app.name) meeting ended", "meetings")
-        stop()
+        // Show the panel again at the end, so it is obvious that recording stopped.
+        stop(reason: "встреча в \(app.id == "teams" ? "Teams" : app.name) завершилась", showPanel: true)
     }
 
     func start(autoApp: MeetingApp? = nil) {
@@ -246,6 +258,8 @@ final class RecorderModel: ObservableObject {
             return
         }
         errorMessage = nil
+        stopNotice = nil
+        firedAlerts = []
         guard let display = effectiveDisplay else {
             errorMessage = "Нет доступных мониторов"
             Log.error("Start failed: no displays")
@@ -280,17 +294,22 @@ final class RecorderModel: ObservableObject {
         }
     }
 
-    func stop() {
+    func stop(reason: String? = nil, showPanel: Bool = false) {
         guard isRecording, !isBusy else {
             Log.debug("stop() ignored: isRecording=\(isRecording) isBusy=\(isBusy)")
             return
         }
         isBusy = true
-        Log.info("Stopping after \(elapsedText)")
+        Log.info("Stopping after \(elapsedText)\(reason.map { " (\($0))" } ?? "")")
+        let duration = elapsedText
         Task {
             let file = await recorder.stop()
             isBusy = false
             didStop(file: file)
+            stopNotice = ["Запись остановлена · \(duration)", reason].compactMap { $0 }.joined(separator: " · ")
+            if showPanel {
+                NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
+            }
         }
     }
 
@@ -343,6 +362,40 @@ final class RecorderModel: ObservableObject {
             logTransition(old.screen, newHealth.screen)
         }
         health = newHealth
+        checkAlerts(newHealth)
+    }
+
+    /// Notifies once per episode when a source dies or stays silent too long during a recording.
+    private func checkAlerts(_ health: RecordingHealth) {
+        let mic = recordingNames.microphone
+        alert("mic-dead", when: microphone && health.microphone.state == .noSignal,
+              title: "Микрофон не передаёт сигнал",
+              body: "«\(mic)»: звук не приходит. Проверьте устройство или перезапустите запись.")
+        alert("system-dead", when: systemAudio && health.systemAudio.state == .noSignal,
+              title: "Звук системы не записывается",
+              body: "Сигнал звука системы пропал. Голоса собеседников могут не попасть в запись.")
+        alert("screen-dead", when: health.screen.state == .noSignal,
+              title: "Экран не записывается",
+              body: "Кадры не приходят: монитор отключён, заблокирован экран или Mac уснул.")
+        alert("mic-quiet", when: microphone && health.microphone.state != .noSignal
+                && health.micSilentFor >= Self.micSilenceAlertAfter,
+              title: "Микрофон молчит больше минуты",
+              body: "Если вы говорите, но полоска не двигается, выбран не тот микрофон («\(mic)»).")
+        alert("system-quiet", when: systemAudio && health.systemAudio.state != .noSignal
+                && health.systemSilentFor >= Self.systemSilenceAlertAfter,
+              title: "Не слышно собеседников 2 минуты",
+              body: "Звук системы тихий. Если собеседники говорят, их голоса не записываются.")
+    }
+
+    private func alert(_ key: String, when condition: Bool, title: String, body: String) {
+        if condition {
+            guard !firedAlerts.contains(key) else { return }
+            firedAlerts.insert(key)
+            Log.warning("Alert: \(title)", "alerts")
+            Notifier.shared.send(id: "meetrec-\(key)", title: title, body: body)
+        } else if firedAlerts.remove(key) != nil {
+            Log.info("Alert cleared: \(key)", "alerts")
+        }
     }
 
     private func logTransition(_ old: SignalHealth, _ new: SignalHealth) {

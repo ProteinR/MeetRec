@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel = MenuPanelController(rootView: ContentView(close: { [weak self] in self?.panel.close() })
             .environmentObject(model)
             .environmentObject(Transcriber.shared))
+        panel.onVisibilityChange = { visible in model.panelVisible = visible }
 
         Publishers.CombineLatest3(model.$isRecording, model.$elapsed, model.$health)
             .receive(on: RunLoop.main)
@@ -113,6 +114,7 @@ struct ContentView: View {
 
     @EnvironmentObject private var model: RecorderModel
     @EnvironmentObject private var transcriber: Transcriber
+    @StateObject private var micMonitor = MicrophoneMonitor()
     @State private var openSection: String?
 
     private func expanded(_ section: String) -> Binding<Bool> {
@@ -144,6 +146,18 @@ struct ContentView: View {
             }
             Divider()
             folderRow
+            if let notice = model.stopNotice, !model.isRecording {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: notice.hasPrefix("Запись прервалась") ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                        .foregroundStyle(notice.hasPrefix("Запись прервалась") ? .orange : .green)
+                    Text(notice).font(.caption).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    Button { model.stopNotice = nil } label: { Image(systemName: "xmark").font(.caption2) }
+                        .buttonStyle(.borderless)
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.06)))
+            }
             if let error = model.errorMessage {
                 Text(error)
                     .font(.caption)
@@ -220,9 +234,43 @@ struct ContentView: View {
                         Text(mic.name).tag(mic.id)
                     }
                 }
+                micPreview
             }
         }
         .disabled(model.isRecording)
+        .onAppear(perform: updateMicPreview)
+        .onChange(of: model.panelVisible) { updateMicPreview() }
+        .onChange(of: model.microphone) { updateMicPreview() }
+        .onChange(of: model.microphoneID) { updateMicPreview() }
+        .onChange(of: model.isRecording) { updateMicPreview() }
+    }
+
+    /// Live level of the chosen microphone, so a silent or wrong device is obvious before recording.
+    private var micPreview: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                Image(systemName: "mic.fill").font(.caption).foregroundStyle(.secondary)
+                LevelMeter(levelDB: micMonitor.levelDB)
+            }
+            Text(micPreviewText)
+                .font(.caption2)
+                .foregroundStyle(micMonitor.receiving ? Color.secondary : Color.orange)
+                .lineLimit(1)
+        }
+    }
+
+    private var micPreviewText: String {
+        guard let name = micMonitor.deviceName else { return "Микрофон не найден" }
+        if !micMonitor.receiving { return "\(name): сигнал не приходит" }
+        return micMonitor.levelDB > -45 ? "\(name): слышно" : "\(name): скажите что-нибудь — полоска должна двигаться"
+    }
+
+    private func updateMicPreview() {
+        if model.panelVisible, model.microphone, !model.isRecording {
+            micMonitor.start(deviceID: model.microphoneID)
+        } else {
+            micMonitor.stop()
+        }
     }
 
     private var meetingSummary: String {

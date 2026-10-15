@@ -28,6 +28,8 @@ final class MenuPanelController: NSObject, NSWindowDelegate {
     private var outsideClickMonitor: Any?
 
     var isShown: Bool { panel.isVisible }
+    /// Called with true when the panel appears and false when it closes.
+    var onVisibilityChange: ((Bool) -> Void)?
 
     init<Content: View>(rootView: Content) {
         panel = KeyablePanel(contentRect: NSRect(x: 0, y: 0, width: Self.cardWidth + 2 * Self.margin, height: 600),
@@ -74,6 +76,7 @@ final class MenuPanelController: NSObject, NSWindowDelegate {
             panel.animator().alphaValue = 1
         }
         startOutsideClickMonitor()
+        onVisibilityChange?(true)
         Log.debug("Panel shown, window \(NSStringFromRect(panel.frame)) (\(itemFrame == nil ? "top right" : "under status item"))")
     }
 
@@ -81,6 +84,7 @@ final class MenuPanelController: NSObject, NSWindowDelegate {
         guard panel.isVisible else { return }
         stopOutsideClickMonitor()
         panel.orderOut(nil)
+        onVisibilityChange?(false)
     }
 
     // MARK: - NSWindowDelegate
