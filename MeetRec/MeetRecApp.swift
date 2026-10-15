@@ -261,6 +261,9 @@ struct ContentView: View {
 
     private var micPreviewText: String {
         guard let name = micMonitor.deviceName else { return "Микрофон не найден" }
+        if InputMuteState.isMuted(uid: model.microphoneID.isEmpty ? nil : model.microphoneID) {
+            return "\(name): выключен кнопкой — в записи будет тишина"
+        }
         if !micMonitor.receiving { return "\(name): сигнал не приходит" }
         return micMonitor.levelDB > -45 ? "\(name): слышно" : "\(name): скажите что-нибудь — полоска должна двигаться"
     }

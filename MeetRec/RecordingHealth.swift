@@ -68,12 +68,14 @@ struct HealthTracker {
         self.lastFrameCountAt = startedAt
     }
 
-    mutating func update(with status: LiveStatus, now: Date = Date()) -> RecordingHealth {
+    /// - Parameter micMuted: the input is muted at the system level (keyboard mute key); silence is then
+    ///   intentional, and the "quiet" timer restarts when it is unmuted.
+    mutating func update(with status: LiveStatus, micMuted: Bool = false, now: Date = Date()) -> RecordingHealth {
         let running = now.timeIntervalSince(startedAt)
 
         let micPeak = Self.decibels(status.micPeak)
         micDB = Self.smooth(current: micDB, new: micPeak)
-        if micPeak > Self.speechThresholdDB { lastLoudMic = now }
+        if micPeak > Self.speechThresholdDB || micMuted { lastLoudMic = now }
         let systemPeak = Self.decibels(status.systemPeak)
         systemDB = Self.smooth(current: systemDB, new: systemPeak)
         if systemPeak > Self.speechThresholdDB { lastLoudSystem = now }
@@ -91,6 +93,9 @@ struct HealthTracker {
         if !microphoneOn {
             micState = .off
             micDetail = "выключен"
+        } else if micMuted {
+            micState = .quiet
+            micDetail = "\(microphoneName) — выключен кнопкой"
         } else if Self.isDead(status.lastMicBuffer, now: now, running: running) {
             micState = .noSignal
             micDetail = "\(microphoneName) — нет сигнала"

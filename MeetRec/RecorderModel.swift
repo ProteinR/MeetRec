@@ -82,6 +82,7 @@ final class RecorderModel: ObservableObject {
     private var healthTracker: HealthTracker?
     /// Alerts already sent in the current episode; cleared when the condition recovers.
     private var firedAlerts: Set<String> = []
+    private var micMuted = false
     static let micSilenceAlertAfter: TimeInterval = 60
     static let systemSilenceAlertAfter: TimeInterval = 120
     private var recordingNames = (microphone: "", display: "")
@@ -354,7 +355,12 @@ final class RecorderModel: ObservableObject {
     private func tick() {
         guard let startedAt, var tracker = healthTracker else { return }
         elapsed = Date().timeIntervalSince(startedAt)
-        let newHealth = tracker.update(with: recorder.snapshot())
+        let muted = microphone && InputMuteState.isMuted(uid: microphoneID.isEmpty ? nil : microphoneID)
+        if muted != micMuted {
+            micMuted = muted
+            Log.info("Microphone \(muted ? "muted" : "unmuted") at system level", "health")
+        }
+        let newHealth = tracker.update(with: recorder.snapshot(), micMuted: muted)
         healthTracker = tracker
         if let old = health {
             logTransition(old.microphone, newHealth.microphone)
