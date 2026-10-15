@@ -36,6 +36,17 @@ What MeetRec does instead:
 - Optional meeting auto-recording: starts when Microsoft Teams holds the microphone for 5 s, opens the
   panel so it is visible, and stops 15 s after Teams releases the mic (never stops manual recordings).
 
+- During a recording: ⭐ markers (⌃⌥⌘M or the panel button) saved to `<recording>.markers.json` and
+  inserted into the transcript; switching to a single window (others and notifications left out),
+  falling back to the whole screen if that window closes.
+- Disk space guard: no start below 1 GB free, warning below 3 GB, automatic clean stop below 500 MB.
+- File names get the meeting title (recorded window or Teams meeting window) before the timestamp,
+  which always stays at the end: `Weekly sync 2026-10-16 14-03-22.mov`. The recordings list can
+  rename (keeping the timestamp), move to Trash, re-transcribe (new `name (2).md`, old kept) and search
+  names and transcript text. Renames and deletes take the `.md` and `.markers.json` files along.
+- Launch at login (`SMAppService`) toggle; Teams' "Microsoft Teams Audio" loopback is hidden from
+  the microphone list.
+
 Planned next: more calling apps (Telegram, Zoom, Google Meet in browsers) once checked for false positives.
 
 Principles: small, native (Swift, ScreenCaptureKit, no Electron, no third-party Swift packages),

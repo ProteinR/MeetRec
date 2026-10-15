@@ -29,7 +29,7 @@ struct RecordingHealth: Equatable {
     var systemSilentFor: TimeInterval = 0
 
     var hasProblem: Bool {
-        [microphone, systemAudio, screen].contains { $0.state == .noSignal }
+        [microphone, systemAudio, screen, file].contains { $0.state == .noSignal }
     }
 }
 
@@ -47,7 +47,8 @@ struct HealthTracker {
     let microphoneOn: Bool
     let systemAudioOn: Bool
     let microphoneName: String
-    let displayName: String
+    /// What the screen row names: the display, or the window recorded on its own.
+    var displayName: String
 
     private var micDB = HealthTracker.floorDB
     private var systemDB = HealthTracker.floorDB
@@ -70,7 +71,9 @@ struct HealthTracker {
 
     /// - Parameter micMuted: the input is muted at the system level (keyboard mute key); silence is then
     ///   intentional, and the "quiet" timer restarts when it is unmuted.
-    mutating func update(with status: LiveStatus, micMuted: Bool = false, now: Date = Date()) -> RecordingHealth {
+    /// - Parameter freeSpace: bytes free on the recordings volume, shown in the file row.
+    mutating func update(with status: LiveStatus, micMuted: Bool = false, freeSpace: Int64? = nil,
+                         now: Date = Date()) -> RecordingHealth {
         let running = now.timeIntervalSince(startedAt)
 
         let micPeak = Self.decibels(status.micPeak)
@@ -130,11 +133,21 @@ struct HealthTracker {
             .flatMap { try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? Int64 }
             .map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "—"
 
+        var fileDetail = "\(fileSize) · \(status.fileURL?.lastPathComponent ?? "")"
+        var fileState = SignalState.ok
+        if let freeSpace {
+            fileDetail = "\(fileSize) · свободно \(DiskSpace.format(freeSpace))"
+            if freeSpace < DiskSpace.warnBelow {
+                fileState = .noSignal
+                fileDetail = "\(fileSize) · мало места: \(DiskSpace.format(freeSpace))"
+            }
+        }
+
         return RecordingHealth(
             microphone: SignalHealth(title: "Микрофон", detail: micDetail, levelDB: microphoneOn ? micDB : nil, state: micState),
             systemAudio: SignalHealth(title: "Звук системы", detail: systemDetail, levelDB: systemAudioOn ? systemDB : nil, state: systemState),
             screen: SignalHealth(title: "Экран", detail: screenDetail, levelDB: nil, state: screenState),
-            file: SignalHealth(title: "Файл", detail: "\(fileSize) · \(status.fileURL?.lastPathComponent ?? "")", levelDB: nil, state: .ok),
+            file: SignalHealth(title: "Файл", detail: fileDetail, levelDB: nil, state: fileState),
             micSilentFor: now.timeIntervalSince(lastLoudMic),
             systemSilentFor: now.timeIntervalSince(lastLoudSystem)
         )

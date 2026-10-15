@@ -128,10 +128,22 @@ final class Transcriber: ObservableObject {
         return nil
     }
 
-    /// Existing transcript for a recording: `<name>.md` next to it.
+    /// Newest transcript of a recording: `<name>.md` next to it, or `<name> (2).md`… after
+    /// "Транскрибировать заново" (older versions are kept, never overwritten).
     static func existingTranscript(for recording: URL) -> URL? {
-        let url = recording.deletingPathExtension().appendingPathExtension("md")
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+        let base = recording.deletingPathExtension()
+        var found: URL?
+        var candidate = base.appendingPathExtension("md")
+        var index = 2
+        while FileManager.default.fileExists(atPath: candidate.path) {
+            found = candidate
+            let next = URL(fileURLWithPath: base.path + " (\(index))")
+            // "<name> (2).mov" is a separate recording, so "<name> (2).md" is its transcript.
+            if ["mov", "mp4"].contains(where: { FileManager.default.fileExists(atPath: next.appendingPathExtension($0).path) }) { break }
+            candidate = next.appendingPathExtension("md")
+            index += 1
+        }
+        return found
     }
 
     private func startNextIfIdle() {

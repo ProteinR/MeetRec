@@ -1,4 +1,5 @@
 import Accelerate
+import AppKit
 import AVFoundation
 import CoreMedia
 import ScreenCaptureKit
@@ -16,6 +17,18 @@ struct LiveStatus {
     var width = 0
     var height = 0
     var fileURL: URL?
+    /// When the first video frame started the file: marker times are counted from here.
+    var sessionStartedAt: Date?
+}
+
+/// A window that can be recorded instead of the whole display.
+struct CaptureWindow: Identifiable, Hashable {
+    let id: CGWindowID
+    let appName: String
+    let title: String
+    let bundleID: String
+
+    var label: String { title.isEmpty ? appName : "\(appName) — \(title)" }
 }
 
 struct RecordingOptions {
@@ -33,11 +46,15 @@ struct RecordingOptions {
 
 enum RecorderError: LocalizedError {
     case displayNotFound
+    case windowNotFound
+    case notRecording
     case writer(String)
 
     var errorDescription: String? {
         switch self {
         case .displayNotFound: return "Монитор не найден"
+        case .windowNotFound: return "Окно не найдено — возможно, оно закрыто"
+        case .notRecording: return "Запись не идёт"
         case .writer(let message): return "Не удалось начать запись: \(message)"
         }
     }
@@ -105,6 +122,59 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private var startedAt = Date()
     private var statsTimer: DispatchSourceTimer?
     private var live = LiveStatus()
+    /// The display the recording started on; full-screen capture returns to it.
+    private var displayID: CGDirectDisplayID?
+
+    /// Normal windows of other apps that can be recorded on their own.
+    static func shareableWindows() async throws -> [CaptureWindow] {
+        let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+        let own = Bundle.main.bundleIdentifier
+        return content.windows.compactMap { window -> CaptureWindow? in
+            guard window.windowLayer == 0, window.frame.width >= 200, window.frame.height >= 150,
+                  let app = window.owningApplication, app.bundleIdentifier != own,
+                  !app.applicationName.isEmpty else { return nil }
+            return CaptureWindow(id: window.windowID, appName: app.applicationName,
+                                 title: window.title ?? "", bundleID: app.bundleIdentifier)
+        }
+        .sorted { ($0.appName, $0.title) < ($1.appName, $1.title) }
+    }
+
+    /// Switches a running recording between the whole display (`windowID` nil) and a single window.
+    /// The output size stays the same; a window is shown where it is on its display, with everything
+    /// else (other windows, notifications) left out. Returns the name of the display now captured.
+    @discardableResult
+    func setTarget(windowID: CGWindowID?) async throws -> String {
+        guard let stream, let displayID else { throw RecorderError.notRecording }
+        let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
+        let filter: SCContentFilter
+        let display: SCDisplay
+        if let windowID {
+            guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
+                throw RecorderError.windowNotFound
+            }
+            // The display showing most of the window; usually the one being recorded.
+            let center = CGPoint(x: window.frame.midX, y: window.frame.midY)
+            guard let found = content.displays.first(where: { $0.frame.contains(center) })
+                    ?? content.displays.first(where: { $0.displayID == displayID }) else {
+                throw RecorderError.displayNotFound
+            }
+            display = found
+            filter = SCContentFilter(display: display, including: [window])
+            Log.info("Capture target → window \(windowID) \"\(window.owningApplication?.applicationName ?? "?") — \(window.title ?? "")\" frame=\(NSStringFromRect(window.frame)) on display \(display.displayID)", "recorder")
+        } else {
+            guard let found = content.displays.first(where: { $0.displayID == displayID }) ?? content.displays.first else {
+                throw RecorderError.displayNotFound
+            }
+            display = found
+            let ownApp = content.applications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier }
+            filter = SCContentFilter(display: display, excludingApplications: ownApp, exceptingWindows: [])
+            Log.info("Capture target → whole display \(display.displayID)", "recorder")
+        }
+        try await stream.updateContentFilter(filter)
+        return NSScreen.screens.first {
+            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == display.displayID
+        }?.localizedName ?? "монитор \(display.displayID)"
+    }
 
     /// Returns the current live status and resets the peak meters. Safe to call from any thread.
     func snapshot() -> LiveStatus {
@@ -114,6 +184,11 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             live.systemPeak = 0
             return current
         }
+    }
+
+    /// The file being written and when its first frame arrived, without touching the level meters.
+    func currentFile() -> (url: URL?, sessionStartedAt: Date?) {
+        queue.sync { (live.fileURL, live.sessionStartedAt) }
     }
 
     func start(_ options: RecordingOptions) async throws {
@@ -225,6 +300,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             self.live = LiveStatus(width: width, height: height, fileURL: options.outputURL)
         }
         self.stream = stream
+        self.displayID = display.displayID
 
         do {
             try await stream.startCapture()
@@ -280,6 +356,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             if !sessionStarted {
                 writer.startSession(atSourceTime: pts)
                 sessionStarted = true
+                live.sessionStartedAt = Date()
                 stats.firstVideoPTS = pts
                 Log.info("Session started at first video frame, pts=\(pts.seconds)", "capture")
             }
@@ -394,6 +471,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             return (writer, sessionStarted, inputs, stats.summary(since: startedAt))
         }
         stream = nil
+        displayID = nil
         guard let (writer, started, inputs, summary) = state else {
             Log.debug("finish() called with nothing to finish", "recorder")
             return nil

@@ -72,6 +72,14 @@ final class RecorderModel: ObservableObject {
     @Published var stopNotice: String?
     /// Whether the menu panel is on screen; drives the microphone level preview.
     @Published var panelVisible = false
+    /// Moments marked in the current recording (⌃⌥⌘M or the button).
+    @Published private(set) var markers: [Marker] = []
+    /// The single window being recorded instead of the whole display; nil = whole display.
+    @Published private(set) var captureWindow: CaptureWindow?
+    /// Windows offered in the "what to record" menu while recording.
+    @Published private(set) var windows: [CaptureWindow] = []
+    /// Free space on the recordings volume, refreshed while recording.
+    @Published private(set) var freeSpace: Int64?
 
     static let showPanelNotification = Notification.Name("MeetRecShowPanel")
     private let detector = MeetingDetector()
@@ -87,9 +95,16 @@ final class RecorderModel: ObservableObject {
     static let systemSilenceAlertAfter: TimeInterval = 120
     private var recordingNames = (microphone: "", display: "")
     private var hotKey: HotKey?
+    private var markerHotKey: HotKey?
+    private var lastDiskCheck = Date.distantPast
+    private var lastTitleCheck = Date.distantPast
+    private var lastWindowCheck = Date.distantPast
+    /// Best title for the file name, found while recording (chosen window or Teams meeting).
+    private var meetingTitle: String?
     private var observers: [NSObjectProtocol] = []
 
     static let hotKeyHint = "⌃⌥⌘R"
+    static let markerHotKeyHint = "⌃⌥⌘M"
 
     private var recordingDisplayID: CGDirectDisplayID?
 
@@ -111,6 +126,10 @@ final class RecorderModel: ObservableObject {
         hotKey = HotKey(keyCode: kVK_ANSI_R, modifiers: cmdKey | optionKey | controlKey) { [weak self] in
             Log.info("Hotkey \(Self.hotKeyHint) pressed")
             Task { @MainActor in self?.toggle() }
+        }
+        markerHotKey = HotKey(keyCode: kVK_ANSI_M, modifiers: cmdKey | optionKey | controlKey) { [weak self] in
+            Log.info("Hotkey \(Self.markerHotKeyHint) pressed")
+            Task { @MainActor in self?.addMarker() }
         }
         let center = NotificationCenter.default
         observers.append(center.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
@@ -184,7 +203,11 @@ final class RecorderModel: ObservableObject {
         }
         microphones = AVCaptureDevice.DiscoverySession(
             deviceTypes: [.microphone, .external], mediaType: .audio, position: .unspecified
-        ).devices.map { MicrophoneInfo(id: $0.uniqueID, name: $0.localizedName) }
+        ).devices.filter { !Self.isLoopback($0) }.map { MicrophoneInfo(id: $0.uniqueID, name: $0.localizedName) }
+        if !microphoneID.isEmpty, let device = AVCaptureDevice(uniqueID: microphoneID), Self.isLoopback(device) {
+            Log.warning("Chosen microphone \"\(device.localizedName)\" is a loopback device, switching to the system default", "devices")
+            microphoneID = ""
+        }
 
         if displays != previousDisplays {
             Log.info("Displays: " + displays.map { "\($0.id) \"\($0.name)\"\($0.isBuiltIn ? " built-in" : "")" }.joined(separator: ", ")
@@ -200,6 +223,12 @@ final class RecorderModel: ObservableObject {
                 Log.warning("Selected microphone \(microphoneID) disappeared during recording", "devices")
             }
         }
+    }
+
+    /// Virtual devices that carry an app's own output, not a voice: Teams' "Microsoft Teams Audio".
+    /// Picking one by mistake records silence instead of the user.
+    private static func isLoopback(_ device: AVCaptureDevice) -> Bool {
+        device.uniqueID.hasPrefix("MSLoopbackDriverDevice") || device.localizedName == "Microsoft Teams Audio"
     }
 
     func toggle() {
@@ -266,6 +295,17 @@ final class RecorderModel: ObservableObject {
             Log.error("Start failed: no displays")
             return
         }
+        let free = DiskSpace.available(at: folderURL)
+        Log.info("Free space on recordings volume: \(free.map(DiskSpace.format) ?? "unknown")")
+        if let free, free < DiskSpace.refuseStartBelow {
+            errorMessage = "На диске осталось \(DiskSpace.format(free)) — запись не начата. Освободите место или выберите другую папку."
+            Log.error("Start refused: only \(DiskSpace.format(free)) free")
+            if autoApp != nil {
+                Notifier.shared.send(id: "meetrec-disk-full", title: "Запись встречи не началась",
+                                     body: "На диске осталось \(DiskSpace.format(free)). Освободите место.")
+            }
+            return
+        }
         isBusy = true
         Task {
             defer { isBusy = false }
@@ -288,6 +328,10 @@ final class RecorderModel: ObservableObject {
                 recordingDisplayID = display.id
                 autoStartedBy = autoApp?.name
                 didStart()
+                if let free, free < DiskSpace.warnBelow {
+                    alert("disk-low", when: true, title: "Мало места на диске",
+                          body: "Свободно \(DiskSpace.format(free)). Запись остановится сама, если останется меньше \(DiskSpace.format(DiskSpace.stopBelow)).")
+                }
             } catch {
                 errorMessage = error.localizedDescription
                 Log.error("Start failed: \(Log.describe(error))")
@@ -303,14 +347,126 @@ final class RecorderModel: ObservableObject {
         isBusy = true
         Log.info("Stopping after \(elapsedText)\(reason.map { " (\($0))" } ?? "")")
         let duration = elapsedText
+        let title = meetingTitle
         Task {
-            let file = await recorder.stop()
+            var file = await recorder.stop()
+            if let recorded = file, let title {
+                file = renameWithTitle(recorded, title: title)
+            }
             isBusy = false
             didStop(file: file)
             stopNotice = ["Запись остановлена · \(duration)", reason].compactMap { $0 }.joined(separator: " · ")
             if showPanel {
                 NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
             }
+        }
+    }
+
+    // MARK: - Markers
+
+    /// Marks the current moment of the recording; it shows up in the transcript as "⭐ 12:34".
+    func addMarker() {
+        let current = recorder.currentFile()
+        guard isRecording, let file = current.url else {
+            Log.debug("Marker ignored: not recording")
+            return
+        }
+        let origin = current.sessionStartedAt ?? startedAt ?? Date()
+        let marker = Marker(time: max(0, Date().timeIntervalSince(origin)))
+        markers.append(marker)
+        do {
+            try MarkerFile.save(markers, for: file)
+            Log.info("Marker #\(markers.count) at \(marker.timeText)")
+        } catch {
+            Log.error("Could not save markers: \(Log.describe(error))")
+        }
+        NSSound(named: "Tink")?.play()
+    }
+
+    // MARK: - Window capture
+
+    /// Reloads the windows offered for single-window recording.
+    func refreshWindows() {
+        Task {
+            do {
+                windows = try await ScreenRecorder.shareableWindows()
+            } catch {
+                Log.warning("Window list failed: \(Log.describe(error))", "recorder")
+            }
+        }
+    }
+
+    /// Records only `window` from now on, or the whole display again when nil. Works mid-recording.
+    func record(window: CaptureWindow?) {
+        guard isRecording, !isBusy else { return }
+        Task {
+            do {
+                let displayName = try await recorder.setTarget(windowID: window?.id)
+                captureWindow = window
+                healthTracker?.displayName = window.map { "окно \($0.appName)" } ?? displayName
+                if let window {
+                    lastWindowCheck = Date()
+                    updateMeetingTitle(force: true)
+                    Log.info("Recording only window: \(window.label)")
+                } else {
+                    Log.info("Recording whole display again")
+                }
+            } catch {
+                errorMessage = "Не удалось переключить запись: \(error.localizedDescription)"
+                Log.error("Switching capture target failed: \(Log.describe(error))")
+            }
+        }
+    }
+
+    /// If the recorded window was closed, falls back to the whole display so nothing is lost.
+    private func checkCaptureWindow() {
+        guard let window = captureWindow, Date().timeIntervalSince(lastWindowCheck) >= 3 else { return }
+        lastWindowCheck = Date()
+        guard !MeetingTitle.exists(window.id) else { return }
+        Log.warning("Recorded window \(window.id) (\(window.label)) is gone, switching back to the whole display")
+        Notifier.shared.send(id: "meetrec-window-gone", title: "Окно закрыто",
+                             body: "«\(window.label)» больше нет — записывается весь экран.")
+        record(window: nil)
+    }
+
+    // MARK: - Disk space and title
+
+    private func checkDiskSpace() {
+        guard Date().timeIntervalSince(lastDiskCheck) >= 10 else { return }
+        lastDiskCheck = Date()
+        guard let free = DiskSpace.available(at: folderURL) else { return }
+        freeSpace = free
+        alert("disk-low", when: free < DiskSpace.warnBelow, title: "Мало места на диске",
+              body: "Свободно \(DiskSpace.format(free)). Запись остановится сама, если останется меньше \(DiskSpace.format(DiskSpace.stopBelow)).")
+        if free < DiskSpace.stopBelow {
+            Log.error("Only \(DiskSpace.format(free)) free, stopping the recording to close the file safely")
+            Notifier.shared.send(id: "meetrec-disk-stop", title: "Запись остановлена: диск заполнен",
+                                 body: "Осталось \(DiskSpace.format(free)). Файл сохранён.")
+            stop(reason: "на диске осталось \(DiskSpace.format(free))", showPanel: true)
+        }
+    }
+
+    /// Remembers a title for the file name: the recorded window's, else an open Teams meeting's.
+    private func updateMeetingTitle(force: Bool = false) {
+        guard force || Date().timeIntervalSince(lastTitleCheck) >= 15 else { return }
+        lastTitleCheck = Date()
+        let title = captureWindow.flatMap { MeetingTitle.title(ofWindow: $0.id) } ?? MeetingTitle.teamsMeeting()
+        if let title, title != meetingTitle {
+            Log.info("Recording title: \"\(title)\"")
+            meetingTitle = title
+        }
+    }
+
+    /// "2026-10-16 14-03-22.mov" → "Weekly sync 2026-10-16 14-03-22.mov"; keeps the old name on failure.
+    private func renameWithTitle(_ file: URL, title: String) -> URL {
+        let stem = file.deletingPathExtension().lastPathComponent
+        let newStem = RecordingFiles.uniqueStem(RecordingFiles.sanitize(title) + " " + stem, in: file.deletingLastPathComponent(),
+                                                ext: file.pathExtension)
+        do {
+            return try RecordingFiles.rename(file, to: newStem)
+        } catch {
+            Log.error("Could not rename recording to \"\(newStem)\": \(Log.describe(error))")
+            return file
         }
     }
 
@@ -332,6 +488,14 @@ final class RecorderModel: ObservableObject {
         NSWorkspace.shared.open(folderURL)
     }
 
+    /// The file being written right now; it must not be renamed or deleted.
+    var recordingFile: URL? { isRecording ? recorder.currentFile().url : nil }
+
+    /// Keeps "Последняя запись" pointing at a file renamed or deleted in the recordings list.
+    func recordingMoved(from old: URL, to new: URL?) {
+        if lastFile == old { lastFile = new }
+    }
+
     func revealLastFile() {
         guard let lastFile else { return }
         NSWorkspace.shared.activateFileViewerSelecting([lastFile])
@@ -346,6 +510,12 @@ final class RecorderModel: ObservableObject {
         elapsed = 0
         healthTracker = HealthTracker(startedAt: startedAt ?? Date(), microphoneOn: microphone, systemAudioOn: systemAudio,
                                       microphoneName: recordingNames.microphone, displayName: recordingNames.display)
+        markers = []
+        captureWindow = nil
+        meetingTitle = nil
+        lastDiskCheck = .distantPast
+        lastTitleCheck = Date() // first look after 15 s, once a meeting window has its title
+        freeSpace = DiskSpace.available(at: folderURL)
         timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
@@ -360,7 +530,10 @@ final class RecorderModel: ObservableObject {
             micMuted = muted
             Log.info("Microphone \(muted ? "muted" : "unmuted") at system level", "health")
         }
-        let newHealth = tracker.update(with: recorder.snapshot(), micMuted: muted)
+        checkDiskSpace()
+        checkCaptureWindow()
+        updateMeetingTitle()
+        let newHealth = tracker.update(with: recorder.snapshot(), micMuted: muted, freeSpace: freeSpace)
         healthTracker = tracker
         if let old = health {
             logTransition(old.microphone, newHealth.microphone)
@@ -431,6 +604,9 @@ final class RecorderModel: ObservableObject {
         startedAt = nil
         recordingDisplayID = nil
         autoStartedBy = nil
+        captureWindow = nil
+        windows = []
+        if !markers.isEmpty { Log.info("Recording had \(markers.count) marker(s): " + markers.map(\.timeText).joined(separator: ", ")) }
         if let file {
             lastFile = file
             Transcriber.shared.recordingFinished(file)
@@ -464,9 +640,7 @@ final class RecorderModel: ObservableObject {
     }
 
     private func nextFileURL() -> URL {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH-mm-ss"
-        return folderURL.appendingPathComponent("\(formatter.string(from: Date())).mov")
+        folderURL.appendingPathComponent(RecordingFiles.timestamp(Date())).appendingPathExtension("mov")
     }
 
     private func ensurePermissions() async -> Bool {

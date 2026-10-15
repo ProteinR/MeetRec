@@ -248,7 +248,30 @@ def build_lines(segments, turns, names):
         else:
             lines.append([segment["start"], name, segment["text"]])
             previous = name
-    return [f"[{format_time(start)}] {name}: {text}" for start, name, text in lines], dropped
+    return [(start, f"[{format_time(start)}] {name}: {text}") for start, name, text in lines], dropped
+
+
+def load_markers(recording):
+    """Moments marked during recording (`<name>.markers.json` next to the video), as seconds."""
+    path = recording.with_name(recording.stem + ".markers.json")
+    if not path.exists():
+        return []
+    try:
+        return sorted(float(m["time"]) for m in json.loads(path.read_text(encoding="utf-8")))
+    except (ValueError, KeyError, TypeError) as error:
+        log(f"Ignoring unreadable markers file {path}: {error}")
+        return []
+
+
+def insert_markers(timed_lines, markers):
+    """Puts a "⭐" line before the first replica that starts at or after each marker."""
+    result, pending = [], list(markers)
+    for start, text in timed_lines:
+        while pending and pending[0] <= start:
+            result.append(f"⭐ [{format_time(pending.pop(0))}] Отметка")
+        result.append(text)
+    result.extend(f"⭐ [{format_time(m)}] Отметка" for m in pending)
+    return result
 
 
 # ── Commands ─────────────────────────────────────────────────────────────────────────────────────
@@ -309,10 +332,14 @@ def transcribe(args):
                 json.dumps({"recording": recording.name, "names": names, "scores": scores, **diarization}),
                 encoding="utf-8")
     else:
-        lines = [f"[{format_time(s['start'])}] {s['text']}" for s in asr["segments"]]
+        lines = [(s["start"], f"[{format_time(s['start'])}] {s['text']}") for s in asr["segments"]]
         dropped = 0
         engine = ENGINE
 
+    markers = load_markers(recording)
+    lines = insert_markers(lines, markers)
+    if markers:
+        log(f"Inserted {len(markers)} marker(s)")
     header = [
         f"# Transcription: {recording.name}",
         f"- Date: {datetime.now().strftime('%d %b %Y at %H:%M:%S')}",
@@ -324,7 +351,7 @@ def transcribe(args):
     timing = f"ASR {asr['seconds']:.0f}s" + (f", diarization {diarization['seconds']:.0f}s" if diarization else "")
     log(f"Transcript {output}: language {asr['language']}, {len(lines)} lines, dropped {dropped}, {timing}, "
         f"total {time.time() - t0:.0f}s")
-    emit("done", output=str(output), language=asr["language"], lines=len(lines), dropped=dropped,
+    emit("done", output=str(output), language=asr["language"], lines=len(lines) - len(markers), dropped=dropped,
          seconds=round(time.time() - t0), speakers=speakers_summary)
 
 

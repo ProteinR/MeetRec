@@ -125,6 +125,9 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 12) {
             header
             recordButton
+            if model.isRecording {
+                RecordingControls()
+            }
             Divider()
             if model.isRecording, let health = model.health {
                 StatusPanel(health: health)
@@ -146,6 +149,9 @@ struct ContentView: View {
             }
             Divider()
             folderRow
+            if !model.isRecording {
+                LoginItemToggle()
+            }
             if let notice = model.stopNotice, !model.isRecording {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: notice.hasPrefix("Запись прервалась") ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
@@ -365,7 +371,12 @@ struct StatusPanel: View {
             StatusRow(icon: "speaker.wave.2.fill", signal: health.systemAudio)
             StatusRow(icon: "display", signal: health.screen)
             StatusRow(icon: "internaldrive", signal: health.file)
-            if health.hasProblem {
+            if health.file.state == .noSignal {
+                Text("Заканчивается место на диске. Запись остановится сама, когда останется меньше \(DiskSpace.format(DiskSpace.stopBelow)).")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if health.hasProblem {
                 Text("Один из источников не передаёт сигнал. Проверьте устройство или остановите и начните запись заново.")
                     .font(.caption)
                     .foregroundStyle(.red)
@@ -428,5 +439,76 @@ struct LevelMeter: View {
         }
         .frame(height: 5)
         .animation(.linear(duration: 0.15), value: levelDB)
+    }
+}
+
+/// While recording: mark the current moment, and choose between the whole screen and one window.
+struct RecordingControls: View {
+    @EnvironmentObject private var model: RecorderModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                model.addMarker()
+            } label: {
+                HStack {
+                    Image(systemName: "star.fill").foregroundStyle(.yellow)
+                    Text("Отметить момент")
+                    Spacer()
+                    Text(RecorderModel.markerHotKeyHint).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .controlSize(.large)
+            .help("Отметка попадёт в транскрипт как «⭐ время»")
+            if let last = model.markers.last {
+                Text("Отметок: \(model.markers.count), последняя на \(last.timeText)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            HStack {
+                Text("Записывать")
+                Spacer()
+                Menu {
+                    Button {
+                        model.record(window: nil)
+                    } label: {
+                        Label("Весь экран", systemImage: model.captureWindow == nil ? "checkmark" : "display")
+                    }
+                    Divider()
+                    if model.windows.isEmpty {
+                        Text("Нет окон")
+                    }
+                    ForEach(model.windows) { window in
+                        Button {
+                            model.record(window: window)
+                        } label: {
+                            if model.captureWindow?.id == window.id {
+                                Label(window.label, systemImage: "checkmark")
+                            } else {
+                                Text(window.label)
+                            }
+                        }
+                    }
+                    Divider()
+                    Button("Обновить список окон") { model.refreshWindows() }
+                } label: {
+                    Text(model.captureWindow.map { $0.label } ?? "Весь экран")
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 210)
+                .disabled(model.isBusy)
+            }
+            if model.captureWindow != nil {
+                Text("Пишется только это окно: другие окна и уведомления в запись не попадут.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .onAppear { model.refreshWindows() }
+        .onChange(of: model.panelVisible) { if model.panelVisible { model.refreshWindows() } }
     }
 }
