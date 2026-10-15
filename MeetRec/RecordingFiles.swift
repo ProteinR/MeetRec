@@ -175,23 +175,40 @@ enum RecordingFiles {
 /// live on the file; an extended attribute survives renames and moving to the Trash.
 enum RecordingTag {
     static let attribute = "com.dmemruk.MeetRec.meetingApp"
+    /// Id of the browser rule ("Vimbox" → Skyeng) that started the recording.
+    static let ruleAttribute = "com.dmemruk.MeetRec.rule"
 
     static func setMeetingApp(_ appID: String, on url: URL) {
-        let data = Array(appID.utf8)
-        let result = setxattr(url.path, attribute, data, data.count, 0, 0)
-        if result == 0 {
+        if write(appID, attribute, url) {
             Log.info("Tagged \(url.lastPathComponent) as \(appID) meeting", "files")
-        } else {
-            Log.error("Could not tag \(url.lastPathComponent) as \(appID) meeting: errno \(errno)", "files")
+        }
+    }
+
+    static func setRule(_ ruleID: String, on url: URL) {
+        if write(ruleID, ruleAttribute, url) {
+            Log.info("Tagged \(url.lastPathComponent) with browser rule \(ruleID)", "files")
         }
     }
 
     /// `MeetingApp.id` of the meeting that started the recording; nil for manual recordings.
-    static func meetingApp(of url: URL) -> String? {
-        let size = getxattr(url.path, attribute, nil, 0, 0, 0)
+    static func meetingApp(of url: URL) -> String? { read(attribute, url) }
+
+    static func rule(of url: URL) -> String? { read(ruleAttribute, url) }
+
+    private static func write(_ value: String, _ name: String, _ url: URL) -> Bool {
+        let data = Array(value.utf8)
+        guard setxattr(url.path, name, data, data.count, 0, 0) == 0 else {
+            Log.error("Could not set \(name)=\(value) on \(url.lastPathComponent): errno \(errno)", "files")
+            return false
+        }
+        return true
+    }
+
+    private static func read(_ name: String, _ url: URL) -> String? {
+        let size = getxattr(url.path, name, nil, 0, 0, 0)
         guard size > 0 else { return nil }
         var data = [UInt8](repeating: 0, count: size)
-        guard getxattr(url.path, attribute, &data, size, 0, 0) == size else { return nil }
+        guard getxattr(url.path, name, &data, size, 0, 0) == size else { return nil }
         return String(decoding: data, as: UTF8.self)
     }
 }

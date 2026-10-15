@@ -220,11 +220,15 @@ final class Transcriber: ObservableObject {
         }
     }
 
-    /// Folders the transcript of `recording` is copied to, from its meeting tag.
+    /// Folders the transcript of `recording` is copied to, from its tags: the meeting app ("teams")
+    /// and, for a recording started by a browser rule, that rule ("rule:<id>").
     func copyFolders(for recording: URL) -> [URL] {
-        guard let app = RecordingTag.meetingApp(of: recording) else { return [] }
-        return copyRules.filter { $0.app == app && !$0.folder.isEmpty }
-            .map { URL(fileURLWithPath: $0.folder, isDirectory: true) }
+        var keys: Set<String> = []
+        if let app = RecordingTag.meetingApp(of: recording) { keys.insert(app) }
+        if let rule = RecordingTag.rule(of: recording) { keys.insert(CopyRule.ruleKey(rule)) }
+        let folders = copyRules.filter { keys.contains($0.app) && !$0.folder.isEmpty }.map(\.folder)
+        return Array(NSOrderedSet(array: folders)).compactMap { $0 as? String }
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
     }
 
     /// The single "meeting transcripts folder" of earlier versions becomes the rule "Teams → folder".
@@ -498,7 +502,9 @@ private final class OutputCollector: @unchecked Sendable {
 /// "Copy transcripts of <app> recordings to <folder>".
 struct CopyRule: Codable, Identifiable, Equatable {
     var id = UUID()
-    /// `MeetingApp.id`, matched against the recording's meeting tag.
+    /// `MeetingApp.id` matched against the recording's meeting tag, or `rule:<BrowserRule id>`.
     var app: String
     var folder: String
+
+    static func ruleKey(_ ruleID: String) -> String { "rule:\(ruleID)" }
 }

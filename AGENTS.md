@@ -96,7 +96,9 @@ What MeetRec does instead:
   the call ends); "Не сейчас" is silent for the rest of that call.
 
 - Browser rules (`browserAutoRules`): text in a browser window title (active tab) → record without
-  asking, with an optional file title, e.g. "Vimbox" → "Skyeng" for English lessons.
+  asking, with an optional file title, e.g. "Vimbox" → "Skyeng" for English lessons. Such recordings
+  also get the xattr `com.dmemruk.MeetRec.rule = <rule id>`, and copy rules can target a browser
+  rule (`rule:<id>`), so e.g. Skyeng lessons are copied to their own folder.
 - Settings live on a separate page behind the gear (general: folder, log, launch at login,
   watchdog; video; transcription incl. copy rules; meetings incl. browser rules; menu bar look with
   a preview). The main page keeps the daily things.

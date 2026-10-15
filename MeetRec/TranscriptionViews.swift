@@ -173,8 +173,17 @@ struct TranscriptionStatus: View {
 /// "Копировать транскрипты": rules "app → folder", each with its own folder; "+" adds another.
 struct CopyRulesEditor: View {
     @EnvironmentObject private var transcriber: Transcriber
+    @EnvironmentObject private var model: RecorderModel
 
     private var apps: [MeetingApp] { MeetingApp.all.filter(\.supported) }
+
+    /// Apps, then browser rules ("Skyeng (браузер)"): each can have its own folder.
+    private var sources: [(key: String, title: String)] {
+        apps.map { ($0.id, $0.id == "browser" ? "Браузер (все)" : $0.name.replacingOccurrences(of: "Microsoft ", with: "")) }
+            + model.browserRules.filter { !$0.keyword.isEmpty }.map { rule in
+                (CopyRule.ruleKey(rule.id.uuidString), "\(rule.title.isEmpty ? rule.keyword : rule.title) (браузер)")
+            }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -182,7 +191,7 @@ struct CopyRulesEditor: View {
             ForEach(transcriber.copyRules) { rule in
                 HStack(spacing: 6) {
                     Picker("Приложение", selection: appBinding(rule)) {
-                        ForEach(apps) { Text($0.id == "browser" ? "Браузер" : $0.name.replacingOccurrences(of: "Microsoft ", with: "")).tag($0.id) }
+                        ForEach(sources, id: \.key) { Text($0.title).tag($0.key) }
                     }
                     .labelsHidden()
                     .fixedSize()

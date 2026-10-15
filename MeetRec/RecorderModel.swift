@@ -119,6 +119,8 @@ final class RecorderModel: ObservableObject {
     private var meetingTitle: String?
     /// Title from a browser rule, applied when the recording it starts begins.
     private var pendingTitle: String?
+    /// The browser rule that is starting a recording, tagged on its file.
+    private var pendingRuleID: String?
     private var observers: [NSObjectProtocol] = []
     /// Keeps the Mac and its displays awake while recording.
     private var sleepActivity: NSObjectProtocol?
@@ -434,6 +436,7 @@ final class RecorderModel: ObservableObject {
         if app.id == "browser", let rule = matchingBrowserRule(for: app) {
             Log.info("Browser call matches rule \"\(rule.keyword)\": recording without asking", "meetings")
             pendingTitle = rule.title.trimmingCharacters(in: .whitespaces).isEmpty ? nil : RecordingFiles.sanitize(rule.title)
+            pendingRuleID = rule.id.uuidString
             start(autoApp: app)
             if MenuBarStyle.current != .discreet {
                 NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
@@ -678,6 +681,10 @@ final class RecorderModel: ObservableObject {
                 if let autoApp {
                     // Decided now, while it is known: transcription may run much later.
                     RecordingTag.setMeetingApp(autoApp.id, on: options.outputURL)
+                }
+                if let ruleID = pendingRuleID {
+                    RecordingTag.setRule(ruleID, on: options.outputURL)
+                    pendingRuleID = nil
                 }
                 recordingDisplayID = display.id
                 autoStartedBy = autoApp?.name
