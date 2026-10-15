@@ -154,6 +154,32 @@ enum RecordingFiles {
     }
 }
 
+/// Marks a video file as a meeting auto-recording (`com.dmemruk.MeetRec.meetingApp = teams`), set
+/// when recording starts. Transcription may run much later (queue, retry, "again"), so the origin must
+/// live on the file; an extended attribute survives renames and moving to the Trash.
+enum RecordingTag {
+    static let attribute = "com.dmemruk.MeetRec.meetingApp"
+
+    static func setMeetingApp(_ appID: String, on url: URL) {
+        let data = Array(appID.utf8)
+        let result = setxattr(url.path, attribute, data, data.count, 0, 0)
+        if result == 0 {
+            Log.info("Tagged \(url.lastPathComponent) as \(appID) meeting", "files")
+        } else {
+            Log.error("Could not tag \(url.lastPathComponent) as \(appID) meeting: errno \(errno)", "files")
+        }
+    }
+
+    /// `MeetingApp.id` of the meeting that started the recording; nil for manual recordings.
+    static func meetingApp(of url: URL) -> String? {
+        let size = getxattr(url.path, attribute, nil, 0, 0, 0)
+        guard size > 0 else { return nil }
+        var data = [UInt8](repeating: 0, count: size)
+        guard getxattr(url.path, attribute, &data, size, 0, 0) == size else { return nil }
+        return String(decoding: data, as: UTF8.self)
+    }
+}
+
 /// Finds a title for the recording: the window chosen for capture, or a running Teams meeting.
 enum MeetingTitle {
     /// Teams main-window sections; a window titled like this is not a meeting.

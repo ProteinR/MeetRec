@@ -47,6 +47,14 @@ What MeetRec does instead:
 - Launch at login (`SMAppService`) toggle; Teams' "Microsoft Teams Audio" loopback is hidden from
   the microphone list.
 
+- Teams auto-recordings are tagged on the video file (extended attribute
+  `com.dmemruk.MeetRec.meetingApp = teams`, set at start; survives renames and Trash). After
+  transcription their transcript is also copied to the "meeting transcripts" folder (setting
+  `meetingTranscriptsFolder`, here inventire-workspace `docs/meetings`) as `<video name>.md`: only
+  recordings of 2+ minutes, never overwriting an existing file (it may hold a Meeting Summary), and a
+  failed copy only warns. Log line `Transcript copied: <src> → <dst>`. Manual recordings are never
+  copied; their transcript stays only next to the video.
+
 Planned next: more calling apps (Telegram, Zoom, Google Meet in browsers) once checked for false positives.
 
 Principles: small, native (Swift, ScreenCaptureKit, no Electron, no third-party Swift packages),

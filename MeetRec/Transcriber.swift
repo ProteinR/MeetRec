@@ -26,6 +26,11 @@ final class Transcriber: ObservableObject {
     @AppStorage("diarization") var diarization = true
     @AppStorage("transcriptionLanguage") var language = ""
     @AppStorage("myName") var myName = ""
+    /// Where transcripts of Teams auto-recordings are also copied (e.g. a work docs repo); empty = off.
+    @AppStorage("meetingTranscriptsFolder") var meetingTranscriptsFolder = ""
+
+    /// Shorter meeting recordings are not copied: a Teams test call also takes the microphone.
+    static let minimumMeetingDuration: TimeInterval = 120
 
     // State
     @Published private(set) var modelsState: ModelsState = .checking
@@ -190,6 +195,7 @@ final class Transcriber: ObservableObject {
                 progress = nil
                 transcriptsVersion += 1
                 Log.info("Transcription finished: \(output.path) — \(summary ?? "")", "transcribe")
+                await copyMeetingTranscript(output, of: file)
             case .failure(let message):
                 job = .failed(message)
                 progress = nil
@@ -197,6 +203,53 @@ final class Transcriber: ObservableObject {
                 Log.error("Transcription failed for \(file.lastPathComponent): \(message)", "transcribe")
             }
             startNextIfIdle()
+        }
+    }
+
+    /// Teams auto-recordings: also copies the transcript to `meetingTranscriptsFolder` as
+    /// `<video name>.md`. The copy there gets edited (Meeting Summary), so it is never overwritten; the
+    /// original next to the video stays the one MeetRec uses. A failed copy does not fail transcription.
+    private func copyMeetingTranscript(_ transcript: URL, of recording: URL) async {
+        guard !meetingTranscriptsFolder.isEmpty else { return }
+        guard let app = RecordingTag.meetingApp(of: recording), app == "teams" else {
+            Log.debug("Transcript not copied: \(recording.lastPathComponent) is not a Teams auto-recording", "transcribe")
+            return
+        }
+        let duration = (try? await AVURLAsset(url: recording).load(.duration).seconds) ?? 0
+        guard duration >= Self.minimumMeetingDuration else {
+            Log.info("Transcript not copied: \(recording.lastPathComponent) is only \(Int(duration)) s (test call?)", "transcribe")
+            return
+        }
+        let folder = URL(fileURLWithPath: meetingTranscriptsFolder, isDirectory: true)
+        let destination = folder.appendingPathComponent(recording.deletingPathExtension().lastPathComponent)
+            .appendingPathExtension("md")
+        if FileManager.default.fileExists(atPath: destination.path) {
+            Log.info("Transcript not copied: \(destination.path) already exists (kept as is)", "transcribe")
+            return
+        }
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: transcript, to: destination)
+            Log.info("Transcript copied: \(transcript.path) → \(destination.path)", "transcribe")
+        } catch {
+            Log.warning("Transcript copy to \(destination.path) failed: \(Log.describe(error))", "transcribe")
+            Notifier.shared.send(id: "meetrec-copy-failed", title: "Транскрипт встречи не скопирован",
+                                 body: "Не удалось скопировать в «\(folder.lastPathComponent)»: \(error.localizedDescription). Он лежит рядом с видео.")
+        }
+    }
+
+    func chooseMeetingTranscriptsFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        if !meetingTranscriptsFolder.isEmpty {
+            panel.directoryURL = URL(fileURLWithPath: meetingTranscriptsFolder, isDirectory: true)
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        if panel.runModal() == .OK, let url = panel.url {
+            meetingTranscriptsFolder = url.path
+            Log.info("Meeting transcripts folder set to \(url.path)", "transcribe")
         }
     }
 

@@ -312,7 +312,8 @@ struct RecordingRow: View {
     private var subtitle: String {
         let size = ByteCountFormatter.string(fromByteCount: item.size, countStyle: .file)
         if let snippet = item.snippet { return snippet }
+        let teams = RecordingTag.meetingApp(of: item.url) == "teams" ? "Teams · " : ""
         // Date-only names already show the date as the title.
-        return parts.title.isEmpty ? size : "\(Self.dateFormatter.string(from: item.date)) · \(size)"
+        return teams + (parts.title.isEmpty ? size : "\(Self.dateFormatter.string(from: item.date)) · \(size)")
     }
 }

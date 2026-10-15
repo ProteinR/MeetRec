@@ -18,6 +18,7 @@ struct TranscriptionSettings: View {
                 Text("Deutsch").tag("de")
             }
             Toggle("Разбивка по ролям (кто говорит)", isOn: $transcriber.diarization)
+            meetingsFolder
             if transcriber.diarization {
                 voice
             }
@@ -28,6 +29,32 @@ struct TranscriptionSettings: View {
             }
         }
         .padding(.top, 4)
+    }
+
+    /// Where Teams auto-recordings' transcripts are also copied (a work docs repo).
+    private var meetingsFolder: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Копировать транскрипты встреч Teams в")
+            HStack {
+                Image(systemName: "folder")
+                Text(transcriber.meetingTranscriptsFolder.isEmpty
+                     ? "не копировать"
+                     : URL(fileURLWithPath: transcriber.meetingTranscriptsFolder).lastPathComponent)
+                    .foregroundStyle(transcriber.meetingTranscriptsFolder.isEmpty ? .secondary : .primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(transcriber.meetingTranscriptsFolder)
+                Spacer()
+                Button("Изменить") { transcriber.chooseMeetingTranscriptsFolder() }
+                if !transcriber.meetingTranscriptsFolder.isEmpty {
+                    Button("Убрать") { transcriber.meetingTranscriptsFolder = "" }
+                }
+            }
+            Text("Только автозаписи встреч Teams длиннее \(Int(Transcriber.minimumMeetingDuration / 60)) мин. Транскрипт остаётся и рядом с видео; файл в этой папке никогда не перезаписывается.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     @ViewBuilder

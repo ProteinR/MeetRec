@@ -68,6 +68,8 @@ final class RecorderModel: ObservableObject {
     @Published private(set) var detectorStatus: String?
     /// Name of the app whose meeting started the current recording; nil for manual recordings.
     @Published private(set) var autoStartedBy: String?
+    /// `MeetingApp.id` behind `autoStartedBy`, for the file tag.
+    private var autoStartedAppID: String?
     /// Shown in the panel after a recording stops ("Запись остановлена · 34:12 · …") until the next start.
     @Published var stopNotice: String?
     /// Whether the menu panel is on screen; drives the microphone level preview.
@@ -325,8 +327,13 @@ final class RecorderModel: ObservableObject {
                 Log.info("Starting: display=\(display.id) \"\(display.name)\" (setting=\(displayID == Self.autoDisplay ? "auto" : String(displayID))) mic=\(microphones.first(where: { $0.id == microphoneID })?.name ?? "default: \(AVCaptureDevice.default(for: .audio)?.localizedName ?? "none")")")
                 recordingNames = (microphone: resolvedMicrophoneName(), display: display.name)
                 try await recorder.start(options)
+                if let autoApp {
+                    // Decided now, while it is known: transcription may run much later.
+                    RecordingTag.setMeetingApp(autoApp.id, on: options.outputURL)
+                }
                 recordingDisplayID = display.id
                 autoStartedBy = autoApp?.name
+                autoStartedAppID = autoApp?.id
                 didStart()
                 if let free, free < DiskSpace.warnBelow {
                     alert("disk-low", when: true, title: "Мало места на диске",
@@ -348,8 +355,12 @@ final class RecorderModel: ObservableObject {
         Log.info("Stopping after \(elapsedText)\(reason.map { " (\($0))" } ?? "")")
         let duration = elapsedText
         let title = meetingTitle
+        let appID = autoStartedAppID
         Task {
             var file = await recorder.stop()
+            if let recorded = file, let appID, RecordingTag.meetingApp(of: recorded) == nil {
+                RecordingTag.setMeetingApp(appID, on: recorded)
+            }
             if let recorded = file, let title {
                 file = renameWithTitle(recorded, title: title)
             }
@@ -604,6 +615,7 @@ final class RecorderModel: ObservableObject {
         startedAt = nil
         recordingDisplayID = nil
         autoStartedBy = nil
+        autoStartedAppID = nil
         captureWindow = nil
         windows = []
         if !markers.isEmpty { Log.info("Recording had \(markers.count) marker(s): " + markers.map(\.timeText).joined(separator: ", ")) }
