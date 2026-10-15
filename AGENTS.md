@@ -40,9 +40,10 @@ What MeetRec does instead:
   inserted into the transcript; switching to a single window (others and notifications left out),
   falling back to the whole screen if that window closes.
 - Disk space guard: no start below 1 GB free, warning below 3 GB, automatic clean stop below 500 MB.
-- File names get the meeting title (recorded window or Teams meeting window) before the timestamp,
-  which always stays at the end: `Weekly sync 2026-10-16 14-03-22.mov`. The recordings list can
-  rename (keeping the timestamp), move to Trash, re-transcribe (new `name (2).md`, old kept) and search
+- File names get the Teams meeting window's title (only that; browser tabs and other windows are
+  ignored) after the timestamp,
+  which always comes first so Finder sorts by time: `2026-10-16 14-03-22 Weekly sync.mov`. The
+  recordings list can rename (keeping the timestamp first), move to Trash, re-transcribe (new `name (2).md`, old kept) and search
   names and transcript text. Renames and deletes take the `.md` and `.markers.json` files along.
 - Launch at login (`SMAppService`) toggle; Teams' "Microsoft Teams Audio" loopback is hidden from
   the microphone list.

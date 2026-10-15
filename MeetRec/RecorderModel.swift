@@ -744,21 +744,23 @@ final class RecorderModel: ObservableObject {
         }
     }
 
-    /// Remembers a title for the file name: the recorded window's, else an open Teams meeting's.
+    /// Remembers a title for the file name: an open Teams meeting's. Other windows (a browser tab,
+    /// an app chosen for single-window capture) are not used: their titles are incidental and change.
     private func updateMeetingTitle(force: Bool = false) {
         guard force || Date().timeIntervalSince(lastTitleCheck) >= 15 else { return }
         lastTitleCheck = Date()
-        let title = captureWindow.flatMap { MeetingTitle.title(ofWindow: $0.id) } ?? MeetingTitle.teamsMeeting()
+        let title = MeetingTitle.teamsMeeting()
         if let title, title != meetingTitle {
             Log.info("Recording title: \"\(title)\"")
             meetingTitle = title
         }
     }
 
-    /// "2026-10-16 14-03-22.mov" → "Weekly sync 2026-10-16 14-03-22.mov"; keeps the old name on failure.
+    /// "2026-10-16 14-03-22.mov" → "2026-10-16 14-03-22 Weekly sync.mov"; keeps the old name on failure.
     private func renameWithTitle(_ file: URL, title: String) -> URL {
         let stem = file.deletingPathExtension().lastPathComponent
-        let newStem = RecordingFiles.uniqueStem(RecordingFiles.sanitize(title) + " " + stem, in: file.deletingLastPathComponent(),
+        let newStem = RecordingFiles.uniqueStem(RecordingFiles.stem(timestamp: stem, title: RecordingFiles.sanitize(title)),
+                                                in: file.deletingLastPathComponent(),
                                                 ext: file.pathExtension)
         do {
             return try RecordingFiles.rename(file, to: newStem)

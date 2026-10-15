@@ -289,7 +289,7 @@ struct RecordingRow: View {
     private func commitRename() {
         renaming = false
         let title = RecordingFiles.sanitize(newTitle)
-        let stem = [title, parts.timestamp].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: " ")
+        let stem = RecordingFiles.stem(timestamp: parts.timestamp, title: title)
         guard !stem.isEmpty, !isLocked else { return }
         do {
             let renamed = try RecordingFiles.rename(item.url, to: stem)

@@ -60,7 +60,8 @@ enum MarkerFile {
 
 /// Naming, renaming and deleting recordings together with their transcripts and markers.
 enum RecordingFiles {
-    /// Timestamp MeetRec (and OBS) put into file names; kept at the end of every name.
+    /// Timestamp MeetRec (and OBS) put into file names. It always comes first, so Finder sorts
+    /// recordings by time; a title follows it: "2026-10-16 14-03-22 Weekly sync".
     static let timestampPattern = #"\d{4}-\d{2}-\d{2} \d{2}-\d{2}(-\d{2})?"#
 
     static func timestamp(_ date: Date) -> String {
@@ -70,14 +71,23 @@ enum RecordingFiles {
         return formatter.string(from: date)
     }
 
-    /// Splits "Weekly sync 2026-10-16 14-03-22" into ("Weekly sync", "2026-10-16 14-03-22").
+    /// Splits "2026-10-16 14-03-22 Weekly sync" into ("Weekly sync", "2026-10-16 14-03-22"). Also
+    /// understands the older "Weekly sync 2026-10-16 14-03-22".
     static func split(_ stem: String) -> (title: String, timestamp: String?) {
-        guard let range = stem.range(of: "(^| )" + timestampPattern + "$", options: .regularExpression) else {
-            return (stem, nil)
+        if let range = stem.range(of: "^" + timestampPattern + "( |$)", options: .regularExpression) {
+            let timestamp = String(stem[range]).trimmingCharacters(in: .whitespaces)
+            return (String(stem[range.upperBound...]).trimmingCharacters(in: .whitespaces), timestamp)
         }
-        let title = String(stem[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
-        let timestamp = String(stem[range]).trimmingCharacters(in: .whitespaces)
-        return (title, timestamp)
+        if let range = stem.range(of: " " + timestampPattern + "$", options: .regularExpression) {
+            let timestamp = String(stem[range]).trimmingCharacters(in: .whitespaces)
+            return (String(stem[..<range.lowerBound]).trimmingCharacters(in: .whitespaces), timestamp)
+        }
+        return (stem, nil)
+    }
+
+    /// "2026-10-16 14-03-22" + "Weekly sync" → "2026-10-16 14-03-22 Weekly sync".
+    static func stem(timestamp: String?, title: String) -> String {
+        [timestamp, title].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
     }
 
     /// Makes a meeting or window title safe and short enough for a file name.
