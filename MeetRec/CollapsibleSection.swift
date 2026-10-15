@@ -14,7 +14,9 @@ struct CollapsibleSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                withAnimation(.easeInOut(duration: 0.18)) { isExpanded.toggle() }
+                // No animated height change: the panel window resizes to the new content size in one
+                // step, and an animated SwiftUI transition inside it made the content jump.
+                isExpanded.toggle()
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: icon)
@@ -37,6 +39,7 @@ struct CollapsibleSection<Content: View>: View {
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        .animation(.easeInOut(duration: 0.15), value: isExpanded)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
@@ -51,7 +54,6 @@ struct CollapsibleSection<Content: View>: View {
                     .padding(.horizontal, 12)
                     .padding(.top, 4)
                     .padding(.bottom, 10)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .background(

@@ -69,8 +69,14 @@ final class MenuPanelController: NSObject, NSWindowDelegate {
         ])
         panel.contentView = background
 
+        // Resize in the same run loop pass as the SwiftUI layout change. Deferring it (Task / async)
+        // let one frame render the new content inside the old frame, which looked like a jump.
         sizeObservation = hosting.observe(\.preferredContentSize, options: [.new]) { [weak self] _, _ in
-            Task { @MainActor in self?.applySize() }
+            if Thread.isMainThread {
+                MainActor.assumeIsolated { self?.applySize() }
+            } else {
+                DispatchQueue.main.async { self?.applySize() }
+            }
         }
     }
 
