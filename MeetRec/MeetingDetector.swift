@@ -13,17 +13,38 @@ struct MeetingApp: Identifiable, Hashable {
     let supported: Bool
     /// Why an app is not supported yet.
     var note: String?
+    /// Ask before recording instead of starting on its own: browsers and Telegram also use the
+    /// microphone for things that are not calls (dictation, voice messages).
+    var asks = false
+    /// How long the app must hold the microphone before it counts as a call.
+    var startAfter: TimeInterval = MeetingDetector.startAfter
 
     static let all: [MeetingApp] = [
         MeetingApp(id: "teams", name: "Microsoft Teams", bundlePrefixes: ["com.microsoft.teams2", "com.microsoft.teams"], supported: true),
         MeetingApp(id: "zoom", name: "Zoom", bundlePrefixes: ["us.zoom.xos"], supported: false, note: "скоро"),
-        MeetingApp(id: "telegram", name: "Telegram", bundlePrefixes: ["ru.keepcoder.Telegram", "org.telegram.desktop"], supported: false,
-                   note: "скоро: держит микрофон и для голосовых сообщений"),
+        MeetingApp(id: "telegram", name: "Telegram", bundlePrefixes: ["ru.keepcoder.Telegram", "org.telegram.desktop"], supported: true,
+                   asks: true, startAfter: 15),
+        // Calls in a browser (Google Meet, Teams web, Zoom web…). Chromium browsers capture audio in
+        // helper processes, Safari in the WebKit GPU process; prefixes cover both.
+        MeetingApp(id: "browser", name: "Браузер",
+                   bundlePrefixes: ["com.google.Chrome", "com.apple.Safari", "com.apple.WebKit.GPU", "company.thebrowser.Browser",
+                                    "com.microsoft.edgemac", "org.mozilla.firefox", "ru.yandex.desktop.yandex-browser",
+                                    "com.brave.Browser", "com.operasoftware.Opera", "com.vivaldi.Vivaldi"],
+                   supported: true, asks: true, startAfter: 10),
         MeetingApp(id: "slack", name: "Slack", bundlePrefixes: ["com.tinyspeck.slackmacgap"], supported: false, note: "скоро"),
         MeetingApp(id: "webex", name: "Webex", bundlePrefixes: ["Cisco-Systems.Spark"], supported: false, note: "скоро"),
         MeetingApp(id: "facetime", name: "FaceTime", bundlePrefixes: ["com.apple.FaceTime"], supported: false, note: "скоро"),
         MeetingApp(id: "discord", name: "Discord", bundlePrefixes: ["com.hnc.Discord"], supported: false, note: "скоро"),
     ]
+
+    /// Where the call is, for messages: "в Teams", "в браузере", "в Telegram".
+    var place: String {
+        switch id {
+        case "teams": return "Teams"
+        case "browser": return "браузере"
+        default: return name
+        }
+    }
 
     /// The main bundle ID, used to check whether the app is installed.
     var mainBundleID: String { bundlePrefixes[0] }
@@ -45,7 +66,7 @@ struct MeetingApp: Identifiable, Hashable {
 ///   muted participant does not end the meeting.
 @MainActor
 final class MeetingDetector {
-    static let startAfter: TimeInterval = 5
+    nonisolated static let startAfter: TimeInterval = 5
     static let endAfter: TimeInterval = 15
     /// Each poll is a few CoreAudio IPC calls; every 2 s is plenty for 5 s / 15 s thresholds.
     private static let pollInterval: TimeInterval = 2
@@ -115,7 +136,7 @@ final class MeetingDetector {
             }
             let held = now.timeIntervalSince(activeSince ?? now)
             if meetingApp == nil {
-                if held >= Self.startAfter {
+                if held >= holding.startAfter {
                     meetingApp = holding
                     Log.info("Meeting started in \(holding.name) (mic held \(Int(held)) s)", "meetings")
                     onMeetingStarted?(holding)
@@ -124,7 +145,7 @@ final class MeetingDetector {
                 }
             }
             if meetingApp != nil {
-                onStatus?("Идёт встреча в \(Self.shortName(meetingApp!))")
+                onStatus?("Идёт \(meetingApp!.asks ? "звонок" : "встреча") в \(meetingApp!.place)")
             }
         } else {
             if let app = activeApp {

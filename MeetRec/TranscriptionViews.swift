@@ -36,31 +36,7 @@ struct TranscriptionSettings: View {
         .padding(.top, 4)
     }
 
-    /// Where Teams auto-recordings' transcripts are also copied (a work docs repo).
-    private var meetingsFolder: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("Копировать транскрипты встреч Teams в")
-            HStack {
-                Image(systemName: "folder")
-                Text(transcriber.meetingTranscriptsFolder.isEmpty
-                     ? "не копировать"
-                     : URL(fileURLWithPath: transcriber.meetingTranscriptsFolder).lastPathComponent)
-                    .foregroundStyle(transcriber.meetingTranscriptsFolder.isEmpty ? .secondary : .primary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(transcriber.meetingTranscriptsFolder)
-                Spacer()
-                Button("Изменить") { transcriber.chooseMeetingTranscriptsFolder() }
-                if !transcriber.meetingTranscriptsFolder.isEmpty {
-                    Button("Убрать") { transcriber.meetingTranscriptsFolder = "" }
-                }
-            }
-            Text("Только автозаписи встреч Teams длиннее \(Int(Transcriber.minimumMeetingDuration / 60)) мин. Транскрипт остаётся и рядом с видео; файл в этой папке никогда не перезаписывается.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
+    private var meetingsFolder: some View { CopyRulesEditor() }
 
     @ViewBuilder
     private var models: some View {
@@ -191,5 +167,69 @@ struct TranscriptionStatus: View {
     private static func format(_ seconds: TimeInterval) -> String {
         let total = Int(seconds)
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+/// "Копировать транскрипты": rules "app → folder", each with its own folder; "+" adds another.
+struct CopyRulesEditor: View {
+    @EnvironmentObject private var transcriber: Transcriber
+
+    private var apps: [MeetingApp] { MeetingApp.all.filter(\.supported) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Копировать транскрипты встреч")
+            ForEach(transcriber.copyRules) { rule in
+                HStack(spacing: 6) {
+                    Picker("Приложение", selection: appBinding(rule)) {
+                        ForEach(apps) { Text($0.id == "browser" ? "Браузер" : $0.name.replacingOccurrences(of: "Microsoft ", with: "")).tag($0.id) }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    Image(systemName: "arrow.right").foregroundStyle(.secondary).font(.caption)
+                    Button {
+                        if let path = transcriber.chooseFolder(startingAt: rule.folder) { update(rule) { $0.folder = path } }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "folder")
+                            Text(rule.folder.isEmpty ? "Выбрать папку…" : URL(fileURLWithPath: rule.folder).lastPathComponent)
+                                .lineLimit(1).truncationMode(.middle)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .help(rule.folder.isEmpty ? "Куда копировать" : rule.folder)
+                    Button {
+                        transcriber.copyRules.removeAll { $0.id == rule.id }
+                    } label: {
+                        Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Убрать правило")
+                }
+            }
+            Button {
+                let used = Set(transcriber.copyRules.map(\.app))
+                let app = apps.first { !used.contains($0.id) }?.id ?? "teams"
+                transcriber.copyRules.append(CopyRule(app: app, folder: ""))
+            } label: {
+                Label(transcriber.copyRules.isEmpty ? "Добавить приложение" : "Добавить ещё", systemImage: "plus.circle.fill")
+            }
+            .buttonStyle(.borderless)
+            Text("Для записей встреч (начатых сами или по вопросу о звонке) длиннее \(Int(Transcriber.minimumMeetingDuration / 60)) мин. Транскрипт остаётся и рядом с видео; файл в папке никогда не перезаписывается.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func appBinding(_ rule: CopyRule) -> Binding<String> {
+        Binding(get: { rule.app }, set: { value in update(rule) { $0.app = value } })
+    }
+
+    private func update(_ rule: CopyRule, _ change: (inout CopyRule) -> Void) {
+        var rules = transcriber.copyRules
+        guard let index = rules.firstIndex(where: { $0.id == rule.id }) else { return }
+        change(&rules[index])
+        transcriber.copyRules = rules
     }
 }

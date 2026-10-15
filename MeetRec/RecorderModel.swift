@@ -49,6 +49,8 @@ final class RecorderModel: ObservableObject {
     @AppStorage("microphone") var microphone = true
     @AppStorage("microphoneID") var microphoneID = ""
     @AppStorage("meetingDetection") var meetingDetection = false
+    /// JSON of `browserRules`.
+    @AppStorage("browserAutoRules") private var browserRulesJSON = ""
     /// Relaunch MeetRec after a crash and continue an interrupted recording (see `Watchdog`).
     @AppStorage("crashWatchdog") var crashWatchdog = true
     /// Comma-separated `MeetingApp.id`s chosen for detection.
@@ -69,6 +71,8 @@ final class RecorderModel: ObservableObject {
     @Published var errorMessage: String?
     /// Detector state for the UI ("Жду встречу", "Идёт встреча в Teams"…); nil when detection is off.
     @Published private(set) var detectorStatus: String?
+    /// A call noticed in an ask-first app (browser, Telegram): the panel asks "Записать?".
+    @Published private(set) var callPrompt: MeetingApp?
     /// Name of the app whose meeting started the current recording; nil for manual recordings.
     @Published private(set) var autoStartedBy: String?
     /// `MeetingApp.id` behind `autoStartedBy`, for the file tag.
@@ -111,8 +115,10 @@ final class RecorderModel: ObservableObject {
     private var lastDiskCheck = Date.distantPast
     private var lastTitleCheck = Date.distantPast
     private var lastWindowCheck = Date.distantPast
-    /// Best title for the file name, found while recording (chosen window or Teams meeting).
+    /// Best title for the file name, found while recording (Teams meeting, or a browser rule).
     private var meetingTitle: String?
+    /// Title from a browser rule, applied when the recording it starts begins.
+    private var pendingTitle: String?
     private var observers: [NSObjectProtocol] = []
     /// Keeps the Mac and its displays awake while recording.
     private var sleepActivity: NSObjectProtocol?
@@ -305,10 +311,18 @@ final class RecorderModel: ObservableObject {
             Log.info("Meeting window warning ignored for this recording")
         } else if action.hasPrefix("switch-display:"), let id = UInt32(action.dropFirst("switch-display:".count)) {
             switchDisplay(to: CGDirectDisplayID(id))
+        } else if action == "dismiss-call" {
+            dismissCallPrompt()
         } else if action.hasPrefix("start-meeting:") {
             let app = MeetingApp.all.first { $0.id == String(action.dropFirst("start-meeting:".count)) }
-            if !isRecording { start(autoApp: app) }
-            NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
+            if callPrompt != nil {
+                acceptCallPrompt()
+            } else if !isRecording {
+                start(autoApp: app)
+            }
+            if MenuBarStyle.current != .discreet {
+                NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
+            }
         } else if action.hasPrefix("open-privacy:") {
             let pane = action.hasSuffix("screen") ? "Privacy_ScreenCapture" : "Privacy_Microphone"
             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
@@ -404,6 +418,79 @@ final class RecorderModel: ObservableObject {
         return (common.width * common.height) / (rect.width * rect.height)
     }
 
+    // MARK: - Ask-first calls (browser, Telegram)
+
+    /// Browsers and Telegram hold the microphone for more than calls, so MeetRec asks instead of
+    /// recording on its own. "Записать" starts a meeting recording that stops when the call ends.
+    private func askToRecord(_ app: MeetingApp) {
+        guard meetingDetection else {
+            Log.info("Call in \(app.name) noticed; meeting detection is off, not asking", "meetings")
+            return
+        }
+        guard !isRecording, !isBusy else {
+            Log.info("Call in \(app.name) noticed, but a recording is already running", "meetings")
+            return
+        }
+        if app.id == "browser", let rule = matchingBrowserRule(for: app) {
+            Log.info("Browser call matches rule \"\(rule.keyword)\": recording without asking", "meetings")
+            pendingTitle = rule.title.trimmingCharacters(in: .whitespaces).isEmpty ? nil : RecordingFiles.sanitize(rule.title)
+            start(autoApp: app)
+            if MenuBarStyle.current != .discreet {
+                NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
+            }
+            return
+        }
+        Log.info("Asking whether to record the call in \(app.name)", "meetings")
+        callPrompt = app
+        if MenuBarStyle.current != .discreet {
+            NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
+        }
+        Notifier.shared.send(id: "meetrec-call-prompt", title: "Похоже, идёт звонок в \(Self.callPlace(app))",
+                             body: "Записать его?",
+                             actions: [.init(id: "start-meeting:\(app.id)", title: "Записать"),
+                                       .init(id: "dismiss-call", title: "Не сейчас")])
+    }
+
+    // MARK: - Browser rules ("record Skyeng without asking")
+
+    var browserRules: [BrowserRule] {
+        get { (try? JSONDecoder().decode([BrowserRule].self, from: Data(browserRulesJSON.utf8))) ?? [] }
+        set {
+            browserRulesJSON = (try? String(decoding: JSONEncoder().encode(newValue), as: UTF8.self)) ?? "[]"
+            Log.info("Browser auto-record rules: " + newValue.map { "\"\($0.keyword)\" → \"\($0.title)\"" }.joined(separator: "; "), "meetings")
+        }
+    }
+
+    /// A rule whose text appears in the title of a browser window (its active tab).
+    private func matchingBrowserRule(for app: MeetingApp) -> BrowserRule? {
+        let rules = browserRules.filter { !$0.keyword.trimmingCharacters(in: .whitespaces).isEmpty }
+        guard !rules.isEmpty else { return nil }
+        let titles = MeetingTitle.windows().filter { app.matches($0.bundleID) }.map(\.title)
+        Log.debug("Browser window titles: " + titles.map { "\"\($0)\"" }.joined(separator: ", "), "meetings")
+        return rules.first { rule in
+            titles.contains { $0.localizedCaseInsensitiveContains(rule.keyword.trimmingCharacters(in: .whitespaces)) }
+        }
+    }
+
+    func acceptCallPrompt() {
+        guard let app = callPrompt else { return }
+        callPrompt = nil
+        Notifier.shared.remove(id: "meetrec-call-prompt")
+        Log.info("User chose to record the call in \(app.name)", "meetings")
+        if !isRecording { start(autoApp: app) }
+    }
+
+    func dismissCallPrompt() {
+        guard let app = callPrompt else { return }
+        callPrompt = nil
+        remindedMeeting = app.id
+        Notifier.shared.remove(id: "meetrec-call-prompt")
+        Log.info("User declined recording the call in \(app.name)", "meetings")
+    }
+
+    /// "в браузере" / "в Telegram".
+    static func callPlace(_ app: MeetingApp) -> String { app.place }
+
     // MARK: - Meeting without recording
 
     /// Shows "встреча идёт, а запись не ведётся" once per meeting if, after `delay`, the meeting is
@@ -413,9 +500,8 @@ final class RecorderModel: ObservableObject {
             guard let self, !self.isRecording, !self.isBusy, self.detector.currentMeeting?.id == app.id,
                   self.remindedMeeting != app.id else { return }
             self.remindedMeeting = app.id
-            let name = app.id == "teams" ? "Teams" : app.name
             Log.warning("Meeting in \(app.name) is going on without a recording", "alerts")
-            Notifier.shared.send(id: "meetrec-not-recording", title: "Идёт встреча в \(name), запись не ведётся",
+            Notifier.shared.send(id: "meetrec-not-recording", title: "Идёт звонок в \(Self.callPlace(app)), запись не ведётся",
                                  body: "Нажмите «Начать запись», если встречу нужно записать.",
                                  actions: [.init(id: "start-meeting:\(app.id)", title: "Начать запись")])
         }
@@ -504,6 +590,10 @@ final class RecorderModel: ObservableObject {
 
     private func meetingStarted(_ app: MeetingApp) {
         remindedMeeting = nil
+        if app.asks {
+            askToRecord(app)
+            return
+        }
         guard meetingDetection else {
             Log.info("Meeting in \(app.name) started; auto-recording is off", "meetings")
             scheduleMeetingReminder(app, after: 10)
@@ -526,6 +616,11 @@ final class RecorderModel: ObservableObject {
     private func meetingEnded(_ app: MeetingApp) {
         remindedMeeting = nil
         Notifier.shared.remove(id: "meetrec-not-recording")
+        if callPrompt?.id == app.id {
+            callPrompt = nil
+            Notifier.shared.remove(id: "meetrec-call-prompt")
+            Log.info("Call in \(app.name) ended before an answer to the prompt", "meetings")
+        }
         guard isRecording else { return }
         guard autoStartedBy != nil else {
             Log.info("Meeting in \(app.name) ended; the recording was started manually, so it keeps running", "meetings")
@@ -533,7 +628,7 @@ final class RecorderModel: ObservableObject {
         }
         Log.info("Auto-stopping recording: \(app.name) meeting ended", "meetings")
         // Show the panel again at the end, so it is obvious that recording stopped.
-        stop(reason: "встреча в \(app.id == "teams" ? "Teams" : app.name) завершилась",
+        stop(reason: app.asks ? "звонок в \(Self.callPlace(app)) завершился" : "встреча в \(Self.callPlace(app)) завершилась",
              showPanel: MenuBarStyle.current != .discreet)
     }
 
@@ -812,7 +907,8 @@ final class RecorderModel: ObservableObject {
                                       microphoneName: recordingNames.microphone, displayName: recordingNames.display)
         markers = []
         captureWindow = nil
-        meetingTitle = nil
+        meetingTitle = pendingTitle
+        pendingTitle = nil
         live.update(load: nil)
         loadSampler = LoadSampler()
         _ = loadSampler.sample()
@@ -823,6 +919,10 @@ final class RecorderModel: ObservableObject {
         meetingWindowProblemSince = nil
         lastMeetingWindowCheck = Date() // give the meeting window time to open
         Notifier.shared.remove(id: "meetrec-not-recording")
+        if callPrompt != nil {
+            callPrompt = nil
+            Notifier.shared.remove(id: "meetrec-call-prompt")
+        }
         if let file = recorder.currentFile().url {
             Watchdog.recordingStarted(file: file, autoAppID: autoStartedAppID)
         }
@@ -1002,4 +1102,13 @@ final class RecorderModel: ObservableObject {
         }
         return true
     }
+}
+
+/// "If a browser tab titled like this has a call, record it without asking", e.g. "Vimbox" → "Skyeng".
+struct BrowserRule: Codable, Identifiable, Equatable {
+    var id = UUID()
+    /// Text looked for in browser window titles (the active tab), case-insensitive.
+    var keyword: String
+    /// Put into the file name after the timestamp; empty keeps just the date.
+    var title: String
 }

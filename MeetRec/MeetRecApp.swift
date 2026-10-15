@@ -1,3 +1,4 @@
+import AVFoundation
 import Combine
 import Quartz
 import SwiftUI
@@ -165,15 +166,123 @@ struct ContentView: View {
     @EnvironmentObject private var transcriber: Transcriber
     @StateObject private var micMonitor = MicrophoneMonitor()
     @State private var openSection: String?
+    @State private var showingSettings = false
 
     private func expanded(_ section: String) -> Binding<Bool> {
         Binding(get: { openSection == section }, set: { openSection = $0 ? section : nil })
     }
 
     var body: some View {
+        Group {
+            if showingSettings && !model.isRecording {
+                settingsPage
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else {
+                mainPage
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+        }
+        .animation(.smooth(duration: 0.3), value: showingSettings)
+        .padding(14)
+        .frame(width: MenuPanelController.cardWidth)
+        .onAppear {
+            model.refreshDevices()
+            transcriber.refreshModels()
+        }
+        .onExitCommand { if showingSettings { showingSettings = false } else { close() } }
+        // Every opening starts on the main page with all sections folded; reset while hidden, so
+        // nothing animates.
+        .onChange(of: model.panelVisible) { _, visible in
+            guard !visible, openSection != nil || showingSettings else { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                openSection = nil
+                showingSettings = false
+            }
+        }
+        .background {
+            // ⌘W closes the panel; the app has no menu bar menu to provide it.
+            Button("", action: close).keyboardShortcut("w", modifiers: .command).hidden()
+        }
+    }
+
+    /// Settings that rarely change, behind the gear button.
+    private var settingsPage: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Button {
+                    showingSettings = false
+                } label: {
+                    Label("Назад", systemImage: "chevron.left")
+                }
+                .buttonStyle(.borderless)
+                Spacer()
+                Text("Настройки").font(.headline)
+                Spacer()
+                // Balances the back button so the title stays centred.
+                Label("Назад", systemImage: "chevron.left").hidden()
+            }
+            generalSettings
+            // Accordion: one card open at a time keeps the page within the screen height.
+            VStack(spacing: 8) {
+                CollapsibleSection(title: "Видео", icon: "video.fill", summary: videoSummary,
+                                   isExpanded: expanded("video")) { videoSettings }
+                CollapsibleSection(title: "Транскрибация", icon: "text.bubble.fill", summary: transcriptionSummary,
+                                   isExpanded: expanded("transcription")) { TranscriptionSettings() }
+                CollapsibleSection(title: "Автозапись встреч", icon: "person.2.wave.2.fill", summary: meetingSummary,
+                                   isExpanded: expanded("meetings")) { MeetingSettings() }
+                CollapsibleSection(title: "Значок в меню", icon: "menubar.rectangle", summary: appearanceSummary,
+                                   isExpanded: expanded("appearance")) { AppearanceSettings() }
+            }
+        }
+    }
+
+    /// Folder, launch at login, crash watchdog.
+    private var generalSettings: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "folder")
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Папка для записей").font(.callout)
+                    Text(model.folderPath).font(.caption).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+                Spacer(minLength: 4)
+                Button("Изменить") { model.chooseFolder() }
+            }
+            HStack(spacing: 8) {
+                Image(systemName: "doc.text.magnifyingglass")
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Журнал").font(.callout)
+                    Text("Подробный лог: запись, звук, встречи, транскрибация").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 4)
+                Button("Открыть") { model.openLog() }
+            }
+            HStack(alignment: .top, spacing: 20) {
+                LoginItemToggle()
+                Toggle("Перезапуск после сбоя", isOn: Binding(get: { model.crashWatchdog },
+                                                               set: { model.setCrashWatchdog($0) }))
+                    .help("Если MeetRec упадёт, он запустится снова через несколько секунд и продолжит запись")
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.08)))
+    }
+
+    private var mainPage: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
-            recordButton
+            // A noticed call replaces the start button: one clear question instead of two red buttons.
+            if let app = model.callPrompt, !model.isRecording {
+                CallPromptBanner(app: app)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            } else {
+                recordButton
+            }
             if model.isRecording {
                 RecordingControls()
             }
@@ -186,27 +295,9 @@ struct ContentView: View {
             // While recording the panel shows only what concerns the recording itself.
             if !model.isRecording {
                 TranscriptionStatus()
-                // Accordion: one card open at a time keeps the panel within the screen height.
-                VStack(spacing: 8) {
-                    CollapsibleSection(title: "Видео", icon: "video.fill", summary: videoSummary,
-                                       isExpanded: expanded("video")) { videoSettings }
-                    CollapsibleSection(title: "Транскрибация", icon: "text.bubble.fill", summary: transcriptionSummary,
-                                       isExpanded: expanded("transcription")) { TranscriptionSettings() }
-                    CollapsibleSection(title: "Автозапись встреч", icon: "person.2.wave.2.fill", summary: meetingSummary,
-                                       isExpanded: expanded("meetings")) { MeetingSettings() }
-                    CollapsibleSection(title: "Значок в меню", icon: "menubar.rectangle", summary: appearanceSummary,
-                                       isExpanded: expanded("appearance")) { AppearanceSettings() }
-                    RecordingsSection(isExpanded: expanded("recordings"))
-                }
+                RecordingsSection(isExpanded: expanded("recordings"))
                 Divider()
                 bottomRow
-                HStack(alignment: .top, spacing: 20) {
-                    LoginItemToggle()
-                    Toggle("Перезапуск после сбоя", isOn: Binding(get: { model.crashWatchdog },
-                                                                   set: { model.setCrashWatchdog($0) }))
-                        .help("Если MeetRec упадёт, он запустится снова через несколько секунд и продолжит запись")
-                    Spacer(minLength: 0)
-                }
             }
             if let notice = model.stopNotice, !model.isRecording {
                 HStack(alignment: .top, spacing: 8) {
@@ -227,17 +318,6 @@ struct ContentView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(14)
-        .frame(width: MenuPanelController.cardWidth)
-        .onAppear {
-            model.refreshDevices()
-            transcriber.refreshModels()
-        }
-        .onExitCommand { close() }
-        .background {
-            // ⌘W closes the panel; the app has no menu bar menu to provide it.
-            Button("", action: close).keyboardShortcut("w", modifiers: .command).hidden()
-        }
     }
 
     private var header: some View {
@@ -252,6 +332,14 @@ struct ContentView: View {
             }
             if model.isRecording {
                 ElapsedLabel()
+            } else {
+                Button {
+                    showingSettings = true
+                } label: {
+                    Image(systemName: "gearshape").font(.system(size: 14))
+                }
+                .buttonStyle(.borderless)
+                .help("Настройки")
             }
         }
     }
@@ -272,19 +360,19 @@ struct ContentView: View {
                         }
                     }
                     .labelsHidden()
-                    .help("Какой монитор записывать")
+                    .help("Какой монитор записывать. «Авто» — внешний, если подключён; сейчас: \(model.effectiveDisplay?.name ?? "нет")")
                 }
                 .frame(maxWidth: .infinity)
                 HStack(spacing: 6) {
                     Image(systemName: "mic.fill").foregroundStyle(.secondary).frame(width: 18)
                     Picker("Микрофон", selection: $model.microphoneID) {
-                        Text("Системный по умолчанию").tag("")
+                        Text("По умолчанию").tag("")
                         ForEach(model.microphones) { mic in
                             Text(mic.name).tag(mic.id)
                         }
                     }
                     .labelsHidden()
-                    .help("Какой микрофон записывать")
+                    .help("Какой микрофон записывать. «По умолчанию» — сейчас: \(AVCaptureDevice.default(for: .audio)?.localizedName ?? "нет")")
                 }
                 .frame(maxWidth: .infinity)
                 .disabled(!model.microphone)
@@ -400,27 +488,16 @@ struct ContentView: View {
                 .truncationMode(.middle)
                 .help(model.folderPath)
             Spacer(minLength: 4)
-            Button("Изменить") { model.chooseFolder() }
-                .disabled(model.isRecording)
-                .help("Выбрать папку для записей")
             Button("Открыть") { model.openFolder() }
                 .help("Открыть папку с записями в Finder")
             Divider().frame(height: 16)
-            Button("Лог") { model.openLog() }
-                .buttonStyle(.borderless)
-                .help("Открыть журнал MeetRec")
             Button("Выйти") { NSApp.terminate(nil) }
                 .buttonStyle(.borderless)
                 .disabled(model.isRecording)
         }
     }
 
-    private var autoDisplayTitle: String {
-        if let display = model.effectiveDisplay {
-            return "Авто (\(display.name))"
-        }
-        return "Авто"
-    }
+    private var autoDisplayTitle: String { "Авто" }
 }
 
 /// The recording timer; observes only `LiveRecording`, so it redraws once a second on its own.
@@ -718,5 +795,47 @@ private struct PressReportingStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .onChange(of: configuration.isPressed) { _, isPressed in pressed = isPressed }
+    }
+}
+
+/// "Похоже, идёт звонок в Telegram. Записать?" for apps that may hold the mic for other things.
+struct CallPromptBanner: View {
+    let app: MeetingApp
+    @EnvironmentObject private var model: RecorderModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: app.id == "browser" ? "globe" : "phone.fill")
+                    .foregroundStyle(.white)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(Color.accentColor))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Похоже, идёт звонок в \(RecorderModel.callPlace(app))").font(.callout.weight(.semibold))
+                    Text("Записать его? Запись остановится сама, когда звонок закончится.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            HStack(spacing: 8) {
+                Button {
+                    model.acceptCallPrompt()
+                } label: {
+                    Label("Записать", systemImage: "record.circle").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+                .keyboardShortcut(.defaultAction)
+                Button {
+                    model.dismissCallPrompt()
+                } label: {
+                    Text("Не сейчас").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+            .controlSize(.large)
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.accentColor.opacity(0.12)))
     }
 }

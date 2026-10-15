@@ -44,6 +44,8 @@ struct AppearanceSettings: View {
                 ForEach(MenuBarStyle.allCases) { Text($0.title).tag($0.rawValue) }
             }
             .pickerStyle(.radioGroup)
+            MenuBarPreview(style: MenuBarStyle(rawValue: style) ?? .full,
+                           island: island && style != MenuBarStyle.discreet.rawValue)
             Text((MenuBarStyle(rawValue: style) ?? .full).detail)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -59,5 +61,73 @@ struct AppearanceSettings: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top, 4)
+    }
+}
+
+/// A mock menu bar showing how MeetRec looks without and with a recording in the chosen style.
+struct MenuBarPreview: View {
+    let style: MenuBarStyle
+    let island: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            row("Без записи", recording: false)
+            row("Идёт запись", recording: true)
+            if island {
+                HStack(spacing: 8) {
+                    Text("Остров").font(.caption).foregroundStyle(.secondary).frame(width: 78, alignment: .leading)
+                    HStack(spacing: 0) {
+                        Circle().fill(Color.red).frame(width: 7, height: 7).shadow(color: .red.opacity(0.8), radius: 3)
+                        Spacer(minLength: 0)
+                        Text("12:34").font(.system(size: 10, weight: .semibold).monospacedDigit()).foregroundStyle(.white)
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(width: 150, height: 20)
+                    .background(UnevenRoundedRectangle(bottomLeadingRadius: 9, bottomTrailingRadius: 9).fill(Color.black))
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05)))
+        .animation(.easeInOut(duration: 0.2), value: style)
+    }
+
+    private func row(_ label: String, recording: Bool) -> some View {
+        HStack(spacing: 8) {
+            Text(label).font(.caption).foregroundStyle(.secondary).frame(width: 78, alignment: .leading)
+            HStack(spacing: 10) {
+                // Neighbouring menu bar items, for scale.
+                Image(systemName: "wifi")
+                Image(systemName: "battery.75percent")
+                item(recording: recording)
+                Text("Пт 9:41")
+            }
+            .font(.system(size: 12))
+            .foregroundStyle(.primary.opacity(0.85))
+            .padding(.horizontal, 10)
+            .frame(height: 22)
+            .background(RoundedRectangle(cornerRadius: 5).fill(.regularMaterial))
+            Spacer(minLength: 0)
+        }
+    }
+
+    @ViewBuilder
+    private func item(recording: Bool) -> some View {
+        if !recording {
+            Image(systemName: "record.circle")
+        } else {
+            switch style {
+            case .full:
+                HStack(spacing: 3) {
+                    Image(systemName: "record.circle.fill").foregroundStyle(.red)
+                    Text("12:34").monospacedDigit()
+                }
+            case .icon:
+                Image(systemName: "record.circle.fill").foregroundStyle(.red)
+            case .discreet:
+                Image(systemName: "record.circle.fill")
+            }
+        }
     }
 }

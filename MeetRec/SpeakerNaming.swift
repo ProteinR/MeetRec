@@ -100,9 +100,8 @@ enum SpeakerNaming {
         try updated.write(to: transcript, atomically: true, encoding: .utf8)
         Log.info("Transcript \(transcript.lastPathComponent): \"\(oldName)\" → \"\(name)\"", "transcribe")
 
-        if !transcriber.meetingTranscriptsFolder.isEmpty {
-            let copy = URL(fileURLWithPath: transcriber.meetingTranscriptsFolder, isDirectory: true)
-                .appendingPathComponent(recording.deletingPathExtension().lastPathComponent).appendingPathExtension("md")
+        for folder in transcriber.copyFolders(for: recording) {
+            let copy = folder.appendingPathComponent(recording.deletingPathExtension().lastPathComponent).appendingPathExtension("md")
             if let copied = try? String(contentsOf: copy, encoding: .utf8) {
                 if copied == original {
                     try? updated.write(to: copy, atomically: true, encoding: .utf8)

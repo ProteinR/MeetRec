@@ -50,8 +50,8 @@ What MeetRec does instead:
 
 - Teams auto-recordings are tagged on the video file (extended attribute
   `com.dmemruk.MeetRec.meetingApp = teams`, set at start; survives renames and Trash). After
-  transcription their transcript is also copied to the "meeting transcripts" folder (setting
-  `meetingTranscriptsFolder`, here inventire-workspace `docs/meetings`) as `<video name>.md`: only
+  transcription their transcript is also copied by the copy rules ("app → folder", any number,
+  setting `transcriptCopyRules`; here Teams → inventire-workspace `docs/meetings`) as `<video name>.md`: only
   recordings of 2+ minutes, never overwriting an existing file (it may hold a Meeting Summary), and a
   failed copy only warns. Log line `Transcript copied: <src> → <dst>`. Manual recordings are never
   copied; their transcript stays only next to the video.
@@ -89,7 +89,19 @@ What MeetRec does instead:
   level meters, marker and stop. The window is resized between states so its transparent parts never
   block clicks. Off in the discreet style; follows "hide from screen sharing".
 
-Planned next: more calling apps (Telegram, Zoom, Google Meet in browsers) once checked for false positives.
+- Calls in a browser (Chrome, Safari, Arc, Edge, Firefox, Yandex, Brave, Opera, Vivaldi) and in
+  Telegram are "ask-first" apps (`MeetingApp.asks`): they also hold the mic for dictation or voice
+  messages, so after 10 s (browser) / 15 s (Telegram) the panel and a notification ask "Похоже, идёт
+  звонок… Записать?". "Записать" starts a meeting recording (tagged with the app id, auto-stops when
+  the call ends); "Не сейчас" is silent for the rest of that call.
+
+- Browser rules (`browserAutoRules`): text in a browser window title (active tab) → record without
+  asking, with an optional file title, e.g. "Vimbox" → "Skyeng" for English lessons.
+- Settings live on a separate page behind the gear (general: folder, log, launch at login,
+  watchdog; video; transcription incl. copy rules; meetings incl. browser rules; menu bar look with
+  a preview). The main page keeps the daily things.
+
+Planned next: Zoom and other apps once checked for false positives.
 
 Principles: small, native (Swift, ScreenCaptureKit, no Electron, no third-party Swift packages),
 dependable over feature-rich. Prefer fewer features, and never risk losing a recording.

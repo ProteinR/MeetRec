@@ -26,8 +26,8 @@ final class Transcriber: ObservableObject {
     @AppStorage("diarization") var diarization = true
     @AppStorage("transcriptionLanguage") var language = ""
     @AppStorage("myName") var myName = ""
-    /// Where transcripts of Teams auto-recordings are also copied (e.g. a work docs repo); empty = off.
-    @AppStorage("meetingTranscriptsFolder") var meetingTranscriptsFolder = ""
+    /// JSON of `copyRules`.
+    @AppStorage("transcriptCopyRules") private var copyRulesJSON = ""
 
     /// Shorter meeting recordings are not copied: a Teams test call also takes the microphone.
     static let minimumMeetingDuration: TimeInterval = 120
@@ -61,6 +61,7 @@ final class Transcriber: ObservableObject {
             .appendingPathComponent("MeetRec", isDirectory: true)
         try? FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
         seedSpeakersIfNeeded()
+        migrateCopyRules()
         if myName.isEmpty {
             myName = speakerSamples["Dima"] != nil ? "Dima" : (NSFullUserName().split(separator: " ").first.map(String.init) ?? "Я")
         }
@@ -206,13 +207,42 @@ final class Transcriber: ObservableObject {
         }
     }
 
-    /// Teams auto-recordings: also copies the transcript to `meetingTranscriptsFolder` as
-    /// `<video name>.md`. The copy there gets edited (Meeting Summary), so it is never overwritten; the
-    /// original next to the video stays the one MeetRec uses. A failed copy does not fail transcription.
+    // MARK: - Copy rules
+
+    /// Where transcripts of a meeting app's recordings are also copied ("Teams → docs/meetings").
+    /// Several rules may name the same app (copied to each folder).
+    var copyRules: [CopyRule] {
+        get { (try? JSONDecoder().decode([CopyRule].self, from: Data(copyRulesJSON.utf8))) ?? [] }
+        set {
+            copyRulesJSON = (try? String(decoding: JSONEncoder().encode(newValue), as: UTF8.self)) ?? "[]"
+            Log.info("Transcript copy rules: " + newValue.map { "\($0.app) → \($0.folder.isEmpty ? "(no folder)" : $0.folder)" }
+                .joined(separator: "; "), "transcribe")
+        }
+    }
+
+    /// Folders the transcript of `recording` is copied to, from its meeting tag.
+    func copyFolders(for recording: URL) -> [URL] {
+        guard let app = RecordingTag.meetingApp(of: recording) else { return [] }
+        return copyRules.filter { $0.app == app && !$0.folder.isEmpty }
+            .map { URL(fileURLWithPath: $0.folder, isDirectory: true) }
+    }
+
+    /// The single "meeting transcripts folder" of earlier versions becomes the rule "Teams → folder".
+    private func migrateCopyRules() {
+        guard copyRulesJSON.isEmpty else { return }
+        let old = UserDefaults.standard.string(forKey: "meetingTranscriptsFolder") ?? ""
+        copyRules = old.isEmpty ? [] : [CopyRule(app: "teams", folder: old)]
+        UserDefaults.standard.removeObject(forKey: "meetingTranscriptsFolder")
+    }
+
+    /// Meeting recordings (started automatically or from the call question): also copies the
+    /// transcript to each folder of the copy rules for that app, as `<video name>.md`. The copy there
+    /// may get edited (Meeting Summary), so it is never overwritten; the original next to the video
+    /// stays the one MeetRec uses. A failed copy does not fail transcription.
     private func copyMeetingTranscript(_ transcript: URL, of recording: URL) async {
-        guard !meetingTranscriptsFolder.isEmpty else { return }
-        guard let app = RecordingTag.meetingApp(of: recording), app == "teams" else {
-            Log.debug("Transcript not copied: \(recording.lastPathComponent) is not a Teams auto-recording", "transcribe")
+        let folders = copyFolders(for: recording)
+        guard !folders.isEmpty else {
+            Log.debug("Transcript not copied: no copy rule for \(recording.lastPathComponent) (\(RecordingTag.meetingApp(of: recording) ?? "manual recording"))", "transcribe")
             return
         }
         let duration = (try? await AVURLAsset(url: recording).load(.duration).seconds) ?? 0
@@ -220,37 +250,34 @@ final class Transcriber: ObservableObject {
             Log.info("Transcript not copied: \(recording.lastPathComponent) is only \(Int(duration)) s (test call?)", "transcribe")
             return
         }
-        let folder = URL(fileURLWithPath: meetingTranscriptsFolder, isDirectory: true)
-        let destination = folder.appendingPathComponent(recording.deletingPathExtension().lastPathComponent)
-            .appendingPathExtension("md")
-        if FileManager.default.fileExists(atPath: destination.path) {
-            Log.info("Transcript not copied: \(destination.path) already exists (kept as is)", "transcribe")
-            return
-        }
-        do {
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            try FileManager.default.copyItem(at: transcript, to: destination)
-            Log.info("Transcript copied: \(transcript.path) → \(destination.path)", "transcribe")
-        } catch {
-            Log.warning("Transcript copy to \(destination.path) failed: \(Log.describe(error))", "transcribe")
-            Notifier.shared.send(id: "meetrec-copy-failed", title: "Транскрипт встречи не скопирован",
-                                 body: "Не удалось скопировать в «\(folder.lastPathComponent)»: \(error.localizedDescription). Он лежит рядом с видео.")
+        for folder in folders {
+            let destination = folder.appendingPathComponent(recording.deletingPathExtension().lastPathComponent)
+                .appendingPathExtension("md")
+            if FileManager.default.fileExists(atPath: destination.path) {
+                Log.info("Transcript not copied: \(destination.path) already exists (kept as is)", "transcribe")
+                continue
+            }
+            do {
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                try FileManager.default.copyItem(at: transcript, to: destination)
+                Log.info("Transcript copied: \(transcript.path) → \(destination.path)", "transcribe")
+            } catch {
+                Log.warning("Transcript copy to \(destination.path) failed: \(Log.describe(error))", "transcribe")
+                Notifier.shared.send(id: "meetrec-copy-failed", title: "Транскрипт встречи не скопирован",
+                                     body: "Не удалось скопировать в «\(folder.lastPathComponent)»: \(error.localizedDescription). Он лежит рядом с видео.")
+            }
         }
     }
 
-    func chooseMeetingTranscriptsFolder() {
+    /// Folder picker for a copy rule; nil if cancelled.
+    func chooseFolder(startingAt path: String) -> String? {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        if !meetingTranscriptsFolder.isEmpty {
-            panel.directoryURL = URL(fileURLWithPath: meetingTranscriptsFolder, isDirectory: true)
-        }
+        if !path.isEmpty { panel.directoryURL = URL(fileURLWithPath: path, isDirectory: true) }
         NSApp.activate(ignoringOtherApps: true)
-        if panel.runModal() == .OK, let url = panel.url {
-            meetingTranscriptsFolder = url.path
-            Log.info("Meeting transcripts folder set to \(url.path)", "transcribe")
-        }
+        return panel.runModal() == .OK ? panel.url?.path : nil
     }
 
     /// `<recording>.md` next to the video; never overwrites an existing transcript.
@@ -466,4 +493,12 @@ private final class OutputCollector: @unchecked Sendable {
 
     var errorMessage: String? { lock.lock(); defer { lock.unlock() }; return error }
     var lastStderr: String? { lock.lock(); defer { lock.unlock() }; return stderrTail.last }
+}
+
+/// "Copy transcripts of <app> recordings to <folder>".
+struct CopyRule: Codable, Identifiable, Equatable {
+    var id = UUID()
+    /// `MeetingApp.id`, matched against the recording's meeting tag.
+    var app: String
+    var folder: String
 }
