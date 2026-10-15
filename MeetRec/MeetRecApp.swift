@@ -135,6 +135,7 @@ struct ContentView: View {
             if model.lastFile != nil {
                 Button("Последняя запись") { model.revealLastFile() }
             }
+            Button("Лог") { model.openLog() }
             Spacer()
             Button("Выйти") { NSApp.terminate(nil) }
                 .disabled(model.isRecording)

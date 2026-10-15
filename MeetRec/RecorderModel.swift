@@ -68,13 +68,18 @@ final class RecorderModel: ObservableObject {
 
     static let hotKeyHint = "⌃⌥⌘R"
 
+    private var recordingDisplayID: CGDirectDisplayID?
+
     init() {
+        Self.logLaunch()
         refreshDevices()
         recorder.onUnexpectedStop = { [weak self] error in
+            Log.error("Recording stopped unexpectedly: \(Log.describe(error))")
             self?.didStop(file: nil)
             self?.errorMessage = "Запись остановлена: \(error.localizedDescription)"
         }
         hotKey = HotKey(keyCode: kVK_ANSI_R, modifiers: cmdKey | optionKey | controlKey) { [weak self] in
+            Log.info("Hotkey \(Self.hotKeyHint) pressed")
             Task { @MainActor in self?.toggle() }
         }
         let center = NotificationCenter.default
@@ -83,10 +88,43 @@ final class RecorderModel: ObservableObject {
             Task { @MainActor in self?.refreshDevices() }
         })
         for name in [AVCaptureDevice.wasConnectedNotification, AVCaptureDevice.wasDisconnectedNotification] {
-            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                let device = note.object as? AVCaptureDevice
+                Log.info("Audio device \(name == AVCaptureDevice.wasConnectedNotification ? "connected" : "disconnected"): \(device?.localizedName ?? "?") (\(device?.uniqueID ?? "?"))", "devices")
                 Task { @MainActor in self?.refreshDevices() }
             })
         }
+        // Sleep, wake and screen lock are the usual reasons a long recording goes wrong.
+        let workspace = NSWorkspace.shared.notificationCenter
+        let workspaceEvents: [(Notification.Name, String)] = [
+            (NSWorkspace.willSleepNotification, "System will sleep"),
+            (NSWorkspace.didWakeNotification, "System did wake"),
+            (NSWorkspace.screensDidSleepNotification, "Screens did sleep"),
+            (NSWorkspace.screensDidWakeNotification, "Screens did wake"),
+            (NSWorkspace.sessionDidResignActiveNotification, "User session resigned (fast user switch)"),
+            (NSWorkspace.sessionDidBecomeActiveNotification, "User session became active"),
+            (NSWorkspace.willPowerOffNotification, "System will power off"),
+        ]
+        for (name, text) in workspaceEvents {
+            observers.append(workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in
+                    let recording = self?.isRecording ?? false
+                    if recording { Log.warning("\(text) while recording", "system") } else { Log.info(text, "system") }
+                }
+            })
+        }
+        let distributed = DistributedNotificationCenter.default()
+        for (name, text) in [("com.apple.screenIsLocked", "Screen locked"), ("com.apple.screenIsUnlocked", "Screen unlocked")] {
+            observers.append(distributed.addObserver(forName: Notification.Name(name), object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in
+                    let recording = self?.isRecording ?? false
+                    if recording { Log.warning("\(text) while recording", "system") } else { Log.info(text, "system") }
+                }
+            })
+        }
+        observers.append(center.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
+            Log.info("App will terminate")
+        })
     }
 
     var folderURL: URL { URL(fileURLWithPath: folderPath, isDirectory: true) }
@@ -107,6 +145,8 @@ final class RecorderModel: ObservableObject {
     }
 
     func refreshDevices() {
+        let previousDisplays = displays
+        let previousMics = microphones
         displays = NSScreen.screens.compactMap { screen in
             guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return nil }
             let id = CGDirectDisplayID(number.uint32Value)
@@ -115,6 +155,21 @@ final class RecorderModel: ObservableObject {
         microphones = AVCaptureDevice.DiscoverySession(
             deviceTypes: [.microphone, .external], mediaType: .audio, position: .unspecified
         ).devices.map { MicrophoneInfo(id: $0.uniqueID, name: $0.localizedName) }
+
+        if displays != previousDisplays {
+            Log.info("Displays: " + displays.map { "\($0.id) \"\($0.name)\"\($0.isBuiltIn ? " built-in" : "")" }.joined(separator: ", ")
+                     + " → effective: \(effectiveDisplay.map { "\($0.id) \($0.name)" } ?? "none")", "devices")
+            if isRecording, let recordingDisplayID, !displays.contains(where: { $0.id == recordingDisplayID }) {
+                Log.warning("Recorded display \(recordingDisplayID) disappeared during recording", "devices")
+            }
+        }
+        if microphones != previousMics {
+            Log.info("Microphones: " + microphones.map { "\"\($0.name)\" (\($0.id))" }.joined(separator: ", ")
+                     + " → default: \(AVCaptureDevice.default(for: .audio)?.localizedName ?? "none")", "devices")
+            if isRecording, microphone, !microphoneID.isEmpty, !microphones.contains(where: { $0.id == microphoneID }) {
+                Log.warning("Selected microphone \(microphoneID) disappeared during recording", "devices")
+            }
+        }
     }
 
     func toggle() {
@@ -122,10 +177,14 @@ final class RecorderModel: ObservableObject {
     }
 
     func start() {
-        guard !isRecording, !isBusy else { return }
+        guard !isRecording, !isBusy else {
+            Log.debug("start() ignored: isRecording=\(isRecording) isBusy=\(isBusy)")
+            return
+        }
         errorMessage = nil
         guard let display = effectiveDisplay else {
             errorMessage = "Нет доступных мониторов"
+            Log.error("Start failed: no displays")
             return
         }
         isBusy = true
@@ -144,17 +203,24 @@ final class RecorderModel: ObservableObject {
                     microphoneID: microphoneID.isEmpty ? nil : microphoneID,
                     outputURL: nextFileURL()
                 )
+                Log.info("Starting: display=\(display.id) \"\(display.name)\" (setting=\(displayID == Self.autoDisplay ? "auto" : String(displayID))) mic=\(microphones.first(where: { $0.id == microphoneID })?.name ?? "default: \(AVCaptureDevice.default(for: .audio)?.localizedName ?? "none")")")
                 try await recorder.start(options)
+                recordingDisplayID = display.id
                 didStart()
             } catch {
                 errorMessage = error.localizedDescription
+                Log.error("Start failed: \(Log.describe(error))")
             }
         }
     }
 
     func stop() {
-        guard isRecording, !isBusy else { return }
+        guard isRecording, !isBusy else {
+            Log.debug("stop() ignored: isRecording=\(isRecording) isBusy=\(isBusy)")
+            return
+        }
         isBusy = true
+        Log.info("Stopping after \(elapsedText)")
         Task {
             let file = await recorder.stop()
             isBusy = false
@@ -171,6 +237,7 @@ final class RecorderModel: ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
         if panel.runModal() == .OK, let url = panel.url {
             folderPath = url.path
+            Log.info("Output folder changed to \(url.path)")
         }
     }
 
@@ -187,6 +254,7 @@ final class RecorderModel: ObservableObject {
     // MARK: - Private
 
     private func didStart() {
+        Log.info("Recording state: recording")
         isRecording = true
         startedAt = Date()
         elapsed = 0
@@ -203,7 +271,34 @@ final class RecorderModel: ObservableObject {
         timer?.invalidate()
         timer = nil
         startedAt = nil
+        recordingDisplayID = nil
         if let file { lastFile = file }
+        Log.info("Recording state: stopped, file=\(file?.path ?? "none")")
+    }
+
+    func openLog() {
+        NSWorkspace.shared.open(Log.fileURL)
+    }
+
+    private static func logLaunch() {
+        let info = Bundle.main.infoDictionary
+        let version = "\(info?["CFBundleShortVersionString"] ?? "?") (\(info?["CFBundleVersion"] ?? "?"))"
+        var size = 0
+        sysctlbyname("hw.model", nil, &size, nil, 0)
+        var model = [CChar](repeating: 0, count: max(size, 1))
+        sysctlbyname("hw.model", &model, &size, nil, 0)
+        Log.info("──────── MeetRec \(version) launched, macOS \(ProcessInfo.processInfo.operatingSystemVersionString), \(String(cString: model)), log: \(Log.fileURL.path)")
+        Log.info("Permissions: screen=\(CGPreflightScreenCaptureAccess() ? "granted" : "not granted") microphone=\(Self.describe(AVCaptureDevice.authorizationStatus(for: .audio)))")
+    }
+
+    private static func describe(_ status: AVAuthorizationStatus) -> String {
+        switch status {
+        case .authorized: return "granted"
+        case .denied: return "denied"
+        case .restricted: return "restricted"
+        case .notDetermined: return "not asked yet"
+        @unknown default: return "unknown"
+        }
     }
 
     private func nextFileURL() -> URL {
@@ -214,12 +309,15 @@ final class RecorderModel: ObservableObject {
 
     private func ensurePermissions() async -> Bool {
         if !CGPreflightScreenCaptureAccess() {
+            Log.warning("Screen recording permission not granted, requesting", "permissions")
             CGRequestScreenCaptureAccess()
             errorMessage = "Разрешите запись экрана для MeetRec в Системных настройках → Конфиденциальность и безопасность → Запись экрана, затем перезапустите MeetRec."
             return false
         }
         if microphone, AVCaptureDevice.authorizationStatus(for: .audio) != .authorized {
+            Log.info("Microphone permission is \(Self.describe(AVCaptureDevice.authorizationStatus(for: .audio))), requesting", "permissions")
             let granted = await AVCaptureDevice.requestAccess(for: .audio)
+            Log.info("Microphone permission \(granted ? "granted" : "denied")", "permissions")
             if !granted {
                 errorMessage = "Нет доступа к микрофону. Разрешите его в Системных настройках → Конфиденциальность и безопасность → Микрофон."
                 return false

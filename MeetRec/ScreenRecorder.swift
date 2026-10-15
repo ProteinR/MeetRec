@@ -27,6 +27,47 @@ enum RecorderError: LocalizedError {
     }
 }
 
+/// Per-recording counters, logged every 10 seconds and at the end. They are what tells a healthy
+/// recording from one that silently lost video or a microphone.
+private struct Stats {
+    var videoAppended = 0
+    var videoIdle = 0
+    var videoNotReady = 0
+    var videoAppendFailed = 0
+    var systemAudioAppended = 0
+    var systemAudioNotReady = 0
+    var micAppended = 0
+    var micNotReady = 0
+    var audioBeforeSession = 0
+    var appendFailed = 0
+    var firstVideoPTS: CMTime = .invalid
+    var lastVideoPTS: CMTime = .invalid
+    var lastSystemAudioPTS: CMTime = .invalid
+    var lastMicPTS: CMTime = .invalid
+    var lastVideoArrival: Date?
+    var systemAudioFormat: String?
+    var micFormat: String?
+
+    func summary(since start: Date) -> String {
+        let seconds = max(Date().timeIntervalSince(start), 0.001)
+        let fps = Double(videoAppended) / seconds
+        let span = (firstVideoPTS.isValid && lastVideoPTS.isValid) ? (lastVideoPTS - firstVideoPTS).seconds : 0
+        let lastFrameAgo = lastVideoArrival.map { String(format: "%.1fs ago", Date().timeIntervalSince($0)) } ?? "never"
+        return String(format: "t=%.0fs video=%d (%.1f fps, idle=%d, notReady=%d, failed=%d, span=%.1fs, last frame %@) sysAudio=%d (notReady=%d) mic=%d (notReady=%d) audioBeforeSession=%d appendFailed=%d avSync(sys-video)=%@ avSync(mic-video)=%@",
+                      seconds, videoAppended, fps, videoIdle, videoNotReady, videoAppendFailed, span, lastFrameAgo,
+                      systemAudioAppended, systemAudioNotReady, micAppended, micNotReady,
+                      audioBeforeSession, appendFailed,
+                      Self.drift(lastSystemAudioPTS, lastVideoPTS), Self.drift(lastMicPTS, lastVideoPTS))
+    }
+
+    /// Difference between the newest audio and video timestamps. With a static screen video has no
+    /// new frames, so a growing positive value is normal; a large negative one means audio stalled.
+    private static func drift(_ audio: CMTime, _ video: CMTime) -> String {
+        guard audio.isValid, video.isValid else { return "n/a" }
+        return String(format: "%+.2fs", (audio - video).seconds)
+    }
+}
+
 /// Records one display with system audio and microphone into a fragmented QuickTime movie.
 ///
 /// Fragmented means the file is readable even if the app crashes or the Mac shuts down mid-recording:
@@ -44,16 +85,35 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private var microphoneInput: AVAssetWriterInput?
     private var sessionStarted = false
     private var finishing = false
+    private var stats = Stats()
+    private var startedAt = Date()
+    private var statsTimer: DispatchSourceTimer?
 
     func start(_ options: RecordingOptions) async throws {
-        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        Log.info("Start requested: displayID=\(options.displayID) fps=\(options.fps) maxHeight=\(options.maxHeight.map(String.init) ?? "native") codec=\(options.codec.rawValue) systemAudio=\(options.systemAudio) microphone=\(options.microphone) micID=\(options.microphoneID ?? "default") file=\(options.outputURL.path)", "recorder")
+
+        let content: SCShareableContent
+        do {
+            content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        } catch {
+            Log.error("SCShareableContent failed: \(Log.describe(error))", "recorder")
+            throw error
+        }
+        Log.debug("Shareable displays: " + content.displays.map { "\($0.displayID) \($0.width)x\($0.height)pt frame=\(NSStringFromRect($0.frame))" }.joined(separator: "; "), "recorder")
+
         guard let display = content.displays.first(where: { $0.displayID == options.displayID })
                 ?? content.displays.first else {
+            Log.error("No display available (requested \(options.displayID))", "recorder")
             throw RecorderError.displayNotFound
+        }
+        if display.displayID != options.displayID {
+            Log.warning("Requested display \(options.displayID) not found, falling back to \(display.displayID)", "recorder")
         }
         let ownApp = content.applications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier }
         let filter = SCContentFilter(display: display, excludingApplications: ownApp, exceptingWindows: [])
         let (width, height) = Self.outputSize(filter: filter, maxHeight: options.maxHeight)
+        let bitrate = Self.bitrate(width: width, height: height, fps: options.fps, codec: options.codec)
+        Log.info("Display \(display.displayID): contentRect=\(NSStringFromRect(filter.contentRect)) scale=\(filter.pointPixelScale) → output \(width)x\(height), bitrate=\(bitrate / 1000) kbps", "recorder")
 
         let config = SCStreamConfiguration()
         config.width = width
@@ -71,7 +131,13 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             config.microphoneCaptureDeviceID = id
         }
 
-        let writer = try AVAssetWriter(outputURL: options.outputURL, fileType: .mov)
+        let writer: AVAssetWriter
+        do {
+            writer = try AVAssetWriter(outputURL: options.outputURL, fileType: .mov)
+        } catch {
+            Log.error("AVAssetWriter init failed: \(Log.describe(error))", "recorder")
+            throw error
+        }
         writer.movieFragmentInterval = CMTime(seconds: 5, preferredTimescale: 600)
 
         let video = AVAssetWriterInput(mediaType: .video, outputSettings: [
@@ -79,7 +145,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             AVVideoWidthKey: width,
             AVVideoHeightKey: height,
             AVVideoCompressionPropertiesKey: [
-                AVVideoAverageBitRateKey: Self.bitrate(width: width, height: height, fps: options.fps, codec: options.codec),
+                AVVideoAverageBitRateKey: bitrate,
                 AVVideoExpectedSourceFrameRateKey: options.fps,
                 AVVideoMaxKeyFrameIntervalDurationKey: 2,
                 AVVideoAllowFrameReorderingKey: false,
@@ -102,15 +168,21 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         }
 
         let stream = SCStream(filter: filter, configuration: config, delegate: self)
-        try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
-        if options.systemAudio {
-            try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
-        }
-        if options.microphone {
-            try stream.addStreamOutput(self, type: .microphone, sampleHandlerQueue: queue)
+        do {
+            try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
+            if options.systemAudio {
+                try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
+            }
+            if options.microphone {
+                try stream.addStreamOutput(self, type: .microphone, sampleHandlerQueue: queue)
+            }
+        } catch {
+            Log.error("addStreamOutput failed: \(Log.describe(error))", "recorder")
+            throw error
         }
 
         guard writer.startWriting() else {
+            Log.error("startWriting failed: status=\(writer.status.rawValue) error=\(Log.describe(writer.error))", "recorder")
             throw RecorderError.writer(writer.error?.localizedDescription ?? "unknown")
         }
 
@@ -121,22 +193,33 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             self.microphoneInput = microphone
             self.sessionStarted = false
             self.finishing = false
+            self.stats = Stats()
+            self.startedAt = Date()
         }
         self.stream = stream
 
         do {
             try await stream.startCapture()
         } catch {
+            Log.error("startCapture failed: \(Log.describe(error))", "recorder")
             await finish()
             throw error
         }
+        startStatsTimer()
+        Log.info("Capture started", "recorder")
     }
 
     /// Stops capture and closes the file. Returns the file URL if anything was recorded.
     @discardableResult
     func stop() async -> URL? {
+        Log.info("Stop requested", "recorder")
         if let stream {
-            try? await stream.stopCapture()
+            do {
+                try await stream.stopCapture()
+                Log.debug("stopCapture ok", "recorder")
+            } catch {
+                Log.warning("stopCapture failed: \(Log.describe(error))", "recorder")
+            }
         }
         return await finish()
     }
@@ -144,61 +227,160 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     // MARK: - SCStreamOutput
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard sampleBuffer.isValid, !finishing, let writer, writer.status == .writing else { return }
+        guard sampleBuffer.isValid else {
+            Log.warning("Invalid sample buffer of type \(type.rawValue)", "capture")
+            return
+        }
+        guard !finishing, let writer else { return }
+        guard writer.status == .writing else {
+            if stats.appendFailed == 0 {
+                Log.error("Writer not writing: status=\(writer.status.rawValue) error=\(Log.describe(writer.error))", "capture")
+            }
+            stats.appendFailed += 1
+            return
+        }
 
         switch type {
         case .screen:
-            guard Self.isCompleteFrame(sampleBuffer), let videoInput else { return }
-            if !sessionStarted {
-                writer.startSession(atSourceTime: sampleBuffer.presentationTimeStamp)
-                sessionStarted = true
+            guard Self.isCompleteFrame(sampleBuffer) else {
+                stats.videoIdle += 1
+                return
             }
-            if videoInput.isReadyForMoreMediaData {
-                videoInput.append(sampleBuffer)
+            guard let videoInput else { return }
+            let pts = sampleBuffer.presentationTimeStamp
+            if !sessionStarted {
+                writer.startSession(atSourceTime: pts)
+                sessionStarted = true
+                stats.firstVideoPTS = pts
+                Log.info("Session started at first video frame, pts=\(pts.seconds)", "capture")
+            }
+            guard videoInput.isReadyForMoreMediaData else {
+                stats.videoNotReady += 1
+                if stats.videoNotReady == 1 || stats.videoNotReady % 100 == 0 {
+                    Log.warning("Video input not ready, dropped \(stats.videoNotReady) frames so far (encoder can't keep up?)", "capture")
+                }
+                return
+            }
+            if videoInput.append(sampleBuffer) {
+                stats.videoAppended += 1
+                stats.lastVideoPTS = pts
+                stats.lastVideoArrival = Date()
+            } else {
+                stats.videoAppendFailed += 1
+                Log.error("Video append failed: writer status=\(writer.status.rawValue) error=\(Log.describe(writer.error))", "capture")
             }
         case .audio:
-            append(sampleBuffer, to: systemAudioInput)
+            if stats.systemAudioFormat == nil {
+                stats.systemAudioFormat = Self.describeAudioFormat(sampleBuffer)
+                Log.info("First system audio buffer: \(stats.systemAudioFormat ?? "?")", "capture")
+            }
+            if append(sampleBuffer, to: systemAudioInput, track: "system audio") {
+                stats.systemAudioAppended += 1
+                stats.lastSystemAudioPTS = sampleBuffer.presentationTimeStamp
+            } else if sessionStarted {
+                stats.systemAudioNotReady += 1
+            }
         case .microphone:
-            append(sampleBuffer, to: microphoneInput)
+            if stats.micFormat == nil {
+                stats.micFormat = Self.describeAudioFormat(sampleBuffer)
+                Log.info("First microphone buffer: \(stats.micFormat ?? "?")", "capture")
+            }
+            if append(sampleBuffer, to: microphoneInput, track: "microphone") {
+                stats.micAppended += 1
+                stats.lastMicPTS = sampleBuffer.presentationTimeStamp
+            } else if sessionStarted {
+                stats.micNotReady += 1
+            }
         @unknown default:
-            break
+            Log.warning("Unknown stream output type \(type.rawValue)", "capture")
         }
     }
 
     // MARK: - SCStreamDelegate
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
+        Log.error("Stream stopped with error: \(Log.describe(error))", "recorder")
         Task {
             await finish()
             await MainActor.run { onUnexpectedStop?(error) }
         }
     }
 
+    func outputVideoEffectDidStart(for stream: SCStream) {
+        Log.info("Presenter overlay / video effect started", "recorder")
+    }
+
+    func outputVideoEffectDidStop(for stream: SCStream) {
+        Log.info("Presenter overlay / video effect stopped", "recorder")
+    }
+
     // MARK: - Private
 
-    private func append(_ sampleBuffer: CMSampleBuffer, to input: AVAssetWriterInput?) {
+    /// Returns true when the buffer was written.
+    private func append(_ sampleBuffer: CMSampleBuffer, to input: AVAssetWriterInput?, track: String) -> Bool {
+        guard let input else { return false }
         // Audio before the first video frame has no session to land in.
-        guard sessionStarted, let input, input.isReadyForMoreMediaData else { return }
-        input.append(sampleBuffer)
+        guard sessionStarted else {
+            stats.audioBeforeSession += 1
+            return false
+        }
+        guard input.isReadyForMoreMediaData else {
+            Log.debug("\(track) input not ready, buffer dropped", "capture")
+            return false
+        }
+        if input.append(sampleBuffer) { return true }
+        stats.appendFailed += 1
+        Log.error("\(track) append failed: writer status=\(writer?.status.rawValue ?? -1) error=\(Log.describe(writer?.error))", "capture")
+        return false
+    }
+
+    private func startStatsTimer() {
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + 10, repeating: 10)
+        timer.setEventHandler { [weak self] in
+            guard let self, self.writer != nil else { return }
+            let size = Self.fileSize(self.writer?.outputURL)
+            Log.info("Stats: \(self.stats.summary(since: self.startedAt)) file=\(size)", "stats")
+            if self.sessionStarted == false {
+                Log.warning("No video frame received yet — is the screen locked or the display asleep?", "stats")
+            }
+        }
+        timer.resume()
+        statsTimer = timer
     }
 
     @discardableResult
     private func finish() async -> URL? {
-        let state: (AVAssetWriter, Bool, [AVAssetWriterInput])? = queue.sync {
+        let state: (AVAssetWriter, Bool, [AVAssetWriterInput], String)? = queue.sync {
             guard let writer, !finishing else { return nil }
             finishing = true
+            statsTimer?.cancel()
+            statsTimer = nil
             let inputs = [videoInput, systemAudioInput, microphoneInput].compactMap { $0 }
-            return (writer, sessionStarted, inputs)
+            return (writer, sessionStarted, inputs, stats.summary(since: startedAt))
         }
         stream = nil
-        guard let (writer, started, inputs) = state else { return nil }
+        guard let (writer, started, inputs, summary) = state else {
+            Log.debug("finish() called with nothing to finish", "recorder")
+            return nil
+        }
+        Log.info("Final stats: \(summary)", "recorder")
 
         var result: URL?
         if started, writer.status == .writing {
             inputs.forEach { $0.markAsFinished() }
+            let begin = Date()
             await writer.finishWriting()
-            result = writer.status == .completed ? writer.outputURL : nil
+            let took = String(format: "%.2fs", Date().timeIntervalSince(begin))
+            if writer.status == .completed {
+                result = writer.outputURL
+                Log.info("File finished in \(took): \(writer.outputURL.path) size=\(Self.fileSize(writer.outputURL))", "recorder")
+                Self.logAssetInfo(writer.outputURL)
+            } else {
+                Log.error("finishWriting failed after \(took): status=\(writer.status.rawValue) error=\(Log.describe(writer.error)). Fragmented file may still be playable: \(writer.outputURL.path)", "recorder")
+            }
         } else {
+            Log.warning("No video was recorded (sessionStarted=\(started), status=\(writer.status.rawValue), error=\(Log.describe(writer.error))); removing empty file", "recorder")
             writer.cancelWriting()
             try? FileManager.default.removeItem(at: writer.outputURL)
         }
@@ -216,6 +398,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
     private func add(_ input: AVAssetWriterInput, to writer: AVAssetWriter) throws {
         guard writer.canAdd(input) else {
+            Log.error("Writer cannot add \(input.mediaType.rawValue) input with settings \(String(describing: input.outputSettings))", "recorder")
             throw RecorderError.writer("cannot add \(input.mediaType.rawValue) track")
         }
         writer.add(input)
@@ -239,6 +422,43 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
               let rawStatus = attachments.first?[.status] as? Int,
               let status = SCFrameStatus(rawValue: rawStatus) else { return false }
         return status == .complete
+    }
+
+    private static func describeAudioFormat(_ sampleBuffer: CMSampleBuffer) -> String {
+        guard let format = sampleBuffer.formatDescription,
+              let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee else { return "unknown" }
+        return "\(Int(asbd.mSampleRate)) Hz, \(asbd.mChannelsPerFrame) ch, \(asbd.mBitsPerChannel) bit, formatID=\(asbd.mFormatID), flags=\(asbd.mFormatFlags), frames=\(sampleBuffer.numSamples)"
+    }
+
+    private static func fileSize(_ url: URL?) -> String {
+        guard let url, let bytes = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int64 else { return "?" }
+        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    /// Reads the finished file back and logs its tracks, so a broken file shows up in the log right away.
+    private static func logAssetInfo(_ url: URL) {
+        Task {
+            let asset = AVURLAsset(url: url)
+            do {
+                let duration = try await asset.load(.duration)
+                let tracks = try await asset.load(.tracks)
+                var parts: [String] = []
+                for track in tracks {
+                    let range = try await track.load(.timeRange)
+                    let rate = try await track.load(.estimatedDataRate)
+                    var part = "\(track.mediaType.rawValue)#\(track.trackID) start=\(String(format: "%.2f", range.start.seconds)) dur=\(String(format: "%.2f", range.duration.seconds))s \(Int(rate / 1000)) kbps"
+                    if track.mediaType == .video {
+                        let size = try await track.load(.naturalSize)
+                        let fps = try await track.load(.nominalFrameRate)
+                        part += " \(Int(size.width))x\(Int(size.height)) \(String(format: "%.1f", fps)) fps"
+                    }
+                    parts.append(part)
+                }
+                Log.info("Verified file: duration=\(String(format: "%.2f", duration.seconds))s tracks=[\(parts.joined(separator: "; "))]", "recorder")
+            } catch {
+                Log.error("Could not read back finished file: \(Log.describe(error))", "recorder")
+            }
+        }
     }
 
     private static func outputSize(filter: SCContentFilter, maxHeight: Int?) -> (Int, Int) {
