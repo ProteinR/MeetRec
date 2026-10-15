@@ -517,7 +517,10 @@ final class RecorderModel: ObservableObject {
         Log.info("Auto-starting recording for \(app.name) meeting", "meetings")
         start(autoApp: app)
         // Show the panel so it is obvious that recording started; clicking outside folds it away.
-        NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
+        // Not in the discreet style: others may be watching the screen.
+        if MenuBarStyle.current != .discreet {
+            NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
+        }
     }
 
     private func meetingEnded(_ app: MeetingApp) {
@@ -530,7 +533,8 @@ final class RecorderModel: ObservableObject {
         }
         Log.info("Auto-stopping recording: \(app.name) meeting ended", "meetings")
         // Show the panel again at the end, so it is obvious that recording stopped.
-        stop(reason: "встреча в \(app.id == "teams" ? "Teams" : app.name) завершилась", showPanel: true)
+        stop(reason: "встреча в \(app.id == "teams" ? "Teams" : app.name) завершилась",
+             showPanel: MenuBarStyle.current != .discreet)
     }
 
     func start(autoApp: MeetingApp? = nil) {

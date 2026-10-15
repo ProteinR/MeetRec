@@ -76,6 +76,12 @@ What MeetRec does instead:
   person or extra sample) and renames them in the transcript, joining neighbouring lines; the meetings
   copy is updated only if it is still identical to the transcript. The run file follows renames.
 
+- "Значок в меню": the menu bar look while recording (red icon + timer / red icon only / discreet:
+  monochrome icon, filled while recording, no timer, no auto-opening of the panel), and "Прятать
+  MeetRec при показе экрана" (`sharingType = .none` on the status item and panel windows; whether a
+  calling app honours it is not verified yet). macOS's own mic/screen-recording indicators cannot be
+  hidden.
+
 Planned next: more calling apps (Telegram, Zoom, Google Meet in browsers) once checked for false positives.
 
 Principles: small, native (Swift, ScreenCaptureKit, no Electron, no third-party Swift packages),

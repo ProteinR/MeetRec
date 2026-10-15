@@ -80,6 +80,11 @@ final class MenuPanelController: NSObject, NSWindowDelegate {
         Log.debug("Panel shown, window \(NSStringFromRect(panel.frame)) (\(itemFrame == nil ? "top right" : "under status item"))")
     }
 
+    /// `.none` keeps the panel out of screen sharing and screenshots (in apps that honour it).
+    func setSharingType(_ type: NSWindow.SharingType) {
+        if panel.sharingType != type { panel.sharingType = type }
+    }
+
     func close() {
         guard panel.isVisible else { return }
         stopOutsideClickMonitor()

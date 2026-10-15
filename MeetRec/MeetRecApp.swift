@@ -44,6 +44,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
         updateStatusItem(recording: false, problem: false)
 
+        // Menu bar style or "hide from screen sharing" changed in the panel.
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.updateStatusItem(recording: model.isRecording, problem: model.health?.hasProblem == true)
+            }
+            .store(in: &cancellables)
+
         // Auto-recording opens the panel so it is obvious that recording started.
         NotificationCenter.default.publisher(for: RecorderModel.showPanelNotification)
             .receive(on: RunLoop.main)
@@ -80,17 +88,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     private func updateStatusItem(recording: Bool, problem: Bool) {
         guard let button = statusItem.button else { return }
-        let symbol = problem ? "exclamationmark.triangle.fill" : (recording ? "record.circle.fill" : "record.circle")
-        let iconKey = "\(symbol) \(recording)"
+        let style = MenuBarStyle.current
+        // Discreet: a plain monochrome icon like any menu bar app; filled while recording.
+        let colored = recording && style != .discreet
+        let symbol = problem ? (colored ? "exclamationmark.triangle.fill" : "exclamationmark.triangle")
+            : (recording ? "record.circle.fill" : "record.circle")
+        let iconKey = "\(symbol) \(colored) \(problem)"
         if iconKey != statusIconKey {
             statusIconKey = iconKey
             let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "MeetRec")
-            image?.isTemplate = !recording
-            button.image = recording ? image?.withSymbolConfiguration(.init(paletteColors: [problem ? .systemYellow : .systemRed])) : image
+            image?.isTemplate = !colored
+            button.image = colored ? image?.withSymbolConfiguration(.init(paletteColors: [problem ? .systemYellow : .systemRed])) : image
             button.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         }
-        let title = recording ? " " + RecorderModel.shared.elapsedText : ""
+        let title = recording && style == .full ? " " + RecorderModel.shared.elapsedText : ""
         if button.title != title { button.title = title }
+        // Keep MeetRec out of screen sharing (apps that honour the window sharing type).
+        let sharing: NSWindow.SharingType = MenuBarStyle.hideFromSharing ? .none : .readOnly
+        if button.window?.sharingType != sharing { button.window?.sharingType = sharing }
+        panel.setSharingType(sharing)
     }
 
     @objc @MainActor
@@ -171,6 +187,8 @@ struct ContentView: View {
                                        isExpanded: expanded("transcription")) { TranscriptionSettings() }
                     CollapsibleSection(title: "Автозапись встреч", icon: "person.2.wave.2.fill", summary: meetingSummary,
                                        isExpanded: expanded("meetings")) { MeetingSettings() }
+                    CollapsibleSection(title: "Значок в меню", icon: "menubar.rectangle", summary: appearanceSummary,
+                                       isExpanded: expanded("appearance")) { AppearanceSettings() }
                     RecordingsSection(isExpanded: expanded("recordings"))
                 }
                 Divider()
@@ -317,6 +335,14 @@ struct ContentView: View {
         let names = MeetingApp.all.filter { $0.supported && model.selectedMeetingApps.contains($0.id) }.map(\.name)
         guard !names.isEmpty else { return "Не выбраны приложения" }
         return (model.detectorStatus ?? "Включена") + " · " + names.joined(separator: ", ")
+    }
+
+    @AppStorage(MenuBarStyle.storageKey) private var menuBarStyle = MenuBarStyle.full.rawValue
+    @AppStorage(MenuBarStyle.hideFromSharingKey) private var hideFromSharing = false
+
+    private var appearanceSummary: String {
+        let style = (MenuBarStyle(rawValue: menuBarStyle) ?? .full).title
+        return hideFromSharing ? "\(style) · скрыт при показе экрана" : style
     }
 
     private var videoSummary: String {
