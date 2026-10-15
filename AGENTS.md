@@ -2,19 +2,50 @@
 
 ## What this is and why
 
-A tiny personal macOS menu bar screen recorder that replaces OBS for one job: recording meetings,
-English lessons in Chrome, Telegram calls and similar. It records one display with system audio and
-the microphone, and can transcribe recordings locally with speaker names. Planned next: start/stop
-automatically when a Microsoft Teams call starts.
+MeetRec is a personal macOS menu bar app for recording the screen during meetings and turning the
+recordings into transcripts. It was written to replace **OBS**, which the owner used for exactly one
+thing: pressing "record" in a meeting to capture the screen, the microphone and the other people's
+voices. For that job OBS was the wrong tool:
 
-Keep it small and dependable; prefer fewer features over more.
+- **Heavy for the task.** About 440 MB installed, a virtual camera system extension, scenes, sources,
+  encoders and streaming settings, of which only "Start Recording" was ever used.
+- **Manual.** Open OBS, check the scene, start, remember to stop. Nothing tells you mid-meeting that
+  the microphone went silent or the wrong device is recording.
+- **Large files.** 143 recordings took 12 GB; a mostly static screen at a few frames per second needs
+  far less.
+- **Not connected to transcription.** Recordings were transcribed afterwards by hand with the
+  `transcribe-meeting` skill in inventire-workspace (and `transcribe-lesson` in the English project).
+
+Typical recordings: Microsoft Teams work meetings, English lessons in Chrome, Telegram calls and other
+calls in the browser. Video is always needed. The external monitor is usually the one to record.
+
+What MeetRec does instead:
+
+- One menu bar icon and a small dropdown panel: start/stop button, global hotkey ⌃⌥⌘R, display picker
+  (auto prefers the external monitor), system audio and microphone toggles, microphone picker, FPS,
+  resolution and codec.
+- Live recording status: microphone and system audio level meters with the actual device name,
+  screen and file state; a ⚠️ in the menu bar when a source stops delivering.
+- Crash-safe fragmented `.mov` with separate tracks for video, system audio and microphone; around
+  0.5 GB per hour at 1440p HEVC.
+- Optional local transcription after each recording (mlx-whisper + pyannote, nothing leaves the Mac),
+  speaker names from enrolled voices including the owner's own voice sample, and a recordings list
+  showing which videos are transcribed or how far a running transcription is.
+- Detailed logs, so problems in a long meeting can be traced afterwards.
+
+Planned next: start and stop recording automatically when a Microsoft Teams call starts and ends.
+
+Principles: small, native (Swift, ScreenCaptureKit, no Electron, no third-party Swift packages),
+dependable over feature-rich. Prefer fewer features, and never risk losing a recording.
 
 ## How it works
 
-- `MeetRec/MeetRecApp.swift` + `MenuPanel.swift`: `AppDelegate` owns an `NSStatusItem` and a borderless panel (no NSPopover: it misplaced its arrow when Ice hides the item)
-  with `ContentView`. Clicking the item or opening the app again (Finder, Spotlight) shows the
-  popover; clicking outside closes it. If Ice hides the item, the popover is anchored under the menu
-  bar at the top right. There is deliberately no standalone window.
+- `MeetRec/MeetRecApp.swift` + `MenuPanel.swift`: `AppDelegate` owns an `NSStatusItem` and a
+  borderless panel hosting `ContentView`. Clicking the item or opening the app again (Finder,
+  Spotlight) shows the panel; clicking outside, Esc or ⌘W closes it. If Ice hides the item (it moves
+  hidden items off screen), the panel opens at the top right under the menu bar. `NSPopover` was
+  dropped on purpose: anchored to a fake view it drew its arrow in the wrong place whenever the content
+  changed height. There is no standalone window.
 - `MeetRec/RecorderModel.swift`: settings (`@AppStorage`), device lists, permissions, start/stop,
   global hotkey ⌃⌥⌘R, system event logging (sleep/wake/lock, device changes).
 - `MeetRec/ScreenRecorder.swift`: ScreenCaptureKit (`SCStream` with `.screen`, `.audio`,
