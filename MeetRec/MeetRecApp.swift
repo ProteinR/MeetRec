@@ -160,22 +160,21 @@ struct ContentView: View {
             } else {
                 sources
             }
-            TranscriptionStatus()
-            // Accordion: one card open at a time keeps the panel within the screen height.
-            VStack(spacing: 8) {
-                if !model.isRecording {
+            // While recording the panel shows only what concerns the recording itself.
+            if !model.isRecording {
+                TranscriptionStatus()
+                // Accordion: one card open at a time keeps the panel within the screen height.
+                VStack(spacing: 8) {
                     CollapsibleSection(title: "Видео", icon: "video.fill", summary: videoSummary,
                                        isExpanded: expanded("video")) { videoSettings }
                     CollapsibleSection(title: "Транскрибация", icon: "text.bubble.fill", summary: transcriptionSummary,
                                        isExpanded: expanded("transcription")) { TranscriptionSettings() }
                     CollapsibleSection(title: "Автозапись встреч", icon: "person.2.wave.2.fill", summary: meetingSummary,
                                        isExpanded: expanded("meetings")) { MeetingSettings() }
+                    RecordingsSection(isExpanded: expanded("recordings"))
                 }
-                RecordingsSection(isExpanded: expanded("recordings"))
-            }
-            Divider()
-            folderRow
-            if !model.isRecording {
+                Divider()
+                bottomRow
                 HStack(alignment: .top, spacing: 20) {
                     LoginItemToggle()
                     Toggle("Перезапуск после сбоя", isOn: Binding(get: { model.crashWatchdog },
@@ -202,7 +201,6 @@ struct ContentView: View {
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            footer
         }
         .padding(14)
         .frame(width: MenuPanelController.cardWidth)
@@ -234,32 +232,37 @@ struct ContentView: View {
     }
 
     private var recordButton: some View {
-        Button {
-            model.toggle()
-        } label: {
-            HStack {
-                Image(systemName: model.isRecording ? "stop.fill" : "record.circle")
-                Text(model.isRecording ? "Остановить запись" : "Начать запись")
-                Spacer()
-                Text(RecorderModel.hotKeyHint).foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 4)
-        }
-        .buttonStyle(.borderedProminent)
-        // Stop stays as visible as Start: a grey button read as "disabled".
-        .tint(model.isRecording ? Color(red: 0.75, green: 0.1, blue: 0.1) : .red)
-        .controlSize(.large)
-        .disabled(model.isBusy)
+        RecordButton(isRecording: model.isRecording, isBusy: model.isBusy) { model.toggle() }
     }
 
     private var sources: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Picker("Монитор", selection: $model.displayID) {
-                Text(autoDisplayTitle).tag(RecorderModel.autoDisplay)
-                ForEach(model.displays) { display in
-                    Text(display.name).tag(Int(display.id))
+            HStack(spacing: 12) {
+                HStack(spacing: 6) {
+                    Image(systemName: "display").foregroundStyle(.secondary).frame(width: 18)
+                    Picker("Монитор", selection: $model.displayID) {
+                        Text(autoDisplayTitle).tag(RecorderModel.autoDisplay)
+                        ForEach(model.displays) { display in
+                            Text(display.name).tag(Int(display.id))
+                        }
+                    }
+                    .labelsHidden()
+                    .help("Какой монитор записывать")
                 }
+                .frame(maxWidth: .infinity)
+                HStack(spacing: 6) {
+                    Image(systemName: "mic.fill").foregroundStyle(.secondary).frame(width: 18)
+                    Picker("Микрофон", selection: $model.microphoneID) {
+                        Text("Системный по умолчанию").tag("")
+                        ForEach(model.microphones) { mic in
+                            Text(mic.name).tag(mic.id)
+                        }
+                    }
+                    .labelsHidden()
+                    .help("Какой микрофон записывать")
+                }
+                .frame(maxWidth: .infinity)
+                .disabled(!model.microphone)
             }
             HStack(spacing: 20) {
                 Toggle("Звук системы", isOn: $model.systemAudio)
@@ -267,12 +270,6 @@ struct ContentView: View {
                 Spacer(minLength: 0)
             }
             if model.microphone {
-                Picker("Устройство", selection: $model.microphoneID) {
-                    Text("Системный по умолчанию").tag("")
-                    ForEach(model.microphones) { mic in
-                        Text(mic.name).tag(mic.id)
-                    }
-                }
                 micPreview
             }
         }
@@ -361,31 +358,28 @@ struct ContentView: View {
         .disabled(model.isRecording)
     }
 
-    private var folderRow: some View {
-        HStack {
+    /// Recordings folder and the app's own buttons in one row.
+    private var bottomRow: some View {
+        HStack(spacing: 8) {
             Image(systemName: "folder")
             Text(model.folderURL.lastPathComponent)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .help(model.folderPath)
-            Spacer()
+            Spacer(minLength: 4)
             Button("Изменить") { model.chooseFolder() }
                 .disabled(model.isRecording)
+                .help("Выбрать папку для записей")
             Button("Открыть") { model.openFolder() }
-        }
-    }
-
-    private var footer: some View {
-        HStack {
-            if model.lastFile != nil {
-                Button("Последняя запись") { model.revealLastFile() }
-            }
+                .help("Открыть папку с записями в Finder")
+            Divider().frame(height: 16)
             Button("Лог") { model.openLog() }
-            Spacer()
+                .buttonStyle(.borderless)
+                .help("Открыть журнал MeetRec")
             Button("Выйти") { NSApp.terminate(nil) }
+                .buttonStyle(.borderless)
                 .disabled(model.isRecording)
         }
-        .buttonStyle(.borderless)
     }
 
     private var autoDisplayTitle: String {
@@ -604,5 +598,92 @@ struct RecordingControls: View {
         }
         .onAppear { model.refreshWindows() }
         .onChange(of: model.panelVisible) { if model.panelVisible { model.refreshWindows() } }
+    }
+}
+
+/// The big start/stop button. Switching morphs it: the colour deepens, the record icon turns into a
+/// stop square, the title slides, and a ring ripples out on start. While recording it glows (a steady
+/// glow, not a pulse: an endless animation would redraw the panel every frame during the recording).
+struct RecordButton: View {
+    let isRecording: Bool
+    let isBusy: Bool
+    let action: () -> Void
+
+    @State private var hovering = false
+    @State private var pressed = false
+    @State private var ripple = false
+
+    private static let startColor = Color(red: 0.96, green: 0.26, blue: 0.27)
+    private static let stopColor = Color(red: 0.62, green: 0.08, blue: 0.10)
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                ZStack {
+                    if isBusy {
+                        ProgressView().controlSize(.small).tint(.white)
+                            .transition(.scale.combined(with: .opacity))
+                    } else {
+                        Image(systemName: isRecording ? "stop.fill" : "record.circle")
+                            .contentTransition(.symbolEffect(.replace.downUp))
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                }
+                .frame(width: 20)
+                ZStack(alignment: .leading) {
+                    Text(isRecording ? "Остановить запись" : "Начать запись")
+                        .id(isRecording)
+                        .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity),
+                                                removal: .move(edge: .top).combined(with: .opacity)))
+                }
+                .clipped()
+                Spacer()
+                Text(RecorderModel.hotKeyHint).foregroundStyle(.white.opacity(0.7))
+            }
+            .font(.body.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity)
+            .background {
+                Capsule()
+                    .fill(isRecording ? Self.stopColor : Self.startColor)
+                    .brightness(hovering && !isBusy ? 0.06 : 0)
+            }
+            .overlay {
+                // Ripple on start.
+                Capsule()
+                    .stroke(Self.startColor, lineWidth: 3)
+                    .scaleEffect(x: ripple ? 1.06 : 1, y: ripple ? 1.5 : 1)
+                    .opacity(ripple ? 0 : (isRecording ? 0.9 : 0))
+                    .allowsHitTesting(false)
+            }
+            .shadow(color: (isRecording ? Self.stopColor : Self.startColor).opacity(isRecording ? 0.6 : 0.25),
+                    radius: isRecording ? 10 : 5)
+            .scaleEffect(pressed ? 0.97 : 1)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(PressReportingStyle(pressed: $pressed))
+        .disabled(isBusy)
+        .onHover { hovering = $0 }
+        .animation(.spring(response: 0.45, dampingFraction: 0.78), value: isRecording)
+        .animation(.easeInOut(duration: 0.2), value: isBusy)
+        .animation(.easeOut(duration: 0.15), value: hovering)
+        .animation(.spring(response: 0.25, dampingFraction: 0.6), value: pressed)
+        .onChange(of: isRecording) { _, recording in
+            guard recording else { return }
+            ripple = false
+            withAnimation(.easeOut(duration: 0.8)) { ripple = true }
+        }
+    }
+}
+
+/// Plain look, but tells the button when it is held down, for the press-in effect.
+private struct PressReportingStyle: ButtonStyle {
+    @Binding var pressed: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .onChange(of: configuration.isPressed) { _, isPressed in pressed = isPressed }
     }
 }
