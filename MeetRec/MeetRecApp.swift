@@ -2,7 +2,8 @@ import SwiftUI
 
 @main
 struct MeetRecApp: App {
-    @StateObject private var model = RecorderModel()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var model = RecorderModel.shared
 
     var body: some Scene {
         MenuBarExtra {
@@ -17,6 +18,38 @@ struct MeetRecApp: App {
             }
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+/// Shows the same panel as a normal window on launch and whenever the app is opened again
+/// (Finder, Spotlight, Dock), so MeetRec is reachable even when its menu bar icon is hidden by a
+/// menu bar manager or the notch.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var window: NSWindow?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        showWindow()
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        Log.info("App reopened, showing window")
+        showWindow()
+        return true
+    }
+
+    @MainActor
+    func showWindow() {
+        if window == nil {
+            let hosting = NSHostingController(rootView: ContentView().environmentObject(RecorderModel.shared))
+            let window = NSWindow(contentViewController: hosting)
+            window.title = "MeetRec"
+            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            self.window = window
+        }
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 

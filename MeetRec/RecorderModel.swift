@@ -37,6 +37,7 @@ enum ResolutionPreset: String, CaseIterable, Identifiable {
 
 @MainActor
 final class RecorderModel: ObservableObject {
+    static let shared = RecorderModel()
     static let autoDisplay = 0
 
     // Settings
