@@ -41,11 +41,13 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
 ## How it works
 
 - `MeetRec/MeetRecApp.swift` + `MenuPanel.swift`: `AppDelegate` owns an `NSStatusItem` and a
-  borderless panel hosting `ContentView`. Clicking the item or opening the app again (Finder,
-  Spotlight) shows the panel; clicking outside, Esc or ⌘W closes it. If Ice hides the item (it moves
-  hidden items off screen), the panel opens at the top right under the menu bar. `NSPopover` was
-  dropped on purpose: anchored to a fake view it drew its arrow in the wrong place whenever the content
-  changed height. There is no standalone window.
+  borderless, transparent, fixed-size panel window; the visible card (blur, corners, shadow) is drawn
+  by SwiftUI (`PanelCard`) and hugs the content, so accordion sections (`CollapsibleSection`: Video,
+  Transcription, Recordings; one open at a time) animate their height smoothly. Do not make the window
+  follow SwiftUI's size again: that caused jumps and, with Auto Layout, a launch crash. Clicking the
+  item or reopening the app shows the panel; clicks outside (including the transparent part, which is
+  click-through), Esc or ⌘W close it. If Ice hides the item (it moves hidden items off screen), the
+  panel opens at the top right. `NSPopover` was dropped: anchored to a fake view it misplaced its arrow.
 - `MeetRec/RecorderModel.swift`: settings (`@AppStorage`), device lists, permissions, start/stop,
   global hotkey ⌃⌥⌘R, system event logging (sleep/wake/lock, device changes).
 - `MeetRec/ScreenRecorder.swift`: ScreenCaptureKit (`SCStream` with `.screen`, `.audio`,

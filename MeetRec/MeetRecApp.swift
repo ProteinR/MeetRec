@@ -107,17 +107,18 @@ struct ContentView: View {
                 StatusPanel(health: health)
             } else {
                 sources
-                VStack(spacing: 8) {
-                    // Accordion: one section open at a time keeps the panel within the screen height.
+            }
+            TranscriptionStatus()
+            // Accordion: one card open at a time keeps the panel within the screen height.
+            VStack(spacing: 8) {
+                if !model.isRecording {
                     CollapsibleSection(title: "Видео", icon: "video.fill", summary: videoSummary,
                                        isExpanded: expanded("video")) { videoSettings }
                     CollapsibleSection(title: "Транскрибация", icon: "text.bubble.fill", summary: transcriptionSummary,
                                        isExpanded: expanded("transcription")) { TranscriptionSettings() }
                 }
+                RecordingsSection(isExpanded: expanded("recordings"))
             }
-            TranscriptionStatus()
-            Divider()
-            RecordingsList()
             Divider()
             folderRow
             if let error = model.errorMessage {

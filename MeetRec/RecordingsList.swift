@@ -29,25 +29,20 @@ enum RecordingsStore {
 }
 
 /// Recent recordings with their transcription state: done (opens the transcript), progress while
-/// running, queued, failed (retry), or a button to transcribe.
-struct RecordingsList: View {
+/// running, queued, failed (retry), or a button to transcribe. A collapsible card; the summary line
+/// shows the count, how many are transcribed and a running transcription's progress.
+struct RecordingsSection: View {
+    @Binding var isExpanded: Bool
     @EnvironmentObject private var model: RecorderModel
     @EnvironmentObject private var transcriber: Transcriber
     @State private var items: [RecordingItem] = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Записи").font(.subheadline.weight(.semibold))
-                Spacer()
-                if !items.isEmpty {
-                    Text("\(items.count)\(items.count == RecordingsStore.limit ? "+" : "")")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
+        CollapsibleSection(title: "Записи", icon: "film.stack", summary: summary, isExpanded: $isExpanded) {
             if items.isEmpty {
                 Text("Пока нет записей в папке «\(model.folderURL.lastPathComponent)»")
                     .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 2) {
@@ -56,13 +51,27 @@ struct RecordingsList: View {
                         }
                     }
                 }
-                .frame(maxHeight: 210)
+                .frame(height: min(CGFloat(items.count) * 42, 230))
             }
         }
         .onAppear(perform: reload)
         .onChange(of: model.lastFile) { reload() }
         .onChange(of: model.folderPath) { reload() }
         .onChange(of: transcriber.transcriptsVersion) { reload() }
+    }
+
+    private var summary: String {
+        guard !items.isEmpty else { return "Пока пусто" }
+        if let running = transcriber.runningFile, items.contains(where: { $0.url == running }) {
+            let percent = transcriber.progress.map { " \(Int($0 * 100))%" } ?? ""
+            return "Транскрибируется\(percent) · всего \(countText)"
+        }
+        let transcribed = items.filter { Transcriber.existingTranscript(for: $0.url) != nil }.count
+        return "\(countText) · с текстом: \(transcribed)"
+    }
+
+    private var countText: String {
+        "\(items.count)\(items.count == RecordingsStore.limit ? "+" : "")"
     }
 
     private func reload() {
