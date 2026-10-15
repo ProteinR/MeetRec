@@ -27,6 +27,11 @@ struct RecordingHealth: Equatable {
     /// Seconds since the microphone / system audio last had speech-level sound.
     var micSilentFor: TimeInterval = 0
     var systemSilentFor: TimeInterval = 0
+    /// Seconds the file has not grown although data should be arriving.
+    var fileStalledFor: TimeInterval = 0
+    /// Seconds the recorded picture has been completely black.
+    var blackFor: TimeInterval = 0
+    var diskLow = false
 
     var hasProblem: Bool {
         [microphone, systemAudio, screen, file].contains { $0.state == .noSignal }
@@ -42,6 +47,11 @@ struct HealthTracker {
     static let micQuietAfter: TimeInterval = 30
     static let speechThresholdDB: Float = -45
     static let silenceThresholdDB: Float = -55
+    /// Fragments are written every 5 s, so a healthy file grows at least that often.
+    static let fileStalledAfter: TimeInterval = 30
+    static let blackAfter: TimeInterval = 30
+    /// 420v video range: black is 16; anything visible on screen is well above this.
+    static let blackLuma = 24
 
     let startedAt: Date
     let microphoneOn: Bool
@@ -57,6 +67,9 @@ struct HealthTracker {
     private var lastFrameCount = 0
     private var lastFrameCountAt: Date
     private var fps: Double = 0
+    private var lastFileSize: Int64 = -1
+    private var lastFileGrowth: Date
+    private var blackSince: Date?
 
     init(startedAt: Date, microphoneOn: Bool, systemAudioOn: Bool, microphoneName: String, displayName: String) {
         self.startedAt = startedAt
@@ -67,6 +80,7 @@ struct HealthTracker {
         self.lastLoudMic = startedAt
         self.lastLoudSystem = startedAt
         self.lastFrameCountAt = startedAt
+        self.lastFileGrowth = startedAt
     }
 
     /// - Parameter micMuted: the input is muted at the system level (keyboard mute key); silence is then
@@ -129,18 +143,41 @@ struct HealthTracker {
             screenDetail = "\(displayName) — кадры не приходят"
         }
 
-        let fileSize = status.fileURL
-            .flatMap { try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? Int64 }
-            .map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "—"
+        let bytes = status.fileURL.flatMap { try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? Int64 }
+        let fileSize = bytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "—"
+        if let bytes, bytes != lastFileSize {
+            lastFileSize = bytes
+            lastFileGrowth = now
+        }
+        // Audio buffers arrive even in silence, so with any audio track the file must keep growing.
+        // Video-only recordings of a static screen legitimately stand still.
+        let expectsGrowth = (microphoneOn && status.lastMicBuffer != nil) || (systemAudioOn && status.lastSystemBuffer != nil)
+        let stalledFor = expectsGrowth ? now.timeIntervalSince(lastFileGrowth) : 0
+
+        if let luma = status.frameMaxLuma, luma <= Self.blackLuma {
+            if blackSince == nil { blackSince = now }
+        } else {
+            blackSince = nil
+        }
+        let blackFor = blackSince.map { now.timeIntervalSince($0) } ?? 0
+        if screenState == .ok, blackFor >= Self.blackAfter {
+            screenState = .quiet
+            screenDetail = "\(displayName) — чёрный экран \(Int(blackFor)) с"
+        }
 
         var fileDetail = "\(fileSize) · \(status.fileURL?.lastPathComponent ?? "")"
         var fileState = SignalState.ok
+        let diskLow = freeSpace.map { $0 < DiskSpace.warnBelow } ?? false
         if let freeSpace {
             fileDetail = "\(fileSize) · свободно \(DiskSpace.format(freeSpace))"
-            if freeSpace < DiskSpace.warnBelow {
+            if diskLow {
                 fileState = .noSignal
                 fileDetail = "\(fileSize) · мало места: \(DiskSpace.format(freeSpace))"
             }
+        }
+        if stalledFor >= Self.fileStalledAfter {
+            fileState = .noSignal
+            fileDetail = "\(fileSize) — файл не растёт \(Int(stalledFor)) с"
         }
 
         return RecordingHealth(
@@ -149,7 +186,10 @@ struct HealthTracker {
             screen: SignalHealth(title: "Экран", detail: screenDetail, levelDB: nil, state: screenState),
             file: SignalHealth(title: "Файл", detail: fileDetail, levelDB: nil, state: fileState),
             micSilentFor: now.timeIntervalSince(lastLoudMic),
-            systemSilentFor: now.timeIntervalSince(lastLoudSystem)
+            systemSilentFor: now.timeIntervalSince(lastLoudSystem),
+            fileStalledFor: stalledFor,
+            blackFor: blackFor,
+            diskLow: diskLow
         )
     }
 

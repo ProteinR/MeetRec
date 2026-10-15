@@ -50,6 +50,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.showPanel() }
     }
 
+    /// Quitting while recording (logout, shutdown, `install.sh`) first closes the file properly.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        MainActor.assumeIsolated {
+            let model = RecorderModel.shared
+            guard model.isRecording || model.isBusy else { return .terminateNow }
+            Log.warning("Quit requested while recording: finishing the file first")
+            model.stop(reason: "выход из MeetRec")
+            Task { @MainActor in
+                for _ in 0..<100 where model.isRecording || model.isBusy {
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+                NSApp.reply(toApplicationShouldTerminate: true)
+            }
+            return .terminateLater
+        }
+    }
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         Log.info("App reopened, showing panel")
         Task { @MainActor in self.showPanel() }
@@ -130,7 +147,7 @@ struct ContentView: View {
             }
             Divider()
             if model.isRecording, let health = model.health {
-                StatusPanel(health: health)
+                StatusPanel(health: health, load: model.load)
             } else {
                 sources
             }
@@ -151,6 +168,9 @@ struct ContentView: View {
             folderRow
             if !model.isRecording {
                 LoginItemToggle()
+                Toggle("Перезапускать после сбоя", isOn: Binding(get: { model.crashWatchdog },
+                                                                  set: { model.setCrashWatchdog($0) }))
+                    .help("Если MeetRec упадёт, он запустится снова через несколько секунд и продолжит запись")
             }
             if let notice = model.stopNotice, !model.isRecording {
                 HStack(alignment: .top, spacing: 8) {
@@ -363,6 +383,7 @@ struct ContentView: View {
 /// Live "is everything being recorded?" panel shown while recording.
 struct StatusPanel: View {
     let health: RecordingHealth
+    let load: SystemLoad?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -371,7 +392,25 @@ struct StatusPanel: View {
             StatusRow(icon: "speaker.wave.2.fill", signal: health.systemAudio)
             StatusRow(icon: "display", signal: health.screen)
             StatusRow(icon: "internaldrive", signal: health.file)
-            if health.file.state == .noSignal {
+            if let load {
+                HStack(spacing: 8) {
+                    Image(systemName: "cpu").frame(width: 18).foregroundStyle(.secondary)
+                    Text("Процессор \(Int(load.systemCPU.rounded()))%")
+                        .font(.callout)
+                        .foregroundStyle(load.systemCPU >= RecorderModel.highCPUPercent ? .red : .primary)
+                    Spacer()
+                    Text("MeetRec \(Int(load.appCPU.rounded()))% · \(load.memoryText)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .help("Общая загрузка процессора Mac; справа — сколько процессора (в % одного ядра) и памяти занимает MeetRec")
+            }
+            if health.fileStalledFor >= HealthTracker.fileStalledAfter {
+                Text("Файл записи перестал расти: данные не сохраняются. Остановите и начните запись заново.")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if health.diskLow {
                 Text("Заканчивается место на диске. Запись остановится сама, когда останется меньше \(DiskSpace.format(DiskSpace.stopBelow)).")
                     .font(.caption)
                     .foregroundStyle(.red)
@@ -448,6 +487,23 @@ struct RecordingControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let warning = model.meetingWindowWarning {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(warning, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        if let display = model.meetingWindowDisplay {
+                            Button("Записывать «\(display.name)»") { model.switchDisplay(to: display.id) }
+                        }
+                        Button("Игнорировать") { model.ignoreMeetingWindow() }
+                    }
+                    .controlSize(.small)
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.12)))
+            }
             Button {
                 model.addMarker()
             } label: {

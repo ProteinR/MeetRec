@@ -13,6 +13,12 @@ if security find-certificate -c "$IDENTITY" >/dev/null 2>&1; then
 else
   echo "warning: certificate '$IDENTITY' not found; app stays ad-hoc signed and permissions reset on every rebuild" >&2
 fi
+# Quit gracefully (removes the crash-watchdog flag, so the watchdog does not relaunch the old copy);
+# kill only if it does not quit in time.
+if pgrep -qx MeetRec; then
+  osascript -e 'tell application id "com.dmemruk.MeetRec" to quit' >/dev/null 2>&1 || true
+fi
+for _ in $(seq 1 50); do pgrep -qx MeetRec || break; sleep 0.2; done
 pkill -x MeetRec 2>/dev/null || true
 mkdir -p ~/Applications
 rm -rf ~/Applications/MeetRec.app

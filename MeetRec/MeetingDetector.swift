@@ -64,6 +64,8 @@ final class MeetingDetector {
     private let ownPID = ProcessInfo.processInfo.processIdentifier
 
     var isRunning: Bool { timer != nil }
+    /// The app whose meeting is going on now (held the microphone long enough), if any.
+    var currentMeeting: MeetingApp? { meetingApp }
 
     func start(apps: [MeetingApp]) {
         enabledApps = apps

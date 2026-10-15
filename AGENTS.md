@@ -55,6 +55,21 @@ What MeetRec does instead:
   failed copy only warns. Log line `Transcript copied: <src> → <dst>`. Manual recordings are never
   copied; their transcript stays only next to the video.
 
+- Safety while recording: the Mac and displays are kept awake; a warning (notification with
+  "Записывать «монитор»" / "Игнорировать", and a banner in the panel) when the Teams meeting window is
+  not on the recorded display for 10 s; alerts when the file stops growing for 30 s, the picture is
+  completely black for 30 s, or the whole Mac's CPU stays above 90 % for a minute. The panel shows
+  system CPU and MeetRec's own CPU/memory; the log gets a `Load:` line every 30 s (idle: every 10 min).
+- "Встреча идёт, а запись не ведётся": the detector also runs with auto-recording off and reminds
+  once per meeting (also after a failed auto-start or a manual stop mid-meeting), with a start button.
+- Permissions (screen, microphone) are checked at launch and every 30 min, with a notification.
+- Crash watchdog (`Watchdog.swift`): a `running` flag file plus a launchd agent
+  `~/Library/LaunchAgents/com.dmemruk.MeetRec.watchdog.plist` that reopens MeetRec within ~10 s if
+  it died. `recording.json` remembers the file being written; after a crash the file is reported and
+  transcribed, a manual recording continues in a new file (a meeting one is restarted by the
+  detector), but not after a second crash within 3 minutes. Quitting while recording finishes the
+  file first; `install.sh` quits gracefully so the watchdog does not relaunch the old copy.
+
 Planned next: more calling apps (Telegram, Zoom, Google Meet in browsers) once checked for false positives.
 
 Principles: small, native (Swift, ScreenCaptureKit, no Electron, no third-party Swift packages),

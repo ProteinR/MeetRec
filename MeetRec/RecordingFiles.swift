@@ -230,6 +230,40 @@ enum MeetingTitle {
         return cleaned.isEmpty ? nil : cleaned
     }
 
+    /// A Teams meeting window and where it is (global screen coordinates, origin top left, like
+    /// `CGDisplayBounds`).
+    struct MeetingWindow {
+        let windowID: CGWindowID
+        let title: String
+        let bounds: CGRect
+        let onScreen: Bool
+    }
+
+    /// Open Teams meeting windows (not the main window with its Chat/Calendar sections).
+    static func teamsMeetingWindows() -> [MeetingWindow] {
+        let teams = MeetingApp.all.first { $0.id == "teams" }
+        guard let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return [] }
+        var bundleIDs: [pid_t: String] = [:]
+        return list.compactMap { info in
+            guard (info[kCGWindowLayer as String] as? Int) == 0,
+                  let number = info[kCGWindowNumber as String] as? Int,
+                  let pid = info[kCGWindowOwnerPID as String] as? Int,
+                  let title = info[kCGWindowName as String] as? String, !title.isEmpty,
+                  let boundsDict = info[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: boundsDict),
+                  bounds.width >= 200, bounds.height >= 150 else { return nil }
+            let processID = pid_t(pid)
+            if bundleIDs[processID] == nil {
+                bundleIDs[processID] = NSRunningApplication(processIdentifier: processID)?.bundleIdentifier ?? ""
+            }
+            guard teams?.matches(bundleIDs[processID] ?? "") == true else { return nil }
+            let first = title.components(separatedBy: " | ").first?.trimmingCharacters(in: .whitespaces) ?? ""
+            guard !first.isEmpty, !teamsSections.contains(first.lowercased()) else { return nil }
+            return MeetingWindow(windowID: CGWindowID(number), title: clean(title), bounds: bounds,
+                                 onScreen: info[kCGWindowIsOnscreen as String] as? Bool ?? false)
+        }
+    }
+
     /// The title of a Teams meeting window, if one is open.
     static func teamsMeeting() -> String? {
         let teams = MeetingApp.all.first { $0.id == "teams" }

@@ -19,6 +19,8 @@ struct LiveStatus {
     var fileURL: URL?
     /// When the first video frame started the file: marker times are counted from here.
     var sessionStartedAt: Date?
+    /// Brightest sampled luma (0…255) of the latest checked frame; nil before the first check.
+    var frameMaxLuma: Int?
 }
 
 /// A window that can be recorded instead of the whole display.
@@ -139,12 +141,15 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         .sorted { ($0.appName, $0.title) < ($1.appName, $1.title) }
     }
 
-    /// Switches a running recording between the whole display (`windowID` nil) and a single window.
-    /// The output size stays the same; a window is shown where it is on its display, with everything
-    /// else (other windows, notifications) left out. Returns the name of the display now captured.
+    /// Switches a running recording between the whole display (`windowID` nil) and a single window,
+    /// or to another display (`displayID`). The output size stays the same (another display's picture
+    /// is fitted in); a window is shown where it is on its display, with everything else (other
+    /// windows, notifications) left out. Returns the name of the display now captured.
     @discardableResult
-    func setTarget(windowID: CGWindowID?) async throws -> String {
-        guard let stream, let displayID else { throw RecorderError.notRecording }
+    func setTarget(windowID: CGWindowID?, displayID newDisplayID: CGDirectDisplayID? = nil) async throws -> String {
+        guard let stream, self.displayID != nil else { throw RecorderError.notRecording }
+        if let newDisplayID { self.displayID = newDisplayID }
+        guard let displayID = self.displayID else { throw RecorderError.notRecording }
         let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
         let filter: SCContentFilter
         let display: SCDisplay
@@ -367,6 +372,9 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                 }
                 return
             }
+            if live.videoFrames % 30 == 0 {
+                live.frameMaxLuma = Self.maxLuma(sampleBuffer) ?? live.frameMaxLuma
+            }
             if videoInput.append(sampleBuffer) {
                 live.videoFrames += 1
                 stats.videoAppended += 1
@@ -534,6 +542,27 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
               let rawStatus = attachments.first?[.status] as? Int,
               let status = SCFrameStatus(rawValue: rawStatus) else { return false }
         return status == .complete
+    }
+
+    /// Brightest luma in a sparse grid of the frame's Y plane (420v: black is 16). A whole frame at
+    /// black level means the screen is black: locked, asleep, or protected content.
+    private static func maxLuma(_ sampleBuffer: CMSampleBuffer) -> Int? {
+        guard let pixelBuffer = sampleBuffer.imageBuffer, CVPixelBufferGetPlaneCount(pixelBuffer) >= 1 else { return nil }
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0) else { return nil }
+        let width = CVPixelBufferGetWidthOfPlane(pixelBuffer, 0)
+        let height = CVPixelBufferGetHeightOfPlane(pixelBuffer, 0)
+        let stride = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0)
+        let bytes = base.assumingMemoryBound(to: UInt8.self)
+        var maximum: UInt8 = 0
+        for y in Swift.stride(from: 0, to: height, by: 8) {
+            let row = bytes + y * stride
+            for x in Swift.stride(from: 0, to: width, by: 8) where row[x] > maximum {
+                maximum = row[x]
+            }
+        }
+        return Int(maximum)
     }
 
     /// Peak absolute sample value of a 32-bit float PCM buffer (what ScreenCaptureKit delivers).
