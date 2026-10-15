@@ -74,8 +74,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !popover.isShown else { return }
         NSApp.activate(ignoringOtherApps: true)
         if let button = statusItem.button, Self.isOnScreen(button) {
+            Log.debug("Popover anchored to status item at \(NSStringFromRect(button.window?.frame ?? .zero))")
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         } else {
+            Log.debug("Status item hidden (frame \(NSStringFromRect(statusItem.button?.window?.frame ?? .zero))), anchoring popover top right")
             // The item is hidden (Ice) or behind the notch: anchor under the menu bar, top right.
             let anchor = anchorWindow ?? Self.makeAnchorWindow()
             anchorWindow = anchor
@@ -97,10 +99,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         anchorWindow?.orderOut(nil)
     }
 
+    /// Menu bar managers like Ice "hide" items by pushing them past the left edge of the screen, where
+    /// they still count as visible windows. Only an item that lies entirely on a screen, to the right of
+    /// the app menus, is a usable anchor.
     private static func isOnScreen(_ view: NSView) -> Bool {
-        guard let window = view.window, window.isVisible else { return false }
+        guard let window = view.window, window.isVisible, window.occlusionState.contains(.visible) else { return false }
         let frame = window.frame
-        return frame.width > 1 && NSScreen.screens.contains { $0.frame.intersects(frame) }
+        guard frame.width > 1, let screen = NSScreen.screens.first(where: { $0.frame.contains(frame) }) else { return false }
+        return frame.minX > screen.frame.minX + screen.frame.width * 0.25
     }
 
     private static func makeAnchorWindow() -> NSWindow {
@@ -137,6 +143,8 @@ struct ContentView: View {
                 DisclosureGroup("Транскрибация", isExpanded: $showTranscription) { TranscriptionSettings() }
             }
             TranscriptionStatus()
+            Divider()
+            RecordingsList()
             Divider()
             folderRow
             if let error = model.errorMessage {

@@ -17,7 +17,7 @@ final class Transcriber: ObservableObject {
 
     enum JobState: Equatable {
         case idle
-        case running(file: String, phase: String, startedAt: Date)
+        case running(file: URL, phase: String, startedAt: Date)
         case failed(String)
     }
 
@@ -35,6 +35,12 @@ final class Transcriber: ObservableObject {
     @Published private(set) var lastSummary: String?
     @Published private(set) var speakerSamples: [String: Int] = [:]
     @Published private(set) var enrollMessage: String?
+    /// Overall progress of the running job, 0…1; nil until the helper reports any.
+    @Published private(set) var progress: Double?
+    /// Last error per recording path, for the recordings list.
+    @Published private(set) var failures: [String: String] = [:]
+    /// Bumped whenever a transcript is written, so views re-check which recordings have one.
+    @Published private(set) var transcriptsVersion = 0
 
     static let asrRepo = "models--mlx-community--whisper-large-v3-turbo"
     static let diarizationRepo = "models--pyannote--speaker-diarization-community-1"
@@ -102,6 +108,8 @@ final class Transcriber: ObservableObject {
     }
 
     func enqueue(_ file: URL) {
+        guard !queue.contains(file), runningFile != file else { return }
+        failures[file.path] = nil
         queue.append(file)
         Log.info("Queued for transcription: \(file.path) (queue \(queue.count))", "transcribe")
         startNextIfIdle()
@@ -115,12 +123,26 @@ final class Transcriber: ObservableObject {
 
     private var isFailed: Bool { if case .failed = job { return true } else { return false } }
 
+    var runningFile: URL? {
+        if case .running(let file, _, _) = job { return file }
+        return nil
+    }
+
+    /// Existing transcript for a recording: `<name>.md` next to it.
+    static func existingTranscript(for recording: URL) -> URL? {
+        let url = recording.deletingPathExtension().appendingPathExtension("md")
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
     private func startNextIfIdle() {
         if case .running = job { return }
         guard !queue.isEmpty else { return }
         let file = queue.removeFirst()
         let output = Self.transcriptURL(for: file)
-        job = .running(file: file.lastPathComponent, phase: "Запуск…", startedAt: Date())
+        job = .running(file: file, phase: "Запуск…", startedAt: Date())
+        progress = nil
+        var stageProgress: [String: Double] = [:]
+        let useDiarization = diarization
         var arguments = ["transcribe", file.path, "--output", output.path,
                          "--speakers", speakersFile.path, "--runs-dir", runsDir.path]
         if !diarization { arguments.append("--no-diarization") }
@@ -136,6 +158,12 @@ final class Transcriber: ObservableObject {
                     if case .running(let name, _, let started) = self.job, let phase = event["name"] as? String {
                         self.job = .running(file: name, phase: phase, startedAt: started)
                     }
+                case "progress":
+                    if let stage = event["stage"] as? String, let value = event["value"] as? Double {
+                        stageProgress[stage] = value
+                        let asr = stageProgress["asr"] ?? 0
+                        self.progress = useDiarization ? (asr + (stageProgress["diarization"] ?? 0)) / 2 : asr
+                    }
                 case "done":
                     summary = Self.describe(done: event)
                 default:
@@ -147,9 +175,13 @@ final class Transcriber: ObservableObject {
                 lastTranscript = output
                 lastSummary = summary
                 job = .idle
+                progress = nil
+                transcriptsVersion += 1
                 Log.info("Transcription finished: \(output.path) — \(summary ?? "")", "transcribe")
             case .failure(let message):
                 job = .failed(message)
+                progress = nil
+                failures[file.path] = message
                 Log.error("Transcription failed for \(file.lastPathComponent): \(message)", "transcribe")
             }
             startNextIfIdle()

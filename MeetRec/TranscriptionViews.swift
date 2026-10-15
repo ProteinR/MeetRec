@@ -120,10 +120,11 @@ struct TranscriptionStatus: View {
                 ProgressView().controlSize(.small)
                 VStack(alignment: .leading, spacing: 2) {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text("Транскрибация · \(Self.format(context.date.timeIntervalSince(startedAt)))")
+                        let percent = transcriber.progress.map { " · \(Int($0 * 100))%" } ?? ""
+                        Text("Транскрибация\(percent) · \(Self.format(context.date.timeIntervalSince(startedAt)))")
                             .font(.callout).monospacedDigit()
                     }
-                    Text("\(phase) — \(file)").font(.caption).foregroundStyle(.secondary)
+                    Text("\(phase) — \(file.lastPathComponent)").font(.caption).foregroundStyle(.secondary)
                         .lineLimit(2).truncationMode(.middle)
                     if !transcriber.queue.isEmpty {
                         Text("В очереди: \(transcriber.queue.count)").font(.caption2).foregroundStyle(.secondary)

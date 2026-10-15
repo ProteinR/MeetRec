@@ -45,6 +45,54 @@ def log(message):
     print(message, file=sys.stderr, flush=True)
 
 
+class _Throttle:
+    """Emits a progress event only when the value moved by at least 1 %."""
+
+    def __init__(self, stage):
+        self.stage = stage
+        self.last = -1.0
+
+    def __call__(self, value):
+        value = max(0.0, min(1.0, value))
+        if value - self.last >= 0.01 or value >= 1.0 > self.last:
+            self.last = value
+            emit("progress", stage=self.stage, value=round(value, 3))
+
+
+class _AsrProgress:
+    """Stand-in for tqdm inside mlx_whisper.transcribe: reports decoded frames as progress."""
+
+    def __init__(self, total=None, **_):
+        self.total = total or 1
+        self.done = 0
+        self.report = _Throttle("asr")
+
+    def __enter__(self):
+        self.report(0.0)
+        return self
+
+    def __exit__(self, *_):
+        self.report(1.0)
+
+    def update(self, n=1):
+        self.done += n
+        self.report(self.done / self.total)
+
+
+def _diarization_hook():
+    report = _Throttle("diarization")
+    weights = {"segmentation": (0.0, 0.35), "embeddings": (0.35, 0.6)}
+
+    def hook(step_name, step_artifact, file=None, total=None, completed=None):
+        if step_name in weights and total:
+            start, span = weights[step_name]
+            report(start + span * (completed or 0) / total)
+        elif step_name == "discrete_diarization":
+            report(0.97)
+
+    return hook, report
+
+
 def fail(code, message):
     emit("error", code=code, message=message)
     sys.exit(1)
@@ -88,6 +136,9 @@ def load_audio(path):
 def run_asr(wav_path, language):
     import mlx_whisper
 
+    # `mlx_whisper.transcribe` is shadowed by the function of the same name; patch the module's tqdm
+    # so decoding reports progress events instead of drawing a terminal bar.
+    sys.modules["mlx_whisper.transcribe"].tqdm.tqdm = _AsrProgress
     t0 = time.time()
     result = mlx_whisper.transcribe(
         load_audio(wav_path),
@@ -129,7 +180,9 @@ def run_diarization(wav_path):
     t0 = time.time()
     pipeline = load_pipeline()
     audio = load_audio(wav_path)
-    output = pipeline({"waveform": torch.from_numpy(audio).unsqueeze(0), "sample_rate": SAMPLE_RATE})
+    hook, report = _diarization_hook()
+    output = pipeline({"waveform": torch.from_numpy(audio).unsqueeze(0), "sample_rate": SAMPLE_RATE}, hook=hook)
+    report(1.0)
     annotation = output.exclusive_speaker_diarization
     labels = annotation.labels()
     turns = [{"start": t.start, "end": t.end, "speaker": spk} for t, _, spk in annotation.itertracks(yield_label=True)]
