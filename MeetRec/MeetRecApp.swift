@@ -38,6 +38,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
         updateStatusItem(recording: false, problem: false)
 
+        // Auto-recording opens the panel so it is obvious that recording started.
+        NotificationCenter.default.publisher(for: RecorderModel.showPanelNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.showPanel() }
+            .store(in: &cancellables)
+
         // Opening the app shows the panel right away, so it is never "nothing happened".
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.showPanel() }
     }
@@ -116,6 +122,8 @@ struct ContentView: View {
                                        isExpanded: expanded("video")) { videoSettings }
                     CollapsibleSection(title: "Транскрибация", icon: "text.bubble.fill", summary: transcriptionSummary,
                                        isExpanded: expanded("transcription")) { TranscriptionSettings() }
+                    CollapsibleSection(title: "Автозапись встреч", icon: "person.2.wave.2.fill", summary: meetingSummary,
+                                       isExpanded: expanded("meetings")) { MeetingSettings() }
                 }
                 RecordingsSection(isExpanded: expanded("recordings"))
             }
@@ -146,6 +154,12 @@ struct ContentView: View {
         HStack {
             Text("MeetRec").font(.headline)
             Spacer()
+            if let app = model.autoStartedBy, model.isRecording {
+                Text("авто · \(app.replacingOccurrences(of: "Microsoft ", with: ""))")
+                    .font(.caption2.weight(.medium))
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Capsule().fill(Color.accentColor.opacity(0.25)))
+            }
             if model.isRecording {
                 Label(model.elapsedText, systemImage: "record.circle.fill")
                     .foregroundStyle(.red)
@@ -194,6 +208,13 @@ struct ContentView: View {
             }
         }
         .disabled(model.isRecording)
+    }
+
+    private var meetingSummary: String {
+        guard model.meetingDetection else { return "Выключена" }
+        let names = MeetingApp.all.filter { $0.supported && model.selectedMeetingApps.contains($0.id) }.map(\.name)
+        guard !names.isEmpty else { return "Не выбраны приложения" }
+        return (model.detectorStatus ?? "Включена") + " · " + names.joined(separator: ", ")
     }
 
     private var videoSummary: String {

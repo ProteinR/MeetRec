@@ -33,7 +33,10 @@ What MeetRec does instead:
   showing which videos are transcribed or how far a running transcription is.
 - Detailed logs, so problems in a long meeting can be traced afterwards.
 
-Planned next: start and stop recording automatically when a Microsoft Teams call starts and ends.
+- Optional meeting auto-recording: starts when Microsoft Teams holds the microphone for 5 s, opens the
+  panel so it is visible, and stops 15 s after Teams releases the mic (never stops manual recordings).
+
+Planned next: more calling apps (Telegram, Zoom, Google Meet in browsers) once checked for false positives.
 
 Principles: small, native (Swift, ScreenCaptureKit, no Electron, no third-party Swift packages),
 dependable over feature-rich. Prefer fewer features, and never risk losing a recording.
@@ -58,6 +61,13 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
   log, subsystem `com.dmemruk.MeetRec`. Stats every 10 s, verified track info after each recording.
   Read this log first when something goes wrong.
 - `MeetRec/HotKey.swift`: Carbon global hotkey (no Accessibility permission needed).
+- `MeetRec/MeetingDetector.swift` + `MeetingSettings.swift`: polls CoreAudio process objects once a
+  second (`kAudioHardwarePropertyProcessObjectList`, `kAudioProcessPropertyIsRunningInput`,
+  `kAudioProcessPropertyBundleID`; macOS 14.4+, no permission) to see which apps capture a microphone.
+  Apps are matched by bundle ID prefix (`MeetingApp.all`; Teams audio comes from
+  `com.microsoft.teams2.helper`/`.modulehost`). Only `supported` apps can be enabled; the others are
+  listed when installed, marked "скоро". This is the same signal other meeting recorders use (the app
+  holding the microphone); calendar-based detection was considered less reliable for start/end.
 - `MeetRec/RecordingHealth.swift`: live status while recording (mic/system levels, screen, file);
   red "no signal" turns the menu bar icon into ⚠️.
 - Transcription (`Transcriber.swift`, `TranscriptionViews.swift`, `VoiceSampleRecorder.swift`,

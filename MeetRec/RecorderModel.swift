@@ -48,6 +48,9 @@ final class RecorderModel: ObservableObject {
     @AppStorage("systemAudio") var systemAudio = true
     @AppStorage("microphone") var microphone = true
     @AppStorage("microphoneID") var microphoneID = ""
+    @AppStorage("meetingDetection") var meetingDetection = false
+    /// Comma-separated `MeetingApp.id`s chosen for detection.
+    @AppStorage("meetingApps") var meetingAppsRaw = "teams"
     @AppStorage("folder") var folderPath = FileManager.default
         .urls(for: .moviesDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("MeetRec").path
@@ -61,6 +64,13 @@ final class RecorderModel: ObservableObject {
     @Published private(set) var lastFile: URL?
     @Published private(set) var health: RecordingHealth?
     @Published var errorMessage: String?
+    /// Detector state for the UI ("Жду встречу", "Идёт встреча в Teams"…); nil when detection is off.
+    @Published private(set) var detectorStatus: String?
+    /// Name of the app whose meeting started the current recording; nil for manual recordings.
+    @Published private(set) var autoStartedBy: String?
+
+    static let showPanelNotification = Notification.Name("MeetRecShowPanel")
+    private let detector = MeetingDetector()
 
     private let recorder = ScreenRecorder()
     private var startedAt: Date?
@@ -77,6 +87,10 @@ final class RecorderModel: ObservableObject {
     init() {
         Self.logLaunch()
         refreshDevices()
+        detector.onStatus = { [weak self] status in self?.detectorStatus = status }
+        detector.onMeetingStarted = { [weak self] app in self?.meetingStarted(app) }
+        detector.onMeetingEnded = { [weak self] app in self?.meetingEnded(app) }
+        configureDetector()
         recorder.onUnexpectedStop = { [weak self] error in
             Log.error("Recording stopped unexpectedly: \(Log.describe(error))")
             self?.didStop(file: nil)
@@ -180,7 +194,53 @@ final class RecorderModel: ObservableObject {
         if isRecording { stop() } else { start() }
     }
 
-    func start() {
+    // MARK: - Meeting detection
+
+    var selectedMeetingApps: Set<String> {
+        Set(meetingAppsRaw.split(separator: ",").map(String.init))
+    }
+
+    func setMeetingApp(_ app: MeetingApp, enabled: Bool) {
+        var ids = selectedMeetingApps
+        if enabled { ids.insert(app.id) } else { ids.remove(app.id) }
+        meetingAppsRaw = ids.sorted().joined(separator: ",")
+        Log.info("Meeting app \(app.name) \(enabled ? "enabled" : "disabled")", "meetings")
+        configureDetector()
+    }
+
+    /// (Re)starts the detector from the current settings.
+    func configureDetector() {
+        let apps = MeetingApp.all.filter { $0.supported && selectedMeetingApps.contains($0.id) }
+        if meetingDetection, !apps.isEmpty {
+            detector.start(apps: apps)
+        } else {
+            detector.stop()
+            detectorStatus = nil
+        }
+    }
+
+    private func meetingStarted(_ app: MeetingApp) {
+        guard !isRecording, !isBusy else {
+            Log.info("Meeting in \(app.name) started, but a recording is already running; leaving it as is", "meetings")
+            return
+        }
+        Log.info("Auto-starting recording for \(app.name) meeting", "meetings")
+        start(autoApp: app)
+        // Show the panel so it is obvious that recording started; clicking outside folds it away.
+        NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
+    }
+
+    private func meetingEnded(_ app: MeetingApp) {
+        guard isRecording else { return }
+        guard autoStartedBy != nil else {
+            Log.info("Meeting in \(app.name) ended; the recording was started manually, so it keeps running", "meetings")
+            return
+        }
+        Log.info("Auto-stopping recording: \(app.name) meeting ended", "meetings")
+        stop()
+    }
+
+    func start(autoApp: MeetingApp? = nil) {
         guard !isRecording, !isBusy else {
             Log.debug("start() ignored: isRecording=\(isRecording) isBusy=\(isBusy)")
             return
@@ -211,6 +271,7 @@ final class RecorderModel: ObservableObject {
                 recordingNames = (microphone: resolvedMicrophoneName(), display: display.name)
                 try await recorder.start(options)
                 recordingDisplayID = display.id
+                autoStartedBy = autoApp?.name
                 didStart()
             } catch {
                 errorMessage = error.localizedDescription
@@ -310,6 +371,7 @@ final class RecorderModel: ObservableObject {
         timer = nil
         startedAt = nil
         recordingDisplayID = nil
+        autoStartedBy = nil
         if let file {
             lastFile = file
             Transcriber.shared.recordingFinished(file)
