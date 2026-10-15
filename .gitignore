@@ -1,0 +1,4 @@
+build/
+*.xcodeproj/
+MeetRec/Info.plist
+.DS_Store
