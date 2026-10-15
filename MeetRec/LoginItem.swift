@@ -56,8 +56,9 @@ struct LoginItemToggle: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Toggle("Запускать при входе в систему", isOn: Binding(get: { item.isEnabled || item.needsApproval },
+            Toggle("Запуск при входе", isOn: Binding(get: { item.isEnabled || item.needsApproval },
                                                                    set: { item.set($0) }))
+                .help("Запускать MeetRec при входе в систему, чтобы автозапись встреч работала после перезагрузки")
             if item.needsApproval {
                 Button("Разрешите MeetRec в настройках «Объекты входа»") { item.openSettings() }
                     .buttonStyle(.link)

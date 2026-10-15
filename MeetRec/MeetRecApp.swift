@@ -176,10 +176,13 @@ struct ContentView: View {
             Divider()
             folderRow
             if !model.isRecording {
-                LoginItemToggle()
-                Toggle("Перезапускать после сбоя", isOn: Binding(get: { model.crashWatchdog },
-                                                                  set: { model.setCrashWatchdog($0) }))
-                    .help("Если MeetRec упадёт, он запустится снова через несколько секунд и продолжит запись")
+                HStack(alignment: .top, spacing: 20) {
+                    LoginItemToggle()
+                    Toggle("Перезапуск после сбоя", isOn: Binding(get: { model.crashWatchdog },
+                                                                   set: { model.setCrashWatchdog($0) }))
+                        .help("Если MeetRec упадёт, он запустится снова через несколько секунд и продолжит запись")
+                    Spacer(minLength: 0)
+                }
             }
             if let notice = model.stopNotice, !model.isRecording {
                 HStack(alignment: .top, spacing: 8) {
@@ -202,7 +205,7 @@ struct ContentView: View {
             footer
         }
         .padding(14)
-        .frame(width: 330)
+        .frame(width: MenuPanelController.cardWidth)
         .onAppear {
             model.refreshDevices()
             transcriber.refreshModels()
@@ -258,8 +261,11 @@ struct ContentView: View {
                     Text(display.name).tag(Int(display.id))
                 }
             }
-            Toggle("Звук системы", isOn: $model.systemAudio)
-            Toggle("Микрофон", isOn: $model.microphone)
+            HStack(spacing: 20) {
+                Toggle("Звук системы", isOn: $model.systemAudio)
+                Toggle("Микрофон", isOn: $model.microphone)
+                Spacer(minLength: 0)
+            }
             if model.microphone {
                 Picker("Устройство", selection: $model.microphoneID) {
                     Text("Системный по умолчанию").tag("")
@@ -337,11 +343,14 @@ struct ContentView: View {
 
     private var videoSettings: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Picker("Кадров/с", selection: $model.fps) {
-                ForEach([5, 10, 15, 30, 60], id: \.self) { Text("\($0)").tag($0) }
-            }
-            Picker("Разрешение", selection: $model.resolution) {
-                ForEach(ResolutionPreset.allCases) { Text($0.title).tag($0.rawValue) }
+            HStack(spacing: 16) {
+                Picker("Кадров/с", selection: $model.fps) {
+                    ForEach([5, 10, 15, 30, 60], id: \.self) { Text("\($0)").tag($0) }
+                }
+                .fixedSize()
+                Picker("Разрешение", selection: $model.resolution) {
+                    ForEach(ResolutionPreset.allCases) { Text($0.title).tag($0.rawValue) }
+                }
             }
             Picker("Кодек", selection: $model.codec) {
                 Text("H.264 (совместимость)").tag("h264")
@@ -583,7 +592,7 @@ struct RecordingControls: View {
                         .truncationMode(.middle)
                 }
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 210)
+                .frame(maxWidth: 320)
                 .disabled(model.isBusy)
             }
             if model.captureWindow != nil {

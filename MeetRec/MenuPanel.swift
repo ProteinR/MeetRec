@@ -19,7 +19,7 @@ private final class KeyablePanel: NSPanel {
 /// off screen.
 @MainActor
 final class MenuPanelController: NSObject, NSWindowDelegate {
-    static let cardWidth: CGFloat = 330
+    static let cardWidth: CGFloat = 460
     /// Transparent margin around the card for its shadow.
     static let margin: CGFloat = 18
     private static let gap: CGFloat = 4

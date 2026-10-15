@@ -9,15 +9,20 @@ struct TranscriptionSettings: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             models
-            Toggle("Транскрибировать после записи", isOn: $transcriber.transcribeAfterRecording)
-                .disabled(transcriber.modelsState != .ready)
+            HStack(spacing: 20) {
+                Toggle("Сразу после записи", isOn: $transcriber.transcribeAfterRecording)
+                    .disabled(transcriber.modelsState != .ready)
+                    .help("Транскрибировать каждую запись, как только она остановлена")
+                Toggle("Разбивка по ролям", isOn: $transcriber.diarization)
+                    .help("Определять, кто говорит, и подписывать реплики именами")
+                Spacer(minLength: 0)
+            }
             Picker("Язык", selection: $transcriber.language) {
                 Text("Определять автоматически").tag("")
                 Text("English").tag("en")
                 Text("Русский").tag("ru")
                 Text("Deutsch").tag("de")
             }
-            Toggle("Разбивка по ролям (кто говорит)", isOn: $transcriber.diarization)
             meetingsFolder
             if transcriber.diarization {
                 voice

@@ -128,6 +128,11 @@ enum RecordingFiles {
                 Log.warning("Could not rename \(file.lastPathComponent): \(Log.describe(error))", "files")
             }
         }
+        // Voice prints of the recording's speakers are kept by recording name (see SpeakerNaming).
+        let oldRun = SpeakerNaming.runsDir.appendingPathComponent(oldStem + ".json")
+        if FileManager.default.fileExists(atPath: oldRun.path) {
+            try? FileManager.default.moveItem(at: oldRun, to: SpeakerNaming.runsDir.appendingPathComponent(newStem + ".json"))
+        }
         Log.info("Renamed recording \"\(oldStem)\" → \"\(newStem)\" (+\(companions.count) related files)", "files")
         return target
     }
@@ -150,6 +155,7 @@ enum RecordingFiles {
         for file in companions {
             try? FileManager.default.trashItem(at: file, resultingItemURL: nil)
         }
+        try? FileManager.default.removeItem(at: SpeakerNaming.runURL(for: recording))
         Log.info("Moved to Trash: \(recording.lastPathComponent) (+\(companions.count) related files)", "files")
     }
 }

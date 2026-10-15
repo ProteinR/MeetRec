@@ -153,6 +153,7 @@ struct RecordingRow: View {
     @State private var renaming = false
     @State private var newTitle = ""
     @State private var error: String?
+    @State private var namingSpeakers = false
     @FocusState private var titleFocused: Bool
 
     private static let dateFormatter: DateFormatter = {
@@ -163,6 +164,18 @@ struct RecordingRow: View {
     }()
 
     var body: some View {
+        VStack(spacing: 4) {
+            row
+            if namingSpeakers {
+                SpeakersEditor(recording: item.url) {
+                    namingSpeakers = false
+                    onChange()
+                }
+            }
+        }
+    }
+
+    private var row: some View {
         HStack(spacing: 8) {
             Image(systemName: "film")
                 .foregroundStyle(.secondary)
@@ -201,6 +214,8 @@ struct RecordingRow: View {
                 Divider()
                 Button("Просмотреть транскрипцию") { QuickLookPresenter.shared.preview(transcript) }
                 Button("Открыть транскрипцию в редакторе") { NSWorkspace.shared.open(transcript) }
+                Button("Подписать спикеров…") { namingSpeakers = true }
+                    .disabled(!SpeakerNaming.hasSpeakers(item.url) || isBusy)
                 Button("Транскрибировать заново") { transcriber.enqueue(item.url) }
                     .disabled(transcriber.modelsState != .ready || isBusy)
             } else {
@@ -315,5 +330,100 @@ struct RecordingRow: View {
         let teams = RecordingTag.meetingApp(of: item.url) == "teams" ? "Teams · " : ""
         // Date-only names already show the date as the title.
         return teams + (parts.title.isEmpty ? size : "\(Self.dateFormatter.string(from: item.date)) · \(size)")
+    }
+}
+
+/// "Подписать спикеров": who is who in a finished recording. Each name given here also teaches
+/// MeetRec that voice (an extra sample in speakers.json), so the next recordings name it themselves.
+struct SpeakersEditor: View {
+    let recording: URL
+    let onDone: () -> Void
+    @EnvironmentObject private var transcriber: Transcriber
+    @State private var speakers: [RunSpeaker] = []
+    @State private var names: [String: String] = [:]
+    @State private var message: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if speakers.isEmpty {
+                Text("Нет данных о голосах. Транскрибируйте запись заново с разбивкой по ролям.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(speakers) { speaker in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(speaker.name).font(.callout.weight(.semibold))
+                        Text(String(format: "%.1f мин", speaker.minutes)).font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        if let closest = speaker.closest, let score = speaker.score {
+                            // Similarity to the closest enrolled voice when transcribed; 70% and above names it.
+                            Text(closest == speaker.name ? "сходство \(Int((score * 100).rounded()))%"
+                                                         : "похож на \(closest) \(Int((score * 100).rounded()))%")
+                                .font(.caption2)
+                                .foregroundStyle(score >= 0.7 ? Color.secondary : Color.orange)
+                                .help("Сходство с ближайшим известным голосом во время транскрибации. Имя ставится автоматически от 70%.")
+                        }
+                    }
+                    if let words = speaker.firstWords {
+                        Text("«\(words)»").font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                    }
+                    HStack(spacing: 4) {
+                        TextField("Кто это?", text: binding(for: speaker))
+                            .textFieldStyle(.roundedBorder)
+                        Menu {
+                            ForEach(knownNames, id: \.self) { name in
+                                Button(name) { names[speaker.label] = name }
+                            }
+                        } label: {
+                            Image(systemName: "person.crop.circle")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                        .disabled(knownNames.isEmpty)
+                    }
+                }
+            }
+            if let message {
+                Text(message).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+            }
+            HStack {
+                Button("Сохранить", action: save).keyboardShortcut(.defaultAction)
+                    .disabled(speakers.isEmpty)
+                Button("Отмена", action: onDone)
+            }
+            .controlSize(.small)
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.06)))
+        .onAppear {
+            speakers = SpeakerNaming.speakers(of: recording) ?? []
+            names = Dictionary(uniqueKeysWithValues: speakers.map { ($0.label, $0.name) })
+        }
+    }
+
+    /// Enrolled voices, the user's own name first.
+    private var knownNames: [String] {
+        let all = Set(transcriber.speakerSamples.keys).union(transcriber.myName.isEmpty ? [] : [transcriber.myName])
+        return all.sorted { ($0 == transcriber.myName ? 0 : 1, $0) < ($1 == transcriber.myName ? 0 : 1, $1) }
+    }
+
+    private func binding(for speaker: RunSpeaker) -> Binding<String> {
+        Binding(get: { names[speaker.label] ?? speaker.name }, set: { names[speaker.label] = $0 })
+    }
+
+    private func save() {
+        message = nil
+        do {
+            for speaker in speakers {
+                let name = (names[speaker.label] ?? "").trimmingCharacters(in: .whitespaces)
+                guard !name.isEmpty, name != speaker.name else { continue }
+                try SpeakerNaming.assign(speaker.label, in: recording, to: name)
+            }
+            onDone()
+        } catch {
+            message = error.localizedDescription
+            Log.error("Naming speakers in \(recording.lastPathComponent) failed: \(Log.describe(error))", "transcribe")
+            speakers = SpeakerNaming.speakers(of: recording) ?? []
+        }
     }
 }

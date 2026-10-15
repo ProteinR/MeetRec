@@ -70,6 +70,12 @@ What MeetRec does instead:
   detector), but not after a second crash within 3 minutes. Quitting while recording finishes the
   file first; `install.sh` quits gracefully so the watchdog does not relaunch the old copy.
 
+- Naming speakers after the fact: "Подписать спикеров…" in a recording's menu lists the diarized
+  speakers (`runs/<recording>.json`: names, scores, turns, voice embeddings), with their first words
+  and closest known voice. A name given there adds that speaker's embedding to `speakers.json` (new
+  person or extra sample) and renames them in the transcript, joining neighbouring lines; the meetings
+  copy is updated only if it is still identical to the transcript. The run file follows renames.
+
 Planned next: more calling apps (Telegram, Zoom, Google Meet in browsers) once checked for false positives.
 
 Principles: small, native (Swift, ScreenCaptureKit, no Electron, no third-party Swift packages),
