@@ -114,7 +114,8 @@ struct RecordingRow: View {
             Button("Открыть видео") { NSWorkspace.shared.open(item.url) }
             Button("Показать в Finder") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
             if let transcript = Transcriber.existingTranscript(for: item.url) {
-                Button("Открыть транскрипцию") { NSWorkspace.shared.open(transcript) }
+                Button("Просмотреть транскрипцию") { QuickLookPresenter.shared.preview(transcript) }
+                Button("Открыть транскрипцию в редакторе") { NSWorkspace.shared.open(transcript) }
             }
             Button("Транскрибировать") { transcriber.enqueue(item.url) }
                 .disabled(transcriber.modelsState != .ready)
@@ -137,12 +138,12 @@ struct RecordingRow: View {
             Image(systemName: "clock").foregroundStyle(.secondary).help("В очереди на транскрибацию")
         } else if let transcript = Transcriber.existingTranscript(for: item.url) {
             Button {
-                NSWorkspace.shared.open(transcript)
+                QuickLookPresenter.shared.preview(transcript)
             } label: {
                 Image(systemName: "doc.text.fill").foregroundStyle(.green)
             }
             .buttonStyle(.borderless)
-            .help("Открыть транскрипцию")
+            .help("Просмотреть транскрипцию (правый клик — открыть в редакторе)")
         } else if let failure = transcriber.failures[item.url.path] {
             Button {
                 transcriber.enqueue(item.url)

@@ -142,9 +142,9 @@ struct TranscriptionStatus: View {
             if let transcript = transcriber.lastTranscript {
                 VStack(alignment: .leading, spacing: 2) {
                     Button {
-                        NSWorkspace.shared.open(transcript)
+                        QuickLookPresenter.shared.preview(transcript)
                     } label: {
-                        Label("Открыть транскрипцию", systemImage: "doc.text")
+                        Label("Просмотреть транскрипцию", systemImage: "doc.text")
                     }
                     .buttonStyle(.link)
                     if let summary = transcriber.lastSummary {

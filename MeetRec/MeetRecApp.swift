@@ -1,4 +1,5 @@
 import Combine
+import Quartz
 import SwiftUI
 
 @main
@@ -80,6 +81,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panel.show(below: nil)
         }
     }
+
+    // MARK: - Quick Look
+    // The app delegate is the end of the responder chain, so it can own the shared preview panel.
+
+    override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool { true }
+
+    override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        MainActor.assumeIsolated {
+            panel.dataSource = QuickLookPresenter.shared
+            panel.delegate = QuickLookPresenter.shared
+        }
+    }
+
+    override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {}
 
     /// Menu bar managers like Ice "hide" items by pushing them past the left edge of the screen, where
     /// they still count as visible windows. Only an item that lies entirely on a screen, to the right of
