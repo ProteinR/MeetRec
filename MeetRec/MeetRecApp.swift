@@ -41,13 +41,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func showWindow() {
         if window == nil {
             let hosting = NSHostingController(rootView: ContentView(isMenuBarPanel: false).environmentObject(RecorderModel.shared))
-            hosting.sizingOptions = [.preferredContentSize]
-            // A regular titled window with the standard close button. Created explicitly rather than
-            // via NSWindow(contentViewController:) so the title bar and buttons are guaranteed.
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 400),
-                                  styleMask: [.titled, .closable, .miniaturizable],
-                                  backing: .buffered, defer: false)
-            window.contentViewController = hosting
+            // Let the hosting controller size the window. Forcing a content rect or
+            // `sizingOptions = .preferredContentSize` sends AppKit into a constraint-update loop that
+            // crashes on launch (NSGenericException in _postWindowNeedsUpdateConstraints).
+            let window = NSWindow(contentViewController: hosting)
+            window.styleMask = [.titled, .closable, .miniaturizable]
             window.title = "MeetRec"
             window.isReleasedWhenClosed = false
             window.collectionBehavior = [.moveToActiveSpace]
