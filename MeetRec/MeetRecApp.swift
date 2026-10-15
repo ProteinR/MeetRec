@@ -6,17 +6,16 @@ struct MeetRecApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        // The UI lives in an NSStatusItem popover (see AppDelegate); SwiftUI needs at least one scene.
+        // The UI lives in a menu bar panel (see AppDelegate); SwiftUI needs at least one scene.
         Settings { EmptyView() }
     }
 }
 
-/// Owns the menu bar item and its popover. Clicking the item, or opening the app again from
-/// Finder/Spotlight, shows the popover; clicking anywhere outside closes it (`.transient`).
+/// Owns the menu bar item and the dropdown panel. Clicking the item, or opening the app again from
+/// Finder/Spotlight, shows the panel; clicking anywhere outside closes it.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
-    private let popover = NSPopover()
-    private var anchorWindow: NSWindow?
+    private var panel: MenuPanelController!
     private var cancellables: Set<AnyCancellable> = []
 
     @MainActor
@@ -24,16 +23,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let model = RecorderModel.shared
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.target = self
-        statusItem.button?.action = #selector(togglePopover)
+        statusItem.button?.action = #selector(togglePanel)
         statusItem.button?.imagePosition = .imageLeading
 
-        let hosting = NSHostingController(rootView: ContentView(close: { [weak self] in self?.closePopover() })
+        panel = MenuPanelController(rootView: ContentView(close: { [weak self] in self?.panel.close() })
             .environmentObject(model)
             .environmentObject(Transcriber.shared))
-        hosting.sizingOptions = [.preferredContentSize]
-        popover.contentViewController = hosting
-        popover.behavior = .transient
-        popover.animates = true
 
         Publishers.CombineLatest3(model.$isRecording, model.$elapsed, model.$health)
             .receive(on: RunLoop.main)
@@ -44,12 +39,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateStatusItem(recording: false, problem: false)
 
         // Opening the app shows the panel right away, so it is never "nothing happened".
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.showPopover() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.showPanel() }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         Log.info("App reopened, showing panel")
-        Task { @MainActor in self.showPopover() }
+        Task { @MainActor in self.showPanel() }
         return false
     }
 
@@ -65,70 +60,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc @MainActor
-    private func togglePopover() {
-        if popover.isShown { closePopover() } else { showPopover() }
+    private func togglePanel() {
+        if panel.isShown { panel.close() } else { showPanel() }
     }
 
     @MainActor
-    func showPopover() {
-        guard !popover.isShown else { return }
-        NSApp.activate(ignoringOtherApps: true)
-        if let button = statusItem.button, Self.isOnScreen(button) {
-            Log.debug("Popover anchored to status item at \(NSStringFromRect(button.window?.frame ?? .zero))")
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    func showPanel() {
+        guard !panel.isShown else { return }
+        if let button = statusItem.button, let window = button.window, Self.isOnScreen(window) {
+            panel.show(below: window.frame)
         } else {
-            Log.debug("Status item hidden (frame \(NSStringFromRect(statusItem.button?.window?.frame ?? .zero))), anchoring popover top right")
-            // The item is hidden (Ice) or behind the notch: anchor under the menu bar, top right.
-            let anchor = anchorWindow ?? Self.makeAnchorWindow()
-            anchorWindow = anchor
-            if let screen = NSScreen.main {
-                let frame = screen.visibleFrame
-                anchor.setFrame(NSRect(x: frame.maxX - 200, y: frame.maxY - 1, width: 1, height: 1), display: false)
-            }
-            anchor.orderFrontRegardless()
-            if let view = anchor.contentView {
-                popover.show(relativeTo: view.bounds, of: view, preferredEdge: .minY)
-            }
+            Log.debug("Status item hidden (frame \(NSStringFromRect(statusItem.button?.window?.frame ?? .zero))), showing panel top right")
+            panel.show(below: nil)
         }
-        popover.contentViewController?.view.window?.makeKey()
-    }
-
-    @MainActor
-    func closePopover() {
-        popover.performClose(nil)
-        anchorWindow?.orderOut(nil)
     }
 
     /// Menu bar managers like Ice "hide" items by pushing them past the left edge of the screen, where
     /// they still count as visible windows. Only an item that lies entirely on a screen, to the right of
     /// the app menus, is a usable anchor.
-    private static func isOnScreen(_ view: NSView) -> Bool {
-        guard let window = view.window, window.isVisible, window.occlusionState.contains(.visible) else { return false }
+    private static func isOnScreen(_ window: NSWindow) -> Bool {
+        guard window.isVisible, window.occlusionState.contains(.visible) else { return false }
         let frame = window.frame
         guard frame.width > 1, let screen = NSScreen.screens.first(where: { $0.frame.contains(frame) }) else { return false }
         return frame.minX > screen.frame.minX + screen.frame.width * 0.25
     }
-
-    private static func makeAnchorWindow() -> NSWindow {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1, height: 1), styleMask: .borderless,
-                              backing: .buffered, defer: false)
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.level = .statusBar
-        window.ignoresMouseEvents = true
-        window.contentView = NSView(frame: NSRect(x: 0, y: 0, width: 1, height: 1))
-        return window
-    }
 }
 
 struct ContentView: View {
-    /// Closes the popover (Esc, ⌘W).
+    /// Closes the panel (Esc, ⌘W).
     let close: () -> Void
 
     @EnvironmentObject private var model: RecorderModel
     @EnvironmentObject private var transcriber: Transcriber
-    @State private var showVideoSettings = false
-    @State private var showTranscription = false
+    @State private var openSection: String?
+
+    private func expanded(_ section: String) -> Binding<Bool> {
+        Binding(get: { openSection == section }, set: { openSection = $0 ? section : nil })
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -140,10 +108,11 @@ struct ContentView: View {
             } else {
                 sources
                 VStack(spacing: 8) {
+                    // Accordion: one section open at a time keeps the panel within the screen height.
                     CollapsibleSection(title: "Видео", icon: "video.fill", summary: videoSummary,
-                                       isExpanded: $showVideoSettings) { videoSettings }
+                                       isExpanded: expanded("video")) { videoSettings }
                     CollapsibleSection(title: "Транскрибация", icon: "text.bubble.fill", summary: transcriptionSummary,
-                                       isExpanded: $showTranscription) { TranscriptionSettings() }
+                                       isExpanded: expanded("transcription")) { TranscriptionSettings() }
                 }
             }
             TranscriptionStatus()

@@ -155,14 +155,17 @@ struct RecordingRow: View {
 
     private var title: String {
         // MeetRec / OBS names are "yyyy-MM-dd HH-mm-ss"; show those as a readable date.
-        item.url.deletingPathExtension().lastPathComponent.range(of: #"^\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}$"#,
-                                                                   options: .regularExpression) != nil
-            ? Self.dateFormatter.string(from: item.date)
-            : item.url.deletingPathExtension().lastPathComponent
+        isDateNamed ? Self.dateFormatter.string(from: item.date) : item.url.deletingPathExtension().lastPathComponent
     }
 
     private var subtitle: String {
         let size = ByteCountFormatter.string(fromByteCount: item.size, countStyle: .file)
-        return "\(Self.dateFormatter.string(from: item.date)) · \(size)"
+        // Date-named files already show the date as the title.
+        return isDateNamed ? size : "\(Self.dateFormatter.string(from: item.date)) · \(size)"
+    }
+
+    private var isDateNamed: Bool {
+        item.url.deletingPathExtension().lastPathComponent
+            .range(of: #"^\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}$"#, options: .regularExpression) != nil
     }
 }

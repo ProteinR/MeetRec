@@ -11,7 +11,7 @@ Keep it small and dependable; prefer fewer features over more.
 
 ## How it works
 
-- `MeetRec/MeetRecApp.swift`: `AppDelegate` owns an `NSStatusItem` and a `.transient` `NSPopover`
+- `MeetRec/MeetRecApp.swift` + `MenuPanel.swift`: `AppDelegate` owns an `NSStatusItem` and a borderless panel (no NSPopover: it misplaced its arrow when Ice hides the item)
   with `ContentView`. Clicking the item or opening the app again (Finder, Spotlight) shows the
   popover; clicking outside closes it. If Ice hides the item, the popover is anchored under the menu
   bar at the top right. There is deliberately no standalone window.
