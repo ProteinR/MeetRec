@@ -1,6 +1,22 @@
+import Accelerate
 import AVFoundation
 import CoreMedia
 import ScreenCaptureKit
+
+/// Live signal information for the "recording status" panel. Peaks are linear (0…1) and are reset
+/// each time a snapshot is taken, so they hold the loudest moment since the previous UI tick.
+struct LiveStatus {
+    var micPeak: Float = 0
+    var systemPeak: Float = 0
+    var lastMicBuffer: Date?
+    var lastSystemBuffer: Date?
+    /// Any screen sample, including "idle" ones: proves the stream is alive even on a static screen.
+    var lastScreenSample: Date?
+    var videoFrames = 0
+    var width = 0
+    var height = 0
+    var fileURL: URL?
+}
 
 struct RecordingOptions {
     var displayID: CGDirectDisplayID
@@ -88,6 +104,17 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private var stats = Stats()
     private var startedAt = Date()
     private var statsTimer: DispatchSourceTimer?
+    private var live = LiveStatus()
+
+    /// Returns the current live status and resets the peak meters. Safe to call from any thread.
+    func snapshot() -> LiveStatus {
+        queue.sync {
+            let current = live
+            live.micPeak = 0
+            live.systemPeak = 0
+            return current
+        }
+    }
 
     func start(_ options: RecordingOptions) async throws {
         Log.info("Start requested: displayID=\(options.displayID) fps=\(options.fps) maxHeight=\(options.maxHeight.map(String.init) ?? "native") codec=\(options.codec.rawValue) systemAudio=\(options.systemAudio) microphone=\(options.microphone) micID=\(options.microphoneID ?? "default") file=\(options.outputURL.path)", "recorder")
@@ -195,6 +222,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             self.finishing = false
             self.stats = Stats()
             self.startedAt = Date()
+            self.live = LiveStatus(width: width, height: height, fileURL: options.outputURL)
         }
         self.stream = stream
 
@@ -242,6 +270,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
         switch type {
         case .screen:
+            live.lastScreenSample = Date()
             guard Self.isCompleteFrame(sampleBuffer) else {
                 stats.videoIdle += 1
                 return
@@ -262,6 +291,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                 return
             }
             if videoInput.append(sampleBuffer) {
+                live.videoFrames += 1
                 stats.videoAppended += 1
                 stats.lastVideoPTS = pts
                 stats.lastVideoArrival = Date()
@@ -274,6 +304,8 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                 stats.systemAudioFormat = Self.describeAudioFormat(sampleBuffer)
                 Log.info("First system audio buffer: \(stats.systemAudioFormat ?? "?")", "capture")
             }
+            live.lastSystemBuffer = Date()
+            if let peak = Self.peakLevel(sampleBuffer) { live.systemPeak = max(live.systemPeak, peak) }
             if append(sampleBuffer, to: systemAudioInput, track: "system audio") {
                 stats.systemAudioAppended += 1
                 stats.lastSystemAudioPTS = sampleBuffer.presentationTimeStamp
@@ -285,6 +317,8 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                 stats.micFormat = Self.describeAudioFormat(sampleBuffer)
                 Log.info("First microphone buffer: \(stats.micFormat ?? "?")", "capture")
             }
+            live.lastMicBuffer = Date()
+            if let peak = Self.peakLevel(sampleBuffer) { live.micPeak = max(live.micPeak, peak) }
             if append(sampleBuffer, to: microphoneInput, track: "microphone") {
                 stats.micAppended += 1
                 stats.lastMicPTS = sampleBuffer.presentationTimeStamp
@@ -422,6 +456,31 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
               let rawStatus = attachments.first?[.status] as? Int,
               let status = SCFrameStatus(rawValue: rawStatus) else { return false }
         return status == .complete
+    }
+
+    /// Peak absolute sample value of a 32-bit float PCM buffer (what ScreenCaptureKit delivers).
+    private static func peakLevel(_ sampleBuffer: CMSampleBuffer) -> Float? {
+        guard let format = sampleBuffer.formatDescription,
+              let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee,
+              asbd.mFormatID == kAudioFormatLinearPCM,
+              asbd.mFormatFlags & kAudioFormatFlagIsFloat != 0,
+              asbd.mBitsPerChannel == 32 else { return nil }
+        do {
+            return try sampleBuffer.withAudioBufferList { list, _ in
+                var peak: Float = 0
+                for buffer in list {
+                    guard let data = buffer.mData else { continue }
+                    let count = Int(buffer.mDataByteSize) / MemoryLayout<Float>.size
+                    guard count > 0 else { continue }
+                    var bufferPeak: Float = 0
+                    vDSP_maxmgv(data.assumingMemoryBound(to: Float.self), 1, &bufferPeak, vDSP_Length(count))
+                    peak = max(peak, bufferPeak)
+                }
+                return peak
+            }
+        } catch {
+            return nil
+        }
     }
 
     private static func describeAudioFormat(_ sampleBuffer: CMSampleBuffer) -> String {

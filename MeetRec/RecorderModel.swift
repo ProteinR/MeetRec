@@ -59,11 +59,14 @@ final class RecorderModel: ObservableObject {
     @Published private(set) var isBusy = false
     @Published private(set) var elapsed: TimeInterval = 0
     @Published private(set) var lastFile: URL?
+    @Published private(set) var health: RecordingHealth?
     @Published var errorMessage: String?
 
     private let recorder = ScreenRecorder()
     private var startedAt: Date?
     private var timer: Timer?
+    private var healthTracker: HealthTracker?
+    private var recordingNames = (microphone: "", display: "")
     private var hotKey: HotKey?
     private var observers: [NSObjectProtocol] = []
 
@@ -205,6 +208,7 @@ final class RecorderModel: ObservableObject {
                     outputURL: nextFileURL()
                 )
                 Log.info("Starting: display=\(display.id) \"\(display.name)\" (setting=\(displayID == Self.autoDisplay ? "auto" : String(displayID))) mic=\(microphones.first(where: { $0.id == microphoneID })?.name ?? "default: \(AVCaptureDevice.default(for: .audio)?.localizedName ?? "none")")")
+                recordingNames = (microphone: resolvedMicrophoneName(), display: display.name)
                 try await recorder.start(options)
                 recordingDisplayID = display.id
                 didStart()
@@ -259,17 +263,50 @@ final class RecorderModel: ObservableObject {
         isRecording = true
         startedAt = Date()
         elapsed = 0
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, let startedAt = self.startedAt else { return }
-                self.elapsed = Date().timeIntervalSince(startedAt)
-            }
+        healthTracker = HealthTracker(startedAt: startedAt ?? Date(), microphoneOn: microphone, systemAudioOn: systemAudio,
+                                      microphoneName: recordingNames.microphone, displayName: recordingNames.display)
+        timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.tick() }
         }
+    }
+
+    /// Updates the timer and the live status panel; logs whenever a source changes state.
+    private func tick() {
+        guard let startedAt, var tracker = healthTracker else { return }
+        elapsed = Date().timeIntervalSince(startedAt)
+        let newHealth = tracker.update(with: recorder.snapshot())
+        healthTracker = tracker
+        if let old = health {
+            logTransition(old.microphone, newHealth.microphone)
+            logTransition(old.systemAudio, newHealth.systemAudio)
+            logTransition(old.screen, newHealth.screen)
+        }
+        health = newHealth
+    }
+
+    private func logTransition(_ old: SignalHealth, _ new: SignalHealth) {
+        guard old.state != new.state else { return }
+        let text = "\(new.title): \(old.state) → \(new.state) (\(new.detail))"
+        if new.state == .noSignal || (new.title == "Микрофон" && new.state == .quiet) {
+            Log.warning(text, "health")
+        } else {
+            Log.info(text, "health")
+        }
+    }
+
+    /// The device ScreenCaptureKit will actually use: the chosen one, or the system default input.
+    private func resolvedMicrophoneName() -> String {
+        if !microphoneID.isEmpty, let chosen = microphones.first(where: { $0.id == microphoneID }) {
+            return chosen.name
+        }
+        return AVCaptureDevice.default(for: .audio)?.localizedName ?? "по умолчанию"
     }
 
     private func didStop(file: URL?) {
         isRecording = false
         timer?.invalidate()
+        healthTracker = nil
+        health = nil
         timer = nil
         startedAt = nil
         recordingDisplayID = nil

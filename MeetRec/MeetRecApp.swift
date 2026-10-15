@@ -11,7 +11,7 @@ struct MeetRecApp: App {
                 .environmentObject(model)
         } label: {
             if model.isRecording {
-                Image(systemName: "record.circle.fill")
+                Image(systemName: model.health?.hasProblem == true ? "exclamationmark.triangle.fill" : "record.circle.fill")
                 Text(model.elapsedText)
             } else {
                 Image(systemName: "record.circle")
@@ -70,8 +70,12 @@ struct ContentView: View {
             header
             recordButton
             Divider()
-            sources
-            DisclosureGroup("Видео", isExpanded: $showVideoSettings) { videoSettings }
+            if model.isRecording, let health = model.health {
+                StatusPanel(health: health)
+            } else {
+                sources
+                DisclosureGroup("Видео", isExpanded: $showVideoSettings) { videoSettings }
+            }
             Divider()
             folderRow
             if let error = model.errorMessage {
@@ -204,5 +208,82 @@ struct ContentView: View {
             return "Авто (\(display.name))"
         }
         return "Авто"
+    }
+}
+
+/// Live "is everything being recorded?" panel shown while recording.
+struct StatusPanel: View {
+    let health: RecordingHealth
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Статус записи").font(.subheadline.weight(.semibold))
+            StatusRow(icon: "mic.fill", signal: health.microphone)
+            StatusRow(icon: "speaker.wave.2.fill", signal: health.systemAudio)
+            StatusRow(icon: "display", signal: health.screen)
+            StatusRow(icon: "internaldrive", signal: health.file)
+            if health.hasProblem {
+                Text("Один из источников не передаёт сигнал. Проверьте устройство или остановите и начните запись заново.")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+struct StatusRow: View {
+    let icon: String
+    let signal: SignalHealth
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            Image(systemName: icon)
+                .frame(width: 18)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Text(signal.title).font(.callout)
+                    Spacer()
+                    Circle().fill(color).frame(width: 8, height: 8)
+                }
+                Text(signal.detail)
+                    .font(.caption)
+                    .foregroundStyle(signal.state == .noSignal ? .red : .secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                if let level = signal.levelDB {
+                    LevelMeter(levelDB: level)
+                }
+            }
+        }
+    }
+
+    private var color: Color {
+        switch signal.state {
+        case .ok: return .green
+        case .quiet: return signal.title == "Микрофон" ? .yellow : .gray
+        case .noSignal: return .red
+        case .off: return .gray.opacity(0.4)
+        }
+    }
+}
+
+/// Horizontal level bar from -60 dBFS to 0 dBFS.
+struct LevelMeter: View {
+    let levelDB: Float
+
+    var body: some View {
+        GeometryReader { geometry in
+            let fraction = CGFloat(max(0, min(1, (levelDB + 60) / 60)))
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.secondary.opacity(0.2))
+                Capsule()
+                    .fill(levelDB > -6 ? Color.red : levelDB > -20 ? Color.yellow : Color.green)
+                    .frame(width: geometry.size.width * fraction)
+            }
+        }
+        .frame(height: 5)
+        .animation(.linear(duration: 0.15), value: levelDB)
     }
 }
