@@ -1,69 +1,128 @@
+import Combine
 import SwiftUI
 
 @main
 struct MeetRecApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var model = RecorderModel.shared
 
     var body: some Scene {
-        MenuBarExtra {
-            ContentView(isMenuBarPanel: true)
-                .environmentObject(model)
-        } label: {
-            if model.isRecording {
-                Image(systemName: model.health?.hasProblem == true ? "exclamationmark.triangle.fill" : "record.circle.fill")
-                Text(model.elapsedText)
-            } else {
-                Image(systemName: "record.circle")
-            }
-        }
-        .menuBarExtraStyle(.window)
+        // The UI lives in an NSStatusItem popover (see AppDelegate); SwiftUI needs at least one scene.
+        Settings { EmptyView() }
     }
 }
 
-/// Shows the same panel as a normal window on launch and whenever the app is opened again
-/// (Finder, Spotlight, Dock), so MeetRec is reachable even when its menu bar icon is hidden by a
-/// menu bar manager or the notch.
+/// Owns the menu bar item and its popover. Clicking the item, or opening the app again from
+/// Finder/Spotlight, shows the popover; clicking anywhere outside closes it (`.transient`).
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var window: NSWindow?
+    private var statusItem: NSStatusItem!
+    private let popover = NSPopover()
+    private var anchorWindow: NSWindow?
+    private var cancellables: Set<AnyCancellable> = []
 
+    @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
-        showWindow()
+        let model = RecorderModel.shared
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.button?.target = self
+        statusItem.button?.action = #selector(togglePopover)
+        statusItem.button?.imagePosition = .imageLeading
+
+        let hosting = NSHostingController(rootView: ContentView(close: { [weak self] in self?.closePopover() })
+            .environmentObject(model)
+            .environmentObject(Transcriber.shared))
+        hosting.sizingOptions = [.preferredContentSize]
+        popover.contentViewController = hosting
+        popover.behavior = .transient
+        popover.animates = true
+
+        Publishers.CombineLatest3(model.$isRecording, model.$elapsed, model.$health)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] recording, _, health in
+                self?.updateStatusItem(recording: recording, problem: health?.hasProblem == true)
+            }
+            .store(in: &cancellables)
+        updateStatusItem(recording: false, problem: false)
+
+        // Opening the app shows the panel right away, so it is never "nothing happened".
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.showPopover() }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        Log.info("App reopened, showing window")
-        showWindow()
-        return true
+        Log.info("App reopened, showing panel")
+        Task { @MainActor in self.showPopover() }
+        return false
     }
 
     @MainActor
-    func showWindow() {
-        if window == nil {
-            let hosting = NSHostingController(rootView: ContentView(isMenuBarPanel: false).environmentObject(RecorderModel.shared))
-            // Let the hosting controller size the window. Forcing a content rect or
-            // `sizingOptions = .preferredContentSize` sends AppKit into a constraint-update loop that
-            // crashes on launch (NSGenericException in _postWindowNeedsUpdateConstraints).
-            let window = NSWindow(contentViewController: hosting)
-            window.styleMask = [.titled, .closable, .miniaturizable]
-            window.title = "MeetRec"
-            window.isReleasedWhenClosed = false
-            window.collectionBehavior = [.moveToActiveSpace]
-            window.center()
-            self.window = window
-        }
-        window?.makeKeyAndOrderFront(nil)
+    private func updateStatusItem(recording: Bool, problem: Bool) {
+        guard let button = statusItem.button else { return }
+        let symbol = problem ? "exclamationmark.triangle.fill" : (recording ? "record.circle.fill" : "record.circle")
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "MeetRec")
+        image?.isTemplate = !recording
+        button.image = recording ? image?.withSymbolConfiguration(.init(paletteColors: [problem ? .systemYellow : .systemRed])) : image
+        button.title = recording ? " " + RecorderModel.shared.elapsedText : ""
+        button.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+    }
+
+    @objc @MainActor
+    private func togglePopover() {
+        if popover.isShown { closePopover() } else { showPopover() }
+    }
+
+    @MainActor
+    func showPopover() {
+        guard !popover.isShown else { return }
         NSApp.activate(ignoringOtherApps: true)
+        if let button = statusItem.button, Self.isOnScreen(button) {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        } else {
+            // The item is hidden (Ice) or behind the notch: anchor under the menu bar, top right.
+            let anchor = anchorWindow ?? Self.makeAnchorWindow()
+            anchorWindow = anchor
+            if let screen = NSScreen.main {
+                let frame = screen.visibleFrame
+                anchor.setFrame(NSRect(x: frame.maxX - 200, y: frame.maxY - 1, width: 1, height: 1), display: false)
+            }
+            anchor.orderFrontRegardless()
+            if let view = anchor.contentView {
+                popover.show(relativeTo: view.bounds, of: view, preferredEdge: .minY)
+            }
+        }
+        popover.contentViewController?.view.window?.makeKey()
+    }
+
+    @MainActor
+    func closePopover() {
+        popover.performClose(nil)
+        anchorWindow?.orderOut(nil)
+    }
+
+    private static func isOnScreen(_ view: NSView) -> Bool {
+        guard let window = view.window, window.isVisible else { return false }
+        let frame = window.frame
+        return frame.width > 1 && NSScreen.screens.contains { $0.frame.intersects(frame) }
+    }
+
+    private static func makeAnchorWindow() -> NSWindow {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1, height: 1), styleMask: .borderless,
+                              backing: .buffered, defer: false)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.level = .statusBar
+        window.ignoresMouseEvents = true
+        window.contentView = NSView(frame: NSRect(x: 0, y: 0, width: 1, height: 1))
+        return window
     }
 }
 
 struct ContentView: View {
-    /// The menu bar panel closes itself after Start/Stop; the regular window stays open.
-    let isMenuBarPanel: Bool
+    /// Closes the popover (Esc, ⌘W).
+    let close: () -> Void
 
     @EnvironmentObject private var model: RecorderModel
-    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var transcriber: Transcriber
     @State private var showVideoSettings = false
+    @State private var showTranscription = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -75,7 +134,9 @@ struct ContentView: View {
             } else {
                 sources
                 DisclosureGroup("Видео", isExpanded: $showVideoSettings) { videoSettings }
+                DisclosureGroup("Транскрибация", isExpanded: $showTranscription) { TranscriptionSettings() }
             }
+            TranscriptionStatus()
             Divider()
             folderRow
             if let error = model.errorMessage {
@@ -87,20 +148,15 @@ struct ContentView: View {
             footer
         }
         .padding(14)
-        .frame(width: 320)
-        .onAppear { model.refreshDevices() }
+        .frame(width: 330)
+        .onAppear {
+            model.refreshDevices()
+            transcriber.refreshModels()
+        }
         .onExitCommand { close() }
         .background {
-            // ⌘W closes the panel or window; the app has no menu bar menu to provide it.
+            // ⌘W closes the panel; the app has no menu bar menu to provide it.
             Button("", action: close).keyboardShortcut("w", modifiers: .command).hidden()
-        }
-    }
-
-    private func close() {
-        if isMenuBarPanel {
-            dismiss()
-        } else {
-            NSApp.keyWindow?.performClose(nil)
         }
     }
 
@@ -119,7 +175,6 @@ struct ContentView: View {
     private var recordButton: some View {
         Button {
             model.toggle()
-            if isMenuBarPanel { dismiss() }
         } label: {
             HStack {
                 Image(systemName: model.isRecording ? "stop.fill" : "record.circle")

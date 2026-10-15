@@ -4,16 +4,17 @@
 
 A tiny personal macOS menu bar screen recorder that replaces OBS for one job: recording meetings,
 English lessons in Chrome, Telegram calls and similar. It records one display with system audio and
-the microphone. Planned next: start/stop automatically when a Microsoft Teams call starts, then run
-local transcription on the file.
+the microphone, and can transcribe recordings locally with speaker names. Planned next: start/stop
+automatically when a Microsoft Teams call starts.
 
 Keep it small and dependable; prefer fewer features over more.
 
 ## How it works
 
-- `MeetRec/MeetRecApp.swift`: `MenuBarExtra` panel plus a regular window (`AppDelegate`) shown on
-  launch and on reopen, so the app is reachable even when Ice hides the menu bar icon. Both host the
-  same `ContentView`.
+- `MeetRec/MeetRecApp.swift`: `AppDelegate` owns an `NSStatusItem` and a `.transient` `NSPopover`
+  with `ContentView`. Clicking the item or opening the app again (Finder, Spotlight) shows the
+  popover; clicking outside closes it. If Ice hides the item, the popover is anchored under the menu
+  bar at the top right. There is deliberately no standalone window.
 - `MeetRec/RecorderModel.swift`: settings (`@AppStorage`), device lists, permissions, start/stop,
   global hotkey ⌃⌥⌘R, system event logging (sleep/wake/lock, device changes).
 - `MeetRec/ScreenRecorder.swift`: ScreenCaptureKit (`SCStream` with `.screen`, `.audio`,
@@ -24,6 +25,17 @@ Keep it small and dependable; prefer fewer features over more.
   log, subsystem `com.dmemruk.MeetRec`. Stats every 10 s, verified track info after each recording.
   Read this log first when something goes wrong.
 - `MeetRec/HotKey.swift`: Carbon global hotkey (no Accessibility permission needed).
+- `MeetRec/RecordingHealth.swift`: live status while recording (mic/system levels, screen, file);
+  red "no signal" turns the menu bar icon into ⚠️.
+- Transcription (`Transcriber.swift`, `TranscriptionViews.swift`, `VoiceSampleRecorder.swift`,
+  `Resources/transcribe.py`): after a recording, optionally runs the bundled helper with `uv run`
+  (mlx-whisper large-v3-turbo + pyannote speaker-diarization-community-1, adapted from
+  inventire-workspace `.agents/skills/transcribe-meeting`). Both audio tracks are mixed before
+  recognition. Transcript: `<recording>.md` next to the video, never overwritten. Models: the shared
+  Hugging Face cache `~/.cache/huggingface/hub` (pyannote is gated: needs an HF token and accepted
+  conditions). Voices: `~/Library/Application Support/MeetRec/speakers.json`, seeded once as a copy of
+  `~/.local/share/inventire-meetings/speakers.json`; "record voice sample" enrolls the user's own voice
+  under "Моё имя". The helper talks JSON lines on stdout; its stderr goes to the MeetRec log.
 
 ## Build and install
 

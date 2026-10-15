@@ -310,7 +310,10 @@ final class RecorderModel: ObservableObject {
         timer = nil
         startedAt = nil
         recordingDisplayID = nil
-        if let file { lastFile = file }
+        if let file {
+            lastFile = file
+            Transcriber.shared.recordingFinished(file)
+        }
         Log.info("Recording state: stopped, file=\(file?.path ?? "none")")
     }
 
