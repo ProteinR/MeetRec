@@ -47,7 +47,8 @@ struct MeetingApp: Identifiable, Hashable {
 final class MeetingDetector {
     static let startAfter: TimeInterval = 5
     static let endAfter: TimeInterval = 15
-    private static let pollInterval: TimeInterval = 1
+    /// Each poll is a few CoreAudio IPC calls; every 2 s is plenty for 5 s / 15 s thresholds.
+    private static let pollInterval: TimeInterval = 2
 
     var onMeetingStarted: ((MeetingApp) -> Void)?
     var onMeetingEnded: ((MeetingApp) -> Void)?

@@ -144,7 +144,9 @@ final class RecorderModel: ObservableObject {
         refreshDevices()
         detector.onStatus = { [weak self] status in
             guard let self else { return }
-            self.detectorStatus = self.meetingDetection ? status : nil
+            // Assign only on change: every assignment redraws the whole panel, even when hidden.
+            let newStatus = self.meetingDetection ? status : nil
+            if newStatus != self.detectorStatus { self.detectorStatus = newStatus }
         }
         detector.onMeetingStarted = { [weak self] app in self?.meetingStarted(app) }
         detector.onMeetingEnded = { [weak self] app in self?.meetingEnded(app) }
@@ -931,6 +933,7 @@ final class RecorderModel: ObservableObject {
         autoStartedAppID = nil
         captureWindow = nil
         Watchdog.recordingStopped()
+        _ = idleLoadSampler.sample() // the next idle average starts now, without the recording
         if let sleepActivity {
             ProcessInfo.processInfo.endActivity(sleepActivity)
             Log.info("Sleep prevention off")
