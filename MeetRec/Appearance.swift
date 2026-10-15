@@ -36,6 +36,7 @@ enum MenuBarStyle: String, CaseIterable, Identifiable {
 struct AppearanceSettings: View {
     @AppStorage(MenuBarStyle.storageKey) private var style = MenuBarStyle.full.rawValue
     @AppStorage(MenuBarStyle.hideFromSharingKey) private var hideFromSharing = false
+    @AppStorage(IslandController.enabledKey) private var island = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -47,9 +48,12 @@ struct AppearanceSettings: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            Toggle("Остров у выреза экрана во время записи", isOn: $island)
+                .disabled(style == MenuBarStyle.discreet.rawValue)
+                .help("Красная точка и таймер вокруг выреза MacBook; при наведении — уровни звука, отметка и стоп. В режиме «Незаметно» не показывается.")
             Toggle("Прятать MeetRec при показе экрана", isOn: $hideFromSharing)
                 .help("Значок и панель MeetRec не попадают в демонстрацию экрана (там, где приложение это учитывает)")
-            Text("Значок и панель исключаются из захвата экрана. Работает не во всех приложениях — проверьте на тестовом звонке. Системные значки macOS (оранжевая точка микрофона, значок записи экрана) скрыть нельзя, но во время звонка с показом экрана они и так горят из-за Teams.")
+            Text("Значок, панель и остров исключаются из захвата экрана. Работает не во всех приложениях — проверьте на тестовом звонке. Системные значки macOS (оранжевая точка микрофона, значок записи экрана) скрыть нельзя, но во время звонка с показом экрана они и так горят из-за Teams.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

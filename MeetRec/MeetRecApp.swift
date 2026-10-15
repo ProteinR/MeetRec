@@ -17,6 +17,7 @@ struct MeetRecApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var panel: MenuPanelController!
+    private var island: IslandController!
     private var cancellables: Set<AnyCancellable> = []
     private var statusIconKey = ""
 
@@ -33,6 +34,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .environmentObject(model.live)
             .environmentObject(Transcriber.shared))
         panel.onVisibilityChange = { visible in model.panelVisible = visible }
+        island = IslandController(model: model)
+        model.$isRecording
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.island.update() }
+            .store(in: &cancellables)
 
         // Only when something visible changes: the second, recording on/off, problem on/off.
         Publishers.CombineLatest3(model.$isRecording, model.live.$elapsed,
@@ -49,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.updateStatusItem(recording: model.isRecording, problem: model.health?.hasProblem == true)
+                self?.island.update()
             }
             .store(in: &cancellables)
 

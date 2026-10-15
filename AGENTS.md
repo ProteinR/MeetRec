@@ -82,6 +82,12 @@ What MeetRec does instead:
   calling app honours it is not verified yet). macOS's own mic/screen-recording indicators cannot be
   hidden.
 
+- Recording island (`NotchIsland.swift`): Mac apps cannot start Live Activities, so MeetRec draws its
+  own Dynamic-Island-style window on the main screen while recording: around the notch if that
+  screen has one, else a floating capsule under the menu bar. Red dot + timer; hover expands it with
+  level meters, marker and stop. The window is resized between states so its transparent parts never
+  block clicks. Off in the discreet style; follows "hide from screen sharing".
+
 Planned next: more calling apps (Telegram, Zoom, Google Meet in browsers) once checked for false positives.
 
 Principles: small, native (Swift, ScreenCaptureKit, no Electron, no third-party Swift packages),
