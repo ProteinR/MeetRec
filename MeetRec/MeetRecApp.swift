@@ -7,7 +7,7 @@ struct MeetRecApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            ContentView()
+            ContentView(isMenuBarPanel: true)
                 .environmentObject(model)
         } label: {
             if model.isRecording {
@@ -40,11 +40,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     func showWindow() {
         if window == nil {
-            let hosting = NSHostingController(rootView: ContentView().environmentObject(RecorderModel.shared))
-            let window = NSWindow(contentViewController: hosting)
+            let hosting = NSHostingController(rootView: ContentView(isMenuBarPanel: false).environmentObject(RecorderModel.shared))
+            hosting.sizingOptions = [.preferredContentSize]
+            // A regular titled window with the standard close button. Created explicitly rather than
+            // via NSWindow(contentViewController:) so the title bar and buttons are guaranteed.
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 400),
+                                  styleMask: [.titled, .closable, .miniaturizable],
+                                  backing: .buffered, defer: false)
+            window.contentViewController = hosting
             window.title = "MeetRec"
-            window.styleMask = [.titled, .closable, .miniaturizable]
             window.isReleasedWhenClosed = false
+            window.collectionBehavior = [.moveToActiveSpace]
             window.center()
             self.window = window
         }
@@ -54,7 +60,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 struct ContentView: View {
+    /// The menu bar panel closes itself after Start/Stop; the regular window stays open.
+    let isMenuBarPanel: Bool
+
     @EnvironmentObject private var model: RecorderModel
+    @Environment(\.dismiss) private var dismiss
     @State private var showVideoSettings = false
 
     var body: some View {
@@ -77,6 +87,19 @@ struct ContentView: View {
         .padding(14)
         .frame(width: 320)
         .onAppear { model.refreshDevices() }
+        .onExitCommand { close() }
+        .background {
+            // ⌘W closes the panel or window; the app has no menu bar menu to provide it.
+            Button("", action: close).keyboardShortcut("w", modifiers: .command).hidden()
+        }
+    }
+
+    private func close() {
+        if isMenuBarPanel {
+            dismiss()
+        } else {
+            NSApp.keyWindow?.performClose(nil)
+        }
     }
 
     private var header: some View {
@@ -94,10 +117,11 @@ struct ContentView: View {
     private var recordButton: some View {
         Button {
             model.toggle()
+            if isMenuBarPanel { dismiss() }
         } label: {
             HStack {
                 Image(systemName: model.isRecording ? "stop.fill" : "record.circle")
-                Text(model.isRecording ? "Остановить" : "Начать запись")
+                Text(model.isRecording ? "Остановить запись" : "Начать запись")
                 Spacer()
                 Text(RecorderModel.hotKeyHint).foregroundStyle(.secondary)
             }
@@ -105,7 +129,8 @@ struct ContentView: View {
             .padding(.vertical, 4)
         }
         .buttonStyle(.borderedProminent)
-        .tint(model.isRecording ? .gray : .red)
+        // Stop stays as visible as Start: a grey button read as "disabled".
+        .tint(model.isRecording ? Color(red: 0.75, green: 0.1, blue: 0.1) : .red)
         .controlSize(.large)
         .disabled(model.isBusy)
     }
