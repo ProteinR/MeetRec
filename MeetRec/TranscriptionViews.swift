@@ -27,7 +27,7 @@ struct TranscriptionSettings: View {
                     .help(last.lastPathComponent)
             }
         }
-        .padding(.top, 6)
+        .padding(.top, 4)
     }
 
     @ViewBuilder

@@ -139,8 +139,12 @@ struct ContentView: View {
                 StatusPanel(health: health)
             } else {
                 sources
-                DisclosureGroup("Видео", isExpanded: $showVideoSettings) { videoSettings }
-                DisclosureGroup("Транскрибация", isExpanded: $showTranscription) { TranscriptionSettings() }
+                VStack(spacing: 8) {
+                    CollapsibleSection(title: "Видео", icon: "video.fill", summary: videoSummary,
+                                       isExpanded: $showVideoSettings) { videoSettings }
+                    CollapsibleSection(title: "Транскрибация", icon: "text.bubble.fill", summary: transcriptionSummary,
+                                       isExpanded: $showTranscription) { TranscriptionSettings() }
+                }
             }
             TranscriptionStatus()
             Divider()
@@ -222,6 +226,25 @@ struct ContentView: View {
         .disabled(model.isRecording)
     }
 
+    private var videoSummary: String {
+        let resolution = ResolutionPreset(rawValue: model.resolution)?.title ?? model.resolution
+        return "\(model.fps) к/с · \(resolution) · \(model.codec == "hevc" ? "HEVC" : "H.264")"
+    }
+
+    private var transcriptionSummary: String {
+        switch transcriber.modelsState {
+        case .missing: return "Модели не скачаны"
+        case .downloading: return "Скачивание моделей…"
+        case .failed: return "Ошибка моделей"
+        case .checking: return "Проверка…"
+        case .ready:
+            var parts = [transcriber.transcribeAfterRecording ? "После записи: вкл" : "После записи: выкл"]
+            if transcriber.diarization { parts.append("по ролям") }
+            parts.append(transcriber.language.isEmpty ? "язык авто" : transcriber.language)
+            return parts.joined(separator: " · ")
+        }
+    }
+
     private var videoSettings: some View {
         VStack(alignment: .leading, spacing: 8) {
             Picker("Кадров/с", selection: $model.fps) {
@@ -235,7 +258,7 @@ struct ContentView: View {
                 Text("HEVC (меньше файлы)").tag("hevc")
             }
         }
-        .padding(.top, 6)
+        .padding(.top, 4)
         .disabled(model.isRecording)
     }
 
