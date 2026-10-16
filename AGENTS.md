@@ -179,7 +179,8 @@ What MeetRec does instead:
 
 Planned next: Zoom and other apps once checked for false positives. Later: an own viewer window in
 MeetRec (video, the list of markers and the transcript side by side; clicking a line or a marker jumps
-there) instead of handing markers to QuickTime.
+there) instead of handing markers to QuickTime. Also later: a screenshot tool like Shottr (capture an
+area/window, then annotate: blur/pixelate parts, arrows, outlines (rectangle/ellipse), text).
 
 Principles: small, native (Swift, ScreenCaptureKit, no Electron, no third-party Swift packages),
 dependable over feature-rich. Prefer fewer features, and never risk losing a recording.
