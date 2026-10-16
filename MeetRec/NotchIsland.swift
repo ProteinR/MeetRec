@@ -6,9 +6,9 @@ import SwiftUI
 /// notch and the timer right of it; hovering expands it downwards with level meters and buttons.
 ///
 /// macOS has no Live Activities for Mac apps (Tahoe only mirrors the iPhone's), so this is an own
-/// borderless window drawn black to merge with the notch. It sits on the main screen (the one with
-/// the menu bar, usually the external monitor); without a notch there it floats as a capsule under
-/// the menu bar, top centre. The window is resized (not just redrawn) between compact and expanded, so its
+/// borderless window drawn black to merge with the notch, on the main screen (the one with the menu
+/// bar). A screen without a notch gets no island: a floating capsule would cover browser tabs and
+/// catch the eye on a screen share. The window is resized (not just redrawn) between compact and expanded, so its
 /// transparent parts never block clicks on the menu bar or windows below.
 @MainActor
 final class IslandController {
@@ -47,7 +47,9 @@ final class IslandController {
         screenObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                                 object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, self.panel.isVisible else { return }
+                guard let self else { return }
+                self.update() // shows or hides it when a notched screen becomes or stops being the main one
+                guard self.panel.isVisible else { return }
                 self.applyGeometry()
                 self.panel.setFrame(self.frame(expanded: self.state.expanded), display: true)
             }
@@ -62,7 +64,7 @@ final class IslandController {
 
     /// Shows or hides the island for the current recording state and settings.
     func update() {
-        let show = model.isRecording && Self.enabled && MenuBarStyle.current != .discreet
+        let show = model.isRecording && Self.enabled && MenuBarStyle.current != .discreet && geometry().notch != nil
         let sharing: NSWindow.SharingType = MenuBarStyle.hideFromSharing ? .none : .readOnly
         if panel.sharingType != sharing { panel.sharingType = sharing }
         if show {

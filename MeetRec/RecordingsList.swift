@@ -212,8 +212,8 @@ struct RecordingRow: View {
             Button("Показать в Finder") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
             if let transcript = Transcriber.existingTranscript(for: item.url) {
                 Divider()
-                Button("Просмотреть транскрипцию") { QuickLookPresenter.shared.preview(transcript) }
-                Button("Открыть транскрипцию в редакторе") { NSWorkspace.shared.open(transcript) }
+                Button("Просмотреть транскрипт") { QuickLookPresenter.shared.preview(transcript) }
+                Button("Открыть транскрипт в редакторе") { NSWorkspace.shared.open(transcript) }
                 Button("Подписать спикеров…") { namingSpeakers = true }
                     .disabled(!SpeakerNaming.hasSpeakers(item.url) || isBusy)
                 Button("Транскрибировать заново") { transcriber.enqueue(item.url) }
@@ -251,7 +251,7 @@ struct RecordingRow: View {
                 Image(systemName: "doc.text.fill").foregroundStyle(.green)
             }
             .buttonStyle(.borderless)
-            .help("Просмотреть транскрипцию (правый клик — открыть в редакторе)")
+            .help("Просмотреть транскрипт (правый клик — открыть в редакторе)")
         } else if let failure = transcriber.failures[item.url.path] {
             Button {
                 transcriber.enqueue(item.url)

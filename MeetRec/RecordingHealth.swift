@@ -24,7 +24,7 @@ struct RecordingHealth: Equatable {
     var systemAudio: SignalHealth
     var screen: SignalHealth
     var file: SignalHealth
-    /// Seconds since the microphone / system audio last had speech-level sound.
+    /// Seconds since the microphone delivered any sound (dead silence), / system audio had speech.
     var micSilentFor: TimeInterval = 0
     var systemSilentFor: TimeInterval = 0
     /// Seconds the file has not grown although data should be arriving.
@@ -76,6 +76,9 @@ struct HealthTracker {
     static let micQuietAfter: TimeInterval = 30
     static let speechThresholdDB: Float = -45
     static let silenceThresholdDB: Float = -55
+    /// Below this the microphone delivers no sound at all, not even room noise: a wrong or broken
+    /// device. Listening quietly in a meeting stays above it.
+    static let deadSilenceDB: Float = -58
     /// Fragments are written every 5 s, so a healthy file grows at least that often.
     static let fileStalledAfter: TimeInterval = 30
     static let blackAfter: TimeInterval = 30
@@ -85,7 +88,8 @@ struct HealthTracker {
     let startedAt: Date
     let microphoneOn: Bool
     let systemAudioOn: Bool
-    let microphoneName: String
+    /// The device being recorded; changes when the microphone is switched mid-recording.
+    var microphoneName: String
     /// What the screen row names: the display, or the window recorded on its own.
     var displayName: String
 
@@ -121,7 +125,8 @@ struct HealthTracker {
 
         let micPeak = Self.decibels(status.micPeak)
         micDB = Self.smooth(current: micDB, new: micPeak)
-        if micPeak > Self.speechThresholdDB || micMuted { lastLoudMic = now }
+        // "Loud" here means any real sound: only a dead-silent device is a problem, not listening.
+        if micPeak > Self.deadSilenceDB || micMuted { lastLoudMic = now }
         let systemPeak = Self.decibels(status.systemPeak)
         systemDB = Self.smooth(current: systemDB, new: systemPeak)
         if systemPeak > Self.speechThresholdDB { lastLoudSystem = now }
@@ -147,7 +152,7 @@ struct HealthTracker {
             micDetail = "\(microphoneName) — нет сигнала"
         } else if running > Self.micQuietAfter, now.timeIntervalSince(lastLoudMic) > Self.micQuietAfter {
             micState = .quiet
-            micDetail = "\(microphoneName) — тихо \(Int(now.timeIntervalSince(lastLoudMic))) с"
+            micDetail = "\(microphoneName) — полная тишина \(Int(now.timeIntervalSince(lastLoudMic))) с"
         }
 
         // System audio: silence is normal (nothing playing), so it is never a problem by itself.

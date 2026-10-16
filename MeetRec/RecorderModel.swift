@@ -53,6 +53,8 @@ final class RecorderModel: ObservableObject {
     @AppStorage("browserAutoRules") private var browserRulesJSON = ""
     /// Relaunch MeetRec after a crash and continue an interrupted recording (see `Watchdog`).
     @AppStorage("crashWatchdog") var crashWatchdog = true
+    /// Per-app mode overrides, "telegram:auto,browser:ask"; missing apps use `MeetingApp.asks`.
+    @AppStorage("meetingAppModes") private var meetingAppModesRaw = ""
     /// Comma-separated `MeetingApp.id`s chosen for detection.
     @AppStorage("meetingApps") var meetingAppsRaw = "teams"
     @AppStorage("folder") var folderPath = FileManager.default
@@ -71,14 +73,23 @@ final class RecorderModel: ObservableObject {
     @Published var errorMessage: String?
     /// Detector state for the UI ("Жду встречу", "Идёт встреча в Teams"…); nil when detection is off.
     @Published private(set) var detectorStatus: String?
-    /// A call noticed in an ask-first app (browser, Telegram): the panel asks "Записать?".
+    /// A call noticed in an ask-first app (browser, Telegram), or a meeting going on unrecorded:
+    /// the toast (and the panel) ask "Записать?".
     @Published private(set) var callPrompt: MeetingApp?
+    /// The question is the "встреча идёт, а запись не ведётся" reminder.
+    @Published private(set) var promptIsReminder = false
+    /// A short message for a live moment (recording started / saved), shown by `ToastController`.
+    @Published private(set) var toast: Toast?
     /// Name of the app whose meeting started the current recording; nil for manual recordings.
     @Published private(set) var autoStartedBy: String?
     /// `MeetingApp.id` behind `autoStartedBy`, for the file tag.
     private var autoStartedAppID: String?
-    /// Shown in the panel after a recording stops ("Запись остановлена · 34:12 · …") until the next start.
+    /// Shown in the panel after a recording stops ("Запись сохранена · 34:12 · …") until the next start.
     @Published var stopNotice: String?
+    /// Bumped to open the settings page (quick menu "Настройки…").
+    @Published private(set) var settingsRequest = 0
+    func requestSettings() { settingsRequest += 1 }
+
     /// Whether the menu panel is on screen; drives the microphone level preview and how often the
     /// recording status refreshes (5×/s for smooth meters while visible, once a second otherwise).
     @Published var panelVisible = false {
@@ -108,7 +119,6 @@ final class RecorderModel: ObservableObject {
     private var firedAlerts: Set<String> = []
     private var micMuted = false
     static let micSilenceAlertAfter: TimeInterval = 60
-    static let systemSilenceAlertAfter: TimeInterval = 120
     private var recordingNames = (microphone: "", display: "")
     private var hotKey: HotKey?
     private var markerHotKey: HotKey?
@@ -121,11 +131,26 @@ final class RecorderModel: ObservableObject {
     private var pendingTitle: String?
     /// The browser rule that is starting a recording, tagged on its file.
     private var pendingRuleID: String?
+    /// The microphone being recorded right now (CoreAudio UID).
+    @Published private(set) var recordingMicUID: String?
+    /// Picked by hand during this recording: MeetRec no longer switches it by itself.
+    private var micOverridden = false
+    /// A different microphone seen by the last check; switching needs it twice in a row.
+    private var micCandidate: String?
+    private var lastMicCheck = Date.distantPast
+    /// Microphones already suggested in this recording (each at most once, so it never nags).
+    private var suggestedMics: Set<String> = []
+    /// "Запись сохранена · 34:12" for the last stop, shown when the panel is not in view.
+    private var lastStopToast: Toast?
     private var observers: [NSObjectProtocol] = []
     /// Keeps the Mac and its displays awake while recording.
     private var sleepActivity: NSObjectProtocol?
     private var lastMeetingWindowCheck = Date.distantPast
     private var meetingWindowProblemSince: Date?
+    /// The first seconds of a recording decide whether the meeting window is recorded; then no more checks.
+    private var meetingWindowSettled = false
+    private var meetingWindowElsewhere: DisplayInfo?
+    static let meetingWindowCheckPeriod: TimeInterval = 30
     /// The user chose "Игнорировать" for the meeting window warning in this recording.
     private var meetingWindowIgnored = false
     /// The meeting for which "встреча идёт, а запись не ведётся" was already shown.
@@ -138,13 +163,13 @@ final class RecorderModel: ObservableObject {
     private var lastLoadLog = Date.distantPast
     private var highCPUSince: Date?
     static let highCPUPercent: Double = 90
-    static let highCPUAlertAfter: TimeInterval = 60
     private var permissionsMissing: Set<String> = []
 
     static let hotKeyHint = "⌃⌥⌘R"
     static let markerHotKeyHint = "⌃⌥⌘M"
 
-    private var recordingDisplayID: CGDirectDisplayID?
+    /// The display being recorded (also while one window of it is recorded).
+    @Published private(set) var recordingDisplayID: CGDirectDisplayID?
 
     init() {
         Self.logLaunch()
@@ -158,11 +183,13 @@ final class RecorderModel: ObservableObject {
         }
         detector.onMeetingStarted = { [weak self] app in self?.meetingStarted(app) }
         detector.onMeetingEnded = { [weak self] app in self?.meetingEnded(app) }
+        detector.onPending = { [weak self] pending in self?.pendingChanged(pending) }
         configureDetector()
         recorder.onUnexpectedStop = { [weak self] error in
             Log.error("Recording stopped unexpectedly: \(Log.describe(error))")
             self?.stopNotice = "Запись прервалась: \(error.localizedDescription)"
-            NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
+            Notifier.shared.send(id: "meetrec-stopped-unexpectedly", title: "Запись прервалась",
+                                 body: "\(error.localizedDescription). Записанное до этого момента сохранено.")
             self?.didStop(file: nil)
             self?.errorMessage = "Запись остановлена: \(error.localizedDescription)"
         }
@@ -275,7 +302,6 @@ final class RecorderModel: ObservableObject {
         }
         Notifier.shared.send(id: "meetrec-crash", title: "MeetRec перезапущен после сбоя", body: body)
         stopNotice = "Запись прервалась из-за сбоя MeetRec · сохранено до \(time)"
-        NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
         if exists {
             lastFile = file
             Transcriber.shared.recordingFinished(file)
@@ -322,9 +348,6 @@ final class RecorderModel: ObservableObject {
             } else if !isRecording {
                 start(autoApp: app)
             }
-            if MenuBarStyle.current != .discreet {
-                NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
-            }
         } else if action.hasPrefix("open-privacy:") {
             let pane = action.hasSuffix("screen") ? "Privacy_ScreenCapture" : "Privacy_Microphone"
             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
@@ -361,46 +384,43 @@ final class RecorderModel: ObservableObject {
 
     /// While a Teams meeting is recorded as a whole display, checks that its window is on that display.
     /// A wrong monitor (e.g. built-in instead of external) is otherwise noticed only afterwards.
+    /// Only the first `meetingWindowCheckPeriod` of a recording: is the Teams meeting window on the
+    /// recorded display? Seen there once → fine, checking stops (later the user may move Teams or
+    /// share the screen, which minimises it). Never seen there but on another monitor → one silent
+    /// warning. A minimised or hidden window is not a problem.
     private func checkMeetingWindow() {
-        guard Date().timeIntervalSince(lastMeetingWindowCheck) >= 5 else { return }
+        guard !meetingWindowSettled, Date().timeIntervalSince(lastMeetingWindowCheck) >= 3 else { return }
         lastMeetingWindowCheck = Date()
         let teamsMeeting = autoStartedAppID == "teams" || detector.currentMeeting?.id == "teams"
-        guard captureWindow == nil, !meetingWindowIgnored, teamsMeeting, let displayID = recordingDisplayID else {
-            clearMeetingWindowProblem()
-            return
-        }
-        let windows = MeetingTitle.teamsMeetingWindows()
-        // No recognisable meeting window (e.g. the meeting is inside the main window): nothing to check.
-        guard !windows.isEmpty else {
-            clearMeetingWindowProblem()
-            return
-        }
+        guard captureWindow == nil, !meetingWindowIgnored, teamsMeeting, let displayID = recordingDisplayID,
+              let startedAt else { return }
+        let windows = MeetingTitle.teamsMeetingWindows().filter(\.onScreen)
         let recorded = CGDisplayBounds(displayID)
-        if windows.contains(where: { $0.onScreen && Self.overlap($0.bounds, recorded) >= 0.5 }) {
+        if windows.contains(where: { Self.overlap($0.bounds, recorded) >= 0.5 }) {
+            Log.info("Teams meeting window is on the recorded display; window check done", "health")
+            meetingWindowSettled = true
             clearMeetingWindowProblem()
             return
         }
-        let elsewhere = displays.first { display in
-            display.id != displayID && windows.contains { $0.onScreen && Self.overlap($0.bounds, CGDisplayBounds(display.id)) >= 0.5 }
+        if let display = displays.first(where: { display in
+            display.id != displayID && windows.contains { Self.overlap($0.bounds, CGDisplayBounds(display.id)) >= 0.5 }
+        }) {
+            meetingWindowElsewhere = display
         }
-        let since = meetingWindowProblemSince ?? Date()
-        if meetingWindowProblemSince == nil {
-            meetingWindowProblemSince = since
-            Log.warning("Teams meeting window not on recorded display \(displayID): " + windows.map {
-                "\"\($0.title)\" \(NSStringFromRect($0.bounds)) onScreen=\($0.onScreen)" }.joined(separator: "; ")
-                + " → elsewhere: \(elsewhere.map { "\($0.id) \($0.name)" } ?? "hidden")", "health")
+        guard Date().timeIntervalSince(startedAt) >= Self.meetingWindowCheckPeriod else { return }
+        meetingWindowSettled = true
+        guard let elsewhere = meetingWindowElsewhere else {
+            Log.info("Teams meeting window not seen on any monitor in the first \(Int(Self.meetingWindowCheckPeriod)) s; not warning", "health")
+            return
         }
-        guard Date().timeIntervalSince(since) >= 10, meetingWindowWarning == nil else { return }
-        let recordedName = recordingNames.display
-        let text = elsewhere.map { "Окно встречи Teams на мониторе «\($0.name)», а записывается «\(recordedName)»." }
-            ?? "Окно встречи Teams не видно на записываемом мониторе «\(recordedName)» (свёрнуто или на другом рабочем столе)."
+        let text = "Окно встречи Teams на мониторе «\(elsewhere.name)», а записывается «\(recordingNames.display)»."
         meetingWindowWarning = text
         meetingWindowDisplay = elsewhere
-        var actions: [Notifier.Action] = []
-        if let elsewhere { actions.append(.init(id: "switch-display:\(elsewhere.id)", title: "Записывать «\(elsewhere.name)»")) }
-        actions.append(.init(id: "ignore-window", title: "Игнорировать"))
-        Log.warning("Alert: meeting window not recorded", "alerts")
-        Notifier.shared.send(id: "meetrec-meeting-window", title: "Встреча не попадает в запись?", body: text, actions: actions)
+        Log.warning("Alert: Teams meeting window is on display \(elsewhere.id) \(elsewhere.name), recording \(displayID)", "alerts")
+        Notifier.shared.send(id: "meetrec-meeting-window", title: "Встреча не попадает в запись?", body: text,
+                             actions: [.init(id: "switch-display:\(elsewhere.id)", title: "Записывать «\(elsewhere.name)»"),
+                                       .init(id: "ignore-window", title: "Оставить как есть")],
+                             silent: true)
     }
 
     private func clearMeetingWindowProblem() {
@@ -435,23 +455,90 @@ final class RecorderModel: ObservableObject {
         }
         if app.id == "browser", let rule = matchingBrowserRule(for: app) {
             Log.info("Browser call matches rule \"\(rule.keyword)\": recording without asking", "meetings")
-            pendingTitle = rule.title.trimmingCharacters(in: .whitespaces).isEmpty ? nil : RecordingFiles.sanitize(rule.title)
-            pendingRuleID = rule.id.uuidString
-            start(autoApp: app)
-            if MenuBarStyle.current != .discreet {
-                NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
-            }
+            startRuleRecording(app, rule: rule)
             return
         }
         Log.info("Asking whether to record the call in \(app.name)", "meetings")
+        promptIsReminder = false
         callPrompt = app
-        if MenuBarStyle.current != .discreet {
-            NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
+    }
+
+    private func startRuleRecording(_ app: MeetingApp, rule: BrowserRule) {
+        pendingTitle = rule.title.trimmingCharacters(in: .whitespaces).isEmpty ? nil : RecordingFiles.sanitize(rule.title)
+        pendingRuleID = rule.id.uuidString
+        start(autoApp: app)
+    }
+
+    // MARK: - Countdown before an automatic recording
+
+    /// The seconds between "the app took the microphone" and the automatic start, shown in grey next
+    /// to the menu bar icon and in the panel, with "Записать сейчас" / "Не записывать".
+    struct Countdown: Equatable {
+        let app: MeetingApp
+        let seconds: Int
+        /// "встречу в Teams" / "Skyeng".
+        let what: String
+    }
+
+    @Published private(set) var countdown: Countdown?
+    private var countdownTimer: Timer?
+    private var countdownRule: BrowserRule?
+    /// "Не записывать эту встречу": no automatic recording until this meeting ends.
+    private var skippedMeetingApp: String?
+
+    private func pendingChanged(_ pending: (MeetingApp, Date)?) {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        countdown = nil
+        countdownRule = nil
+        guard let (app, since) = pending else { return }
+        skippedMeetingApp = nil // a new call
+        guard meetingDetection, !isRecording, !isBusy, MenuBarStyle.current != .discreet else { return }
+        // Only calls that will record by themselves: Teams, and browser tabs with a rule.
+        var what = "\(app.asks ? "звонок" : "встречу") в \(app.place)"
+        if asks(app) {
+            guard app.id == "browser", let rule = matchingBrowserRule(for: app) else { return }
+            countdownRule = rule
+            what = rule.title.isEmpty ? rule.keyword : rule.title
         }
-        Notifier.shared.send(id: "meetrec-call-prompt", title: "Похоже, идёт звонок в \(Self.callPlace(app))",
-                             body: "Записать его?",
-                             actions: [.init(id: "start-meeting:\(app.id)", title: "Записать"),
-                                       .init(id: "dismiss-call", title: "Не сейчас")])
+        Log.info("Countdown to automatic recording of \(what): \(Int(app.startAfter)) s", "meetings")
+        let update = { [weak self] in
+            guard let self else { return }
+            let left = Int((app.startAfter - Date().timeIntervalSince(since)).rounded(.up))
+            let value = Countdown(app: app, seconds: max(left, 1), what: what)
+            if value != self.countdown { self.countdown = value }
+        }
+        update()
+        countdownTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+            Task { @MainActor in update() }
+        }
+    }
+
+    private func cancelCountdown() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        countdown = nil
+    }
+
+    /// "Записать сейчас": start without waiting for the end of the countdown.
+    func recordNow() {
+        guard let countdown, !isRecording else { return }
+        let rule = countdownRule
+        cancelCountdown()
+        Log.info("User started the \(countdown.app.name) recording before the countdown ended", "meetings")
+        if let rule {
+            startRuleRecording(countdown.app, rule: rule)
+        } else {
+            start(autoApp: countdown.app)
+        }
+    }
+
+    /// "Не записывать": this meeting is not recorded automatically (a manual start still works).
+    func skipMeeting() {
+        guard let countdown else { return }
+        skippedMeetingApp = countdown.app.id
+        cancelCountdown()
+        Log.info("User chose not to record this \(countdown.app.name) meeting", "meetings")
     }
 
     // MARK: - Browser rules ("record Skyeng without asking")
@@ -475,10 +562,110 @@ final class RecorderModel: ObservableObject {
         }
     }
 
+    // MARK: - Microphone follows the call
+
+    /// The microphone to start with: the chosen one, else the one the meeting app captures from
+    /// (headphones put on just before answering), else the system default input.
+    private func startMicrophone(for app: MeetingApp?) -> String? {
+        if !microphoneID.isEmpty { return microphoneID }
+        if let app, let used = AudioDevices.inputsUsed(by: app).first {
+            Log.info("Starting with the microphone \(app.name) uses: \(AudioDevices.name(of: used)) (\(used))", "devices")
+            return used
+        }
+        return AudioDevices.defaultInputUID()
+    }
+
+    /// Every few seconds: is the recording still capturing the microphone the call (or, without a
+    /// call, the system) uses? In "По умолчанию" mode MeetRec switches by itself; with a microphone
+    /// chosen by hand it only suggests the switch once.
+    private func checkMicrophoneSource() {
+        guard microphone, !isBusy, Date().timeIntervalSince(lastMicCheck) >= 3 else { return }
+        lastMicCheck = Date()
+        let app = MeetingApp.all.first { $0.id == autoStartedAppID } ?? detector.currentMeeting
+        var target: String?
+        var reason: String
+        var callUses = false
+        if let app, let used = AudioDevices.inputsUsed(by: app).first {
+            target = used
+            reason = "Как в \(app.place)"
+            callUses = true
+        } else {
+            target = AudioDevices.defaultInputUID()
+            reason = "Так выбрано в системе"
+        }
+        guard let target, target != recordingMicUID else {
+            micCandidate = nil
+            return
+        }
+        // Must be seen twice in a row: devices flap while headphones connect.
+        guard micCandidate == target else {
+            micCandidate = target
+            return
+        }
+        micCandidate = nil
+        let name = AudioDevices.name(of: target)
+        if microphoneID.isEmpty && !micOverridden {
+            Log.info("Microphone in use changed to \(name) (\(reason)); switching the recording", "devices")
+            switchMicrophone(to: target, announce: Toast(kind: .info, title: "Микрофон: «\(name)»", detail: reason))
+        } else if !suggestedMics.contains(target) {
+            suggestedMics.insert(target)
+            Log.info("Suggesting microphone \(name) (\(reason)); recording \(recordingNames.microphone)", "devices")
+            showToast(Toast(kind: .info, title: "Записывать «\(name)»?",
+                            detail: "\(callUses ? "Звонок использует" : "В системе выбран") «\(name)», а запись идёт с «\(recordingNames.microphone)».",
+                            action: .switchMicrophone(uid: target)))
+        }
+    }
+
+    /// Switches the running recording's microphone; `byUser` stops automatic switching for it.
+    func switchMicrophone(to uid: String, byUser: Bool = false, announce: Toast? = nil) {
+        guard isRecording, microphone else { return }
+        if byUser { micOverridden = true }
+        Task {
+            do {
+                try await recorder.setMicrophone(uid)
+                recordingMicUID = uid
+                let name = AudioDevices.name(of: uid)
+                recordingNames.microphone = name
+                healthTracker?.microphoneName = name
+                firedAlerts.remove("mic-dead")
+                firedAlerts.remove("mic-quiet")
+                if let announce { showToast(announce) }
+            } catch {
+                errorMessage = "Не удалось переключить микрофон: \(error.localizedDescription)"
+                Notifier.shared.send(id: "meetrec-mic-switch", title: "Микрофон не переключился",
+                                     body: "Запись продолжается с «\(recordingNames.microphone)». \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func performToastAction(_ action: Toast.Action) {
+        dismissToast()
+        switch action {
+        case .switchMicrophone(let uid): switchMicrophone(to: uid, byUser: true)
+        }
+    }
+
+    // MARK: - Toasts
+
+    /// Live moments are shown by a small toast, not the panel, and not in the discreet style.
+    func showToast(_ toast: Toast) {
+        guard MenuBarStyle.current != .discreet else { return }
+        self.toast = toast
+    }
+
+    func dismissToast() {
+        if toast != nil { toast = nil }
+    }
+
+    /// Shows the result of the last stop (also used when the panel folds away after "Остановить").
+    func showStopToast() {
+        if let lastStopToast { showToast(lastStopToast) }
+    }
+
     func acceptCallPrompt() {
         guard let app = callPrompt else { return }
         callPrompt = nil
-        Notifier.shared.remove(id: "meetrec-call-prompt")
+        promptIsReminder = false
         Log.info("User chose to record the call in \(app.name)", "meetings")
         if !isRecording { start(autoApp: app) }
     }
@@ -486,8 +673,8 @@ final class RecorderModel: ObservableObject {
     func dismissCallPrompt() {
         guard let app = callPrompt else { return }
         callPrompt = nil
+        promptIsReminder = false
         remindedMeeting = app.id
-        Notifier.shared.remove(id: "meetrec-call-prompt")
         Log.info("User declined recording the call in \(app.name)", "meetings")
     }
 
@@ -503,10 +690,10 @@ final class RecorderModel: ObservableObject {
             guard let self, !self.isRecording, !self.isBusy, self.detector.currentMeeting?.id == app.id,
                   self.remindedMeeting != app.id else { return }
             self.remindedMeeting = app.id
+            guard self.callPrompt == nil else { return }
             Log.warning("Meeting in \(app.name) is going on without a recording", "alerts")
-            Notifier.shared.send(id: "meetrec-not-recording", title: "Идёт звонок в \(Self.callPlace(app)), запись не ведётся",
-                                 body: "Нажмите «Начать запись», если встречу нужно записать.",
-                                 actions: [.init(id: "start-meeting:\(app.id)", title: "Начать запись")])
+            self.promptIsReminder = true
+            self.callPrompt = app
         }
     }
 
@@ -567,6 +754,26 @@ final class RecorderModel: ObservableObject {
 
     // MARK: - Meeting detection
 
+    /// "Спрашивать" (true) or "Записывать" (false) for this app.
+    func asks(_ app: MeetingApp) -> Bool {
+        for pair in meetingAppModesRaw.split(separator: ",") {
+            let parts = pair.split(separator: ":")
+            if parts.count == 2, parts[0] == app.id { return parts[1] == "ask" }
+        }
+        return app.asks
+    }
+
+    func setAsks(_ app: MeetingApp, _ value: Bool) {
+        var modes = Dictionary(uniqueKeysWithValues: meetingAppModesRaw.split(separator: ",").compactMap { pair -> (String, String)? in
+            let parts = pair.split(separator: ":")
+            return parts.count == 2 ? (String(parts[0]), String(parts[1])) : nil
+        })
+        modes[app.id] = value ? "ask" : "auto"
+        meetingAppModesRaw = modes.sorted { $0.key < $1.key }.map { "\($0.key):\($0.value)" }.joined(separator: ",")
+        Log.info("Meeting app \(app.name): \(value ? "ask before recording" : "record automatically")", "meetings")
+        objectWillChange.send()
+    }
+
     var selectedMeetingApps: Set<String> {
         Set(meetingAppsRaw.split(separator: ",").map(String.init))
     }
@@ -593,13 +800,16 @@ final class RecorderModel: ObservableObject {
 
     private func meetingStarted(_ app: MeetingApp) {
         remindedMeeting = nil
-        if app.asks {
+        if skippedMeetingApp == app.id {
+            Log.info("Meeting in \(app.name) started; the user chose not to record it", "meetings")
+            return
+        }
+        if asks(app) {
             askToRecord(app)
             return
         }
         guard meetingDetection else {
-            Log.info("Meeting in \(app.name) started; auto-recording is off", "meetings")
-            scheduleMeetingReminder(app, after: 10)
+            Log.info("Meeting in \(app.name) started; auto-recording is off, not reminding", "meetings")
             return
         }
         scheduleMeetingReminder(app, after: 30) // in case the start fails
@@ -608,20 +818,16 @@ final class RecorderModel: ObservableObject {
             return
         }
         Log.info("Auto-starting recording for \(app.name) meeting", "meetings")
-        start(autoApp: app)
-        // Show the panel so it is obvious that recording started; clicking outside folds it away.
-        // Not in the discreet style: others may be watching the screen.
-        if MenuBarStyle.current != .discreet {
-            NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
-        }
+        start(autoApp: app) // the "recording started" toast makes it obvious
     }
 
     private func meetingEnded(_ app: MeetingApp) {
         remindedMeeting = nil
+        if skippedMeetingApp == app.id { skippedMeetingApp = nil }
         Notifier.shared.remove(id: "meetrec-not-recording")
         if callPrompt?.id == app.id {
             callPrompt = nil
-            Notifier.shared.remove(id: "meetrec-call-prompt")
+            promptIsReminder = false
             Log.info("Call in \(app.name) ended before an answer to the prompt", "meetings")
         }
         guard isRecording else { return }
@@ -630,9 +836,9 @@ final class RecorderModel: ObservableObject {
             return
         }
         Log.info("Auto-stopping recording: \(app.name) meeting ended", "meetings")
-        // Show the panel again at the end, so it is obvious that recording stopped.
-        stop(reason: app.asks ? "звонок в \(Self.callPlace(app)) завершился" : "встреча в \(Self.callPlace(app)) завершилась",
-             showPanel: MenuBarStyle.current != .discreet)
+        // The "Запись сохранена" toast makes the end obvious (see stop()).
+        stop(reason: app.asks ? "звонок в \(Self.callPlace(app)) завершился" : "встреча в \(Self.callPlace(app)) завершилась")
+
     }
 
     func start(autoApp: MeetingApp? = nil) {
@@ -672,11 +878,15 @@ final class RecorderModel: ObservableObject {
                     codec: codec == "hevc" ? .hevc : .h264,
                     systemAudio: systemAudio,
                     microphone: microphone,
-                    microphoneID: microphoneID.isEmpty ? nil : microphoneID,
+                    microphoneID: startMicrophone(for: autoApp),
                     outputURL: nextFileURL()
                 )
                 Log.info("Starting: display=\(display.id) \"\(display.name)\" (setting=\(displayID == Self.autoDisplay ? "auto" : String(displayID))) mic=\(microphones.first(where: { $0.id == microphoneID })?.name ?? "default: \(AVCaptureDevice.default(for: .audio)?.localizedName ?? "none")")")
-                recordingNames = (microphone: resolvedMicrophoneName(), display: display.name)
+                recordingMicUID = startMicrophone(for: autoApp)
+                micOverridden = false
+                micCandidate = nil
+                suggestedMics = []
+                recordingNames = (microphone: AudioDevices.name(of: recordingMicUID), display: display.name)
                 try await recorder.start(options)
                 if let autoApp {
                     // Decided now, while it is known: transcription may run much later.
@@ -705,7 +915,7 @@ final class RecorderModel: ObservableObject {
         }
     }
 
-    func stop(reason: String? = nil, showPanel: Bool = false) {
+    func stop(reason: String? = nil) {
         guard isRecording, !isBusy else {
             Log.debug("stop() ignored: isRecording=\(isRecording) isBusy=\(isBusy)")
             return
@@ -729,10 +939,16 @@ final class RecorderModel: ObservableObject {
             }
             isBusy = false
             didStop(file: file)
-            stopNotice = ["Запись остановлена · \(duration)", reason].compactMap { $0 }.joined(separator: " · ")
-            if showPanel {
-                NotificationCenter.default.post(name: Self.showPanelNotification, object: nil)
-            }
+            stopNotice = ["Запись сохранена · \(duration)", reason].compactMap { $0 }.joined(separator: " · ")
+            let transcriber = Transcriber.shared
+            let transcriptNote = file != nil && transcriber.transcribeAfterRecording && transcriber.modelsState == .ready
+                ? "транскрипт появится рядом с видео" : nil
+            let detail = [reason, transcriptNote].compactMap { $0 }.joined(separator: " · ")
+            lastStopToast = Toast(kind: .stopped, title: "Запись сохранена · \(duration)",
+                                  detail: detail.isEmpty ? file?.lastPathComponent : detail.prefix(1).uppercased() + detail.dropFirst(),
+                                  file: file)
+            // With the panel open the result is visible there (it shows the toast as it folds away).
+            if !panelVisible { showStopToast() }
         }
     }
 
@@ -824,9 +1040,7 @@ final class RecorderModel: ObservableObject {
             highCPUSince = nil
             Log.info("System CPU back to normal: \(sample.logText)", "health")
         }
-        alert("cpu-high", when: highCPUSince.map { now.timeIntervalSince($0) >= Self.highCPUAlertAfter } ?? false,
-              title: "Mac перегружен",
-              body: "Процессор занят на \(Int(sample.systemCPU))% больше минуты. Видео может терять кадры: закройте лишние программы.")
+        // High CPU is only logged: the user cannot act on it mid-meeting, and frame drops show in the stats.
     }
 
     // MARK: - Disk space and title
@@ -842,7 +1056,7 @@ final class RecorderModel: ObservableObject {
             Log.error("Only \(DiskSpace.format(free)) free, stopping the recording to close the file safely")
             Notifier.shared.send(id: "meetrec-disk-stop", title: "Запись остановлена: диск заполнен",
                                  body: "Осталось \(DiskSpace.format(free)). Файл сохранён.")
-            stop(reason: "на диске осталось \(DiskSpace.format(free))", showPanel: true)
+            stop(reason: "на диске осталось \(DiskSpace.format(free))")
         }
     }
 
@@ -912,6 +1126,7 @@ final class RecorderModel: ObservableObject {
         live.update(elapsed: 0)
         healthTracker = HealthTracker(startedAt: startedAt ?? Date(), microphoneOn: microphone, systemAudioOn: systemAudio,
                                       microphoneName: recordingNames.microphone, displayName: recordingNames.display)
+        cancelCountdown()
         markers = []
         captureWindow = nil
         meetingTitle = pendingTitle
@@ -924,11 +1139,28 @@ final class RecorderModel: ObservableObject {
         highCPUSince = nil
         meetingWindowIgnored = false
         meetingWindowProblemSince = nil
+        meetingWindowSettled = false
+        meetingWindowElsewhere = nil
         lastMeetingWindowCheck = Date() // give the meeting window time to open
         Notifier.shared.remove(id: "meetrec-not-recording")
         if callPrompt != nil {
             callPrompt = nil
-            Notifier.shared.remove(id: "meetrec-call-prompt")
+            promptIsReminder = false
+        }
+        lastStopToast = nil
+        if !panelVisible {
+            let title: String
+            let app = MeetingApp.all.first { $0.id == autoStartedAppID }
+            if let ruleTitle = meetingTitle {
+                title = "Записываю: \(ruleTitle)" // a browser rule, e.g. "Записываю: Skyeng"
+            } else if let app {
+                title = "Записываю \(app.asks ? "звонок" : "встречу") в \(app.place)"
+            } else {
+                title = "Запись началась"
+            }
+            showToast(Toast(kind: .started, title: title,
+                            detail: app.map { "Остановится сама, когда \($0.noun) закончится" }
+                                ?? "\(Self.hotKeyHint) — остановить, \(Self.markerHotKeyHint) — отметить момент"))
         }
         if let file = recorder.currentFile().url {
             Watchdog.recordingStarted(file: file, autoAppID: autoStartedAppID)
@@ -956,7 +1188,7 @@ final class RecorderModel: ObservableObject {
     private func tick() {
         guard let startedAt, var tracker = healthTracker else { return }
         live.update(elapsed: Date().timeIntervalSince(startedAt))
-        let muted = microphone && InputMuteState.isMuted(uid: microphoneID.isEmpty ? nil : microphoneID)
+        let muted = microphone && InputMuteState.isMuted(uid: recordingMicUID)
         if muted != micMuted {
             micMuted = muted
             Log.info("Microphone \(muted ? "muted" : "unmuted") at system level", "health")
@@ -964,6 +1196,7 @@ final class RecorderModel: ObservableObject {
         checkDiskSpace()
         checkCaptureWindow()
         checkMeetingWindow()
+        checkMicrophoneSource()
         sampleLoad()
         updateMeetingTitle()
         let newHealth = tracker.update(with: recorder.snapshot(), micMuted: muted, freeSpace: freeSpace)
@@ -989,29 +1222,29 @@ final class RecorderModel: ObservableObject {
         alert("screen-dead", when: health.screen.state == .noSignal,
               title: "Экран не записывается",
               body: "Кадры не приходят: монитор отключён, заблокирован экран или Mac уснул.")
+        // Dead silence for a minute (not just listening): likely the wrong microphone. Once per recording.
         alert("mic-quiet", when: microphone && health.microphone.state != .noSignal
-                && health.micSilentFor >= Self.micSilenceAlertAfter,
-              title: "Микрофон молчит больше минуты",
-              body: "Если вы говорите, но полоска не двигается, выбран не тот микрофон («\(mic)»).")
+                && health.micSilentFor >= Self.micSilenceAlertAfter, once: true,
+              title: "С микрофона не идёт звук",
+              body: "«\(mic)» молчит больше минуты, даже фонового шума нет. Возможно, выбран не тот микрофон.")
         alert("file-stalled", when: health.fileStalledFor >= HealthTracker.fileStalledAfter,
               title: "Файл записи перестал расти",
               body: "Данные не записываются уже \(Int(health.fileStalledFor)) с. Остановите и начните запись заново.")
         alert("screen-black", when: health.blackFor >= HealthTracker.blackAfter,
               title: "В записи чёрный экран",
               body: "Картинка полностью чёрная \(Int(health.blackFor)) с: экран заблокирован, монитор спит или выбран не тот монитор.")
-        alert("system-quiet", when: systemAudio && health.systemAudio.state != .noSignal
-                && health.systemSilentFor >= Self.systemSilenceAlertAfter,
-              title: "Не слышно собеседников 2 минуты",
-              body: "Звук системы тихий. Если собеседники говорят, их голоса не записываются.")
+        // Silence of the other side is normal while the user talks: shown in the panel, no alert.
     }
 
-    private func alert(_ key: String, when condition: Bool, title: String, body: String) {
+    /// One alert per problem episode (`once`: per recording), as a silent notification: during a
+    /// meeting a sound would distract, and the banner itself is enough.
+    private func alert(_ key: String, when condition: Bool, once: Bool = false, title: String, body: String) {
         if condition {
             guard !firedAlerts.contains(key) else { return }
             firedAlerts.insert(key)
             Log.warning("Alert: \(title)", "alerts")
-            Notifier.shared.send(id: "meetrec-\(key)", title: title, body: body)
-        } else if firedAlerts.remove(key) != nil {
+            Notifier.shared.send(id: "meetrec-\(key)", title: title, body: body, silent: isRecording)
+        } else if !once, firedAlerts.remove(key) != nil {
             Log.info("Alert cleared: \(key)", "alerts")
         }
     }
@@ -1024,14 +1257,6 @@ final class RecorderModel: ObservableObject {
         } else {
             Log.info(text, "health")
         }
-    }
-
-    /// The device ScreenCaptureKit will actually use: the chosen one, or the system default input.
-    private func resolvedMicrophoneName() -> String {
-        if !microphoneID.isEmpty, let chosen = microphones.first(where: { $0.id == microphoneID }) {
-            return chosen.name
-        }
-        return AVCaptureDevice.default(for: .audio)?.localizedName ?? "по умолчанию"
     }
 
     private func didStop(file: URL?) {

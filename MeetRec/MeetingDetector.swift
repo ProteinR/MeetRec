@@ -13,8 +13,9 @@ struct MeetingApp: Identifiable, Hashable {
     let supported: Bool
     /// Why an app is not supported yet.
     var note: String?
-    /// Ask before recording instead of starting on its own: browsers and Telegram also use the
-    /// microphone for things that are not calls (dictation, voice messages).
+    /// Default mode "Спрашивать" instead of "Записывать": browsers and Telegram also use the microphone for
+    /// things that are not calls (dictation, voice messages). Also the word: their calls are
+    /// "звонок", Teams has "встреча". The user can change the mode (`RecorderModel.asks(_:)`).
     var asks = false
     /// How long the app must hold the microphone before it counts as a call.
     var startAfter: TimeInterval = MeetingDetector.startAfter
@@ -46,6 +47,18 @@ struct MeetingApp: Identifiable, Hashable {
         }
     }
 
+    /// "встреча" for Teams, "звонок" for browsers and Telegram: one word per app, everywhere.
+    var noun: String { asks ? "звонок" : "встреча" }
+
+    /// "Похоже, идёт звонок в браузере" / "Идёт встреча в Teams, запись не ведётся".
+    func promptTitle(reminder: Bool) -> String {
+        reminder ? "Идёт \(noun) в \(place), запись не ведётся" : "Похоже, идёт \(noun) в \(place)"
+    }
+
+    var promptDetail: String { "Записать? Запись остановится сама, когда \(noun) закончится." }
+
+    var icon: String { id == "browser" ? "globe" : (id == "teams" ? "person.2.fill" : "phone.fill") }
+
     /// The main bundle ID, used to check whether the app is installed.
     var mainBundleID: String { bundlePrefixes[0] }
 
@@ -75,6 +88,9 @@ final class MeetingDetector {
     var onMeetingEnded: ((MeetingApp) -> Void)?
     /// Human-readable current state for the UI, e.g. "Teams держит микрофон 3 с".
     var onStatus: ((String?) -> Void)?
+    /// An app took the microphone and the meeting is not confirmed yet: (app, since); nil when the
+    /// wait ends (meeting started, or the mic was released early). Drives the countdown.
+    var onPending: ((MeetingApp, Date)?) -> Void = { _ in }
 
     private var enabledApps: [MeetingApp] = []
     private var timer: Timer?
@@ -133,12 +149,14 @@ final class MeetingDetector {
                 activeApp = holding
                 activeSince = now
                 Log.info("\(holding.name) took the microphone", "meetings")
+                if meetingApp == nil { onPending((holding, now)) }
             }
             let held = now.timeIntervalSince(activeSince ?? now)
             if meetingApp == nil {
                 if held >= holding.startAfter {
                     meetingApp = holding
                     Log.info("Meeting started in \(holding.name) (mic held \(Int(held)) s)", "meetings")
+                    onPending(nil)
                     onMeetingStarted?(holding)
                 } else {
                     onStatus?("\(Self.shortName(holding)) взял микрофон · \(Int(held)) с")
@@ -152,6 +170,7 @@ final class MeetingDetector {
                 Log.info("\(app.name) released the microphone", "meetings")
                 activeApp = nil
                 activeSince = nil
+                if meetingApp == nil { onPending(nil) }
             }
             if let meeting = meetingApp {
                 if inactiveSince == nil { inactiveSince = now }

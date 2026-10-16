@@ -19,8 +19,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var panel: MenuPanelController!
     private var island: IslandController!
+    private var toasts: ToastController!
     private var cancellables: Set<AnyCancellable> = []
     private var statusIconKey = ""
+    /// The title currently shows the grey countdown (an attributed title), not the timer.
+    private var showingCountdown = false
+
+    /// Started by macOS at login or by the crash watchdog: stay quiet, no panel.
+    private var launchedInBackground = false
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // The launch Apple event is only available this early.
+        let event = NSAppleEventManager.shared().currentAppleEvent
+        let loginItem = event?.eventID == AEEventID(kAEOpenApplication)
+            && event?.paramDescriptor(forKeyword: AEKeyword(keyAEPropData))?.enumCodeValue == OSType(keyAELaunchedAsLogInItem)
+        let watchdog = CommandLine.arguments.contains("--background")
+        // Login items started by launchd do not always carry the Apple event; right after boot or
+        // login nobody opened MeetRec by hand either.
+        let justBooted = ProcessInfo.processInfo.systemUptime < 180
+        launchedInBackground = loginItem || watchdog || justBooted
+        Log.info("Launch: \(loginItem ? "login item" : watchdog ? "watchdog relaunch" : justBooted ? "right after boot" : "opened by user")")
+    }
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -28,14 +47,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.target = self
         statusItem.button?.action = #selector(togglePanel)
+        statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem.button?.imagePosition = .imageLeading
 
-        panel = MenuPanelController(rootView: ContentView(close: { [weak self] in self?.panel.close() })
+        panel = MenuPanelController(rootView: ContentView(close: { [weak self] in self?.panel.close() },
+                                                          closeAnimated: { [weak self] in self?.panel.closeAnimated() })
             .environmentObject(model)
             .environmentObject(model.live)
             .environmentObject(Transcriber.shared))
         panel.onVisibilityChange = { visible in model.panelVisible = visible }
         island = IslandController(model: model)
+        toasts = ToastController(model: model) { [weak self] in
+            guard let window = self?.statusItem.button?.window, Self.isOnScreen(window) else { return nil }
+            return window.frame
+        }
         model.$isRecording
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.island.update() }
@@ -50,6 +75,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
         updateStatusItem(recording: false, problem: false)
+
+        // Countdown before an automatic recording: grey seconds next to the icon.
+        model.$countdown
+            .map { $0?.seconds }
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.updateStatusItem(recording: model.isRecording, problem: model.health?.hasProblem == true)
+            }
+            .store(in: &cancellables)
 
         // Menu bar style or "hide from screen sharing" changed in the panel.
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
@@ -66,8 +101,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in self?.showPanel() }
             .store(in: &cancellables)
 
-        // Opening the app shows the panel right away, so it is never "nothing happened".
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.showPanel() }
+        // Opening the app by hand shows the panel right away, so it is never "nothing happened";
+        // a launch at login or by the watchdog stays in the menu bar.
+        if !launchedInBackground {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.showPanel() }
+        }
     }
 
     /// Quitting while recording (logout, shutdown, `install.sh`) first closes the file properly.
@@ -109,17 +147,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = colored ? image?.withSymbolConfiguration(.init(paletteColors: [problem ? .systemYellow : .systemRed])) : image
             button.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         }
-        let title = recording && style == .full ? " " + RecorderModel.shared.elapsedText : ""
-        if button.title != title { button.title = title }
+        if !recording, let countdown = RecordingCountdownTitle.text(RecorderModel.shared.countdown) {
+            // Small and grey: "the meeting was noticed, recording starts in N s", not yet a red alert.
+            let attributed = NSAttributedString(string: countdown, attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium),
+                .foregroundColor: NSColor.secondaryLabelColor,
+                .baselineOffset: 1,
+            ])
+            if button.attributedTitle != attributed { button.attributedTitle = attributed }
+            showingCountdown = true
+        } else {
+            let title = recording && style == .full ? " " + RecorderModel.shared.elapsedText : ""
+            if button.title != title || showingCountdown { button.title = title }
+            showingCountdown = false
+        }
         // Keep MeetRec out of screen sharing (apps that honour the window sharing type).
         let sharing: NSWindow.SharingType = MenuBarStyle.hideFromSharing ? .none : .readOnly
         if button.window?.sharingType != sharing { button.window?.sharingType = sharing }
         panel.setSharingType(sharing)
+        toasts?.setSharingType(sharing)
     }
 
     @objc @MainActor
     private func togglePanel() {
+        if NSApp.currentEvent?.type == .rightMouseUp || NSApp.currentEvent?.modifierFlags.contains(.control) == true {
+            showQuickMenu()
+            return
+        }
         if panel.isShown { panel.close() } else { showPanel() }
+    }
+
+    /// Right click on the menu bar item: the frequent actions without opening the panel.
+    @MainActor
+    private func showQuickMenu() {
+        let model = RecorderModel.shared
+        if panel.isShown { panel.close() }
+        let menu = NSMenu()
+        menu.addItem(QuickMenuItem(model.isRecording ? "Остановить запись" : "Начать запись", key: "r",
+                                   modifiers: [.control, .option, .command]) { model.toggle() })
+        if model.isRecording {
+            menu.addItem(QuickMenuItem("Отметить момент", key: "m", modifiers: [.control, .option, .command]) { model.addMarker() })
+        }
+        menu.addItem(.separator())
+        if let last = model.lastFile {
+            menu.addItem(QuickMenuItem("Показать последнюю запись") { NSWorkspace.shared.activateFileViewerSelecting([last]) })
+        }
+        menu.addItem(QuickMenuItem("Открыть папку с записями") { model.openFolder() })
+        menu.addItem(.separator())
+        menu.addItem(QuickMenuItem("Настройки…", key: ",") { [weak self] in
+            self?.showPanel()
+            model.requestSettings()
+        })
+        let quit = QuickMenuItem("Выйти из MeetRec", key: "q") { NSApp.terminate(nil) }
+        quit.isEnabled = !model.isRecording
+        menu.addItem(quit)
+        menu.autoenablesItems = false
+        statusItem.menu = menu
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil
     }
 
     @MainActor
@@ -161,12 +246,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct ContentView: View {
     /// Closes the panel (Esc, ⌘W).
     let close: () -> Void
+    /// Fades the panel out (after Start/Stop).
+    let closeAnimated: () -> Void
 
     @EnvironmentObject private var model: RecorderModel
     @EnvironmentObject private var transcriber: Transcriber
     @StateObject private var micMonitor = MicrophoneMonitor()
     @State private var openSection: String?
     @State private var showingSettings = false
+    @State private var closeAfterToggle = false
+    /// After a click on Start/Stop the layout stays as it was until the panel folds away, so the
+    /// button morphs in place instead of jumping.
+    @State private var frozenLayout: Bool?
+    private var recordingLayout: Bool { frozenLayout ?? model.isRecording }
 
     private func expanded(_ section: String) -> Binding<Bool> {
         Binding(get: { openSection == section }, set: { openSection = $0 ? section : nil })
@@ -190,20 +282,39 @@ struct ContentView: View {
             transcriber.refreshModels()
         }
         .onExitCommand { if showingSettings { showingSettings = false } else { close() } }
+        .onChange(of: model.isRecording) { _, recording in
+            guard closeAfterToggle else { return }
+            closeAfterToggle = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                closeAnimated()
+                if !recording { model.showStopToast() }
+            }
+        }
+        .onChange(of: model.isBusy) { _, busy in
+            // Start failed (nothing changed): keep the panel open to show the error.
+            if !busy, closeAfterToggle, model.errorMessage != nil {
+                closeAfterToggle = false
+                frozenLayout = nil
+            }
+        }
+        .onChange(of: model.settingsRequest) { showingSettings = true }
         // Every opening starts on the main page with all sections folded; reset while hidden, so
         // nothing animates.
         .onChange(of: model.panelVisible) { _, visible in
-            guard !visible, openSection != nil || showingSettings else { return }
+            guard !visible, openSection != nil || showingSettings || frozenLayout != nil else { return }
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
                 openSection = nil
                 showingSettings = false
+                frozenLayout = nil
             }
         }
         .background {
             // ⌘W closes the panel; the app has no menu bar menu to provide it.
             Button("", action: close).keyboardShortcut("w", modifiers: .command).hidden()
+            Button("") { if !model.isRecording { showingSettings = true } }
+                .keyboardShortcut(",", modifiers: .command).hidden()
         }
     }
 
@@ -276,24 +387,28 @@ struct ContentView: View {
     private var mainPage: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
-            // A noticed call replaces the start button: one clear question instead of two red buttons.
-            if let app = model.callPrompt, !model.isRecording {
-                CallPromptBanner(app: app)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            } else {
-                recordButton
-            }
-            if model.isRecording {
-                RecordingControls()
-            }
-            Divider()
-            if model.isRecording {
+            if recordingLayout {
+                // Opened to check the recording: the status first, the stop button last, out of the way.
                 LiveStatusPanel()
+                Divider()
+                RecordingControls()
+                recordButton
             } else {
+                // A noticed call replaces the start button: one clear question instead of two red buttons.
+                if let countdown = model.countdown, !model.isRecording {
+                    CountdownBanner(countdown: countdown)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                } else if let app = model.callPrompt, !model.isRecording {
+                    CallPromptBanner(app: app)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                } else {
+                    recordButton
+                }
+                Divider()
                 sources
             }
             // While recording the panel shows only what concerns the recording itself.
-            if !model.isRecording {
+            if !recordingLayout {
                 TranscriptionStatus()
                 RecordingsSection(isExpanded: expanded("recordings"))
                 Divider()
@@ -344,8 +459,14 @@ struct ContentView: View {
         }
     }
 
+    /// After a click the button morphs, then the panel folds away: the user wants to get back to the
+    /// meeting, the menu bar icon and the island show the recording from there.
     private var recordButton: some View {
-        RecordButton(isRecording: model.isRecording, isBusy: model.isBusy) { model.toggle() }
+        RecordButton(isRecording: model.isRecording, isBusy: model.isBusy) {
+            closeAfterToggle = true
+            frozenLayout = model.isRecording
+            model.toggle()
+        }
     }
 
     private var sources: some View {
@@ -433,7 +554,7 @@ struct ContentView: View {
     }
 
     @AppStorage(MenuBarStyle.storageKey) private var menuBarStyle = MenuBarStyle.full.rawValue
-    @AppStorage(MenuBarStyle.hideFromSharingKey) private var hideFromSharing = false
+    @AppStorage(MenuBarStyle.hideFromSharingKey) private var hideFromSharing = true
 
     private var appearanceSummary: String {
         let style = (MenuBarStyle(rawValue: menuBarStyle) ?? .full).title
@@ -539,7 +660,7 @@ struct StatusPanel: View {
                     Image(systemName: "cpu").frame(width: 18).foregroundStyle(.secondary)
                     Text("Процессор \(Int(load.systemCPU.rounded()))%")
                         .font(.callout)
-                        .foregroundStyle(load.systemCPU >= RecorderModel.highCPUPercent ? .red : .primary)
+                        .foregroundStyle(.secondary)
                     Spacer()
                     Text("MeetRec \(Int(load.appCPU.rounded()))% · \(load.memoryText)")
                         .font(.caption)
@@ -639,7 +760,7 @@ struct RecordingControls: View {
                         if let display = model.meetingWindowDisplay {
                             Button("Записывать «\(display.name)»") { model.switchDisplay(to: display.id) }
                         }
-                        Button("Игнорировать") { model.ignoreMeetingWindow() }
+                        Button("Оставить как есть") { model.ignoreMeetingWindow() }
                     }
                     .controlSize(.small)
                 }
@@ -668,10 +789,21 @@ struct RecordingControls: View {
                 Text("Записывать")
                 Spacer()
                 Menu {
-                    Button {
-                        model.record(window: nil)
-                    } label: {
-                        Label("Весь экран", systemImage: model.captureWindow == nil ? "checkmark" : "display")
+                    // Whole monitors first: the one being recorded is ticked, another can be switched to.
+                    ForEach(model.displays) { display in
+                        Button {
+                            if display.id == model.recordingDisplayID {
+                                model.record(window: nil)
+                            } else {
+                                model.switchDisplay(to: display.id)
+                            }
+                        } label: {
+                            if model.captureWindow == nil && display.id == model.recordingDisplayID {
+                                Label("Монитор «\(display.name)»", systemImage: "checkmark")
+                            } else {
+                                Label("Монитор «\(display.name)»", systemImage: "display")
+                            }
+                        }
                     }
                     Divider()
                     if model.windows.isEmpty {
@@ -691,13 +823,39 @@ struct RecordingControls: View {
                     Divider()
                     Button("Обновить список окон") { model.refreshWindows() }
                 } label: {
-                    Text(model.captureWindow.map { $0.label } ?? "Весь экран")
+                    Text(model.captureWindow.map { $0.label }
+                         ?? "Монитор «\(model.displays.first { $0.id == model.recordingDisplayID }?.name ?? "—")»")
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 320)
                 .disabled(model.isBusy)
+            }
+            if model.microphone {
+                HStack {
+                    Text("Микрофон")
+                    Spacer()
+                    Menu {
+                        ForEach(model.microphones) { mic in
+                            Button {
+                                model.switchMicrophone(to: mic.id, byUser: true)
+                            } label: {
+                                if mic.id == model.recordingMicUID {
+                                    Label(mic.name, systemImage: "checkmark")
+                                } else {
+                                    Text(mic.name)
+                                }
+                            }
+                        }
+                    } label: {
+                        Text(AudioDevices.name(of: model.recordingMicUID)).lineLimit(1).truncationMode(.middle)
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 320)
+                    .disabled(model.isBusy)
+                    .help("Переключить микрофон, не останавливая запись")
+                }
             }
             if model.captureWindow != nil {
                 Text("Пишется только это окно: другие окна и уведомления в запись не попадут.")
@@ -806,13 +964,13 @@ struct CallPromptBanner: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Image(systemName: app.id == "browser" ? "globe" : "phone.fill")
+                Image(systemName: app.icon)
                     .foregroundStyle(.white)
                     .frame(width: 26, height: 26)
                     .background(Circle().fill(Color.accentColor))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Похоже, идёт звонок в \(RecorderModel.callPlace(app))").font(.callout.weight(.semibold))
-                    Text("Записать его? Запись остановится сама, когда звонок закончится.")
+                    Text(app.promptTitle(reminder: model.promptIsReminder)).font(.callout.weight(.semibold))
+                    Text(app.promptDetail)
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -837,5 +995,73 @@ struct CallPromptBanner: View {
         }
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 10).fill(Color.accentColor.opacity(0.12)))
+    }
+}
+
+/// An NSMenuItem running a closure (the quick menu has no responder chain to target).
+final class QuickMenuItem: NSMenuItem {
+    private let handler: () -> Void
+
+    init(_ title: String, key: String = "", modifiers: NSEvent.ModifierFlags = [.command], handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(title: title, action: #selector(run), keyEquivalent: key)
+        keyEquivalentModifierMask = modifiers
+        target = self
+    }
+
+    required init(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    @objc private func run() { handler() }
+}
+
+enum RecordingCountdownTitle {
+    /// " 5" next to the menu bar icon while waiting to record automatically.
+    static func text(_ countdown: RecorderModel.Countdown?) -> String? {
+        countdown.map { " \($0.seconds)" }
+    }
+}
+
+/// "Через 5 с начну записывать встречу в Teams" with "Записать сейчас" / "Не записывать".
+struct CountdownBanner: View {
+    let countdown: RecorderModel.Countdown
+    @EnvironmentObject private var model: RecorderModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Text("\(countdown.seconds)")
+                    .font(.system(size: 15, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText(countsDown: true))
+                    .frame(width: 26, height: 26)
+                    .background(Circle().strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1.5))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Через \(countdown.seconds) с начну записывать \(countdown.what)")
+                        .font(.callout.weight(.semibold))
+                        .contentTransition(.numericText(countsDown: true))
+                    Text("Остановится сама, когда \(countdown.app.noun) закончится.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            HStack(spacing: 8) {
+                Button {
+                    model.recordNow()
+                } label: {
+                    Label("Записать сейчас", systemImage: "record.circle").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+                Button {
+                    model.skipMeeting()
+                } label: {
+                    Text("Не записывать").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+            .controlSize(.large)
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.06)))
+        .animation(.default, value: countdown.seconds)
     }
 }

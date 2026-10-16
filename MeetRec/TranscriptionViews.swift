@@ -152,7 +152,7 @@ struct TranscriptionStatus: View {
                     Button {
                         QuickLookPresenter.shared.preview(transcript)
                     } label: {
-                        Label("Просмотреть транскрипцию", systemImage: "doc.text")
+                        Label("Просмотреть транскрипт", systemImage: "doc.text")
                     }
                     .buttonStyle(.link)
                     if let summary = transcriber.lastSummary {
@@ -224,7 +224,7 @@ struct CopyRulesEditor: View {
                 Label(transcriber.copyRules.isEmpty ? "Добавить приложение" : "Добавить ещё", systemImage: "plus.circle.fill")
             }
             .buttonStyle(.borderless)
-            Text("Для записей встреч (начатых сами или по вопросу о звонке) длиннее \(Int(Transcriber.minimumMeetingDuration / 60)) мин. Транскрипт остаётся и рядом с видео; файл в папке никогда не перезаписывается.")
+            Text("Для записей встреч (начатых автоматически или по вопросу о звонке) длиннее \(Int(Transcriber.minimumMeetingDuration / 60)) мин. Транскрипт остаётся и рядом с видео; файл в папке никогда не перезаписывается.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

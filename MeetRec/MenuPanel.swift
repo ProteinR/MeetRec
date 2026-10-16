@@ -92,6 +92,23 @@ final class MenuPanelController: NSObject, NSWindowDelegate {
         onVisibilityChange?(false)
     }
 
+    /// Fades out instead of vanishing (after "Начать запись" / "Остановить").
+    func closeAnimated() {
+        guard panel.isVisible else { return }
+        stopOutsideClickMonitor()
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.22
+            panel.animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.panel.orderOut(nil)
+                self.panel.alphaValue = 1
+                self.onVisibilityChange?(false)
+            }
+        })
+    }
+
     // MARK: - NSWindowDelegate
 
     func windowDidResignKey(_ notification: Notification) {

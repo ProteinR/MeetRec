@@ -80,7 +80,7 @@ enum Watchdog {
         // Paths are single-quoted for sh; none of them contain a single quote.
         let script = "[ -f '\(runningFlag.path)' ] && ! /usr/bin/pgrep -qx MeetRec && "
             + "{ echo \"$(date '+%Y-%m-%d %H:%M:%S.000') WARN  [watchdog] MeetRec is not running, relaunching\" >> '\(log)'; "
-            + "/usr/bin/open '\(app)'; }; exit 0"
+            + "/usr/bin/open -g '\(app)' --args --background; }; exit 0"
         let plist: [String: Any] = [
             "Label": label,
             "ProgramArguments": ["/bin/sh", "-c", script],

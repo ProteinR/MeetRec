@@ -26,11 +26,12 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    func send(id: String, title: String, body: String, actions: [Action] = []) {
+    /// `silent`: no sound (during a recording a chime would distract from the meeting).
+    func send(id: String, title: String, body: String, actions: [Action] = [], silent: Bool = false) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
-        content.sound = .default
+        content.sound = silent ? nil : .default
         if !actions.isEmpty {
             // One category per notification id, so its buttons can change (e.g. the display name).
             let category = UNNotificationCategory(
@@ -59,7 +60,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     /// Show banners even while MeetRec is the active app.
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.banner, .sound])
+        completionHandler(notification.request.content.sound == nil ? [.banner] : [.banner, .sound])
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,

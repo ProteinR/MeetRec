@@ -18,7 +18,7 @@ enum MenuBarStyle: String, CaseIterable, Identifiable {
         switch self {
         case .full: return "Видно сразу, что идёт запись и сколько она длится."
         case .icon: return "Без таймера; красный кружок всё же заметен."
-        case .discreet: return "Обычный серый значок, во время записи он закрашен. Таймера нет, панель сама не открывается при автозаписи."
+        case .discreet: return "Обычный серый значок, во время записи он закрашен. Таймера нет, окошки о начале и конце записи и вопрос о звонке не показываются."
         }
     }
 
@@ -29,13 +29,14 @@ enum MenuBarStyle: String, CaseIterable, Identifiable {
         MenuBarStyle(rawValue: UserDefaults.standard.string(forKey: storageKey) ?? "") ?? .full
     }
 
-    static var hideFromSharing: Bool { UserDefaults.standard.bool(forKey: hideFromSharingKey) }
+    /// On by default: nothing of MeetRec should show up in a screen share unless asked for.
+    static var hideFromSharing: Bool { UserDefaults.standard.object(forKey: hideFromSharingKey) as? Bool ?? true }
 }
 
 /// "Значок в меню": how a recording looks in the menu bar, and hiding MeetRec from screen sharing.
 struct AppearanceSettings: View {
     @AppStorage(MenuBarStyle.storageKey) private var style = MenuBarStyle.full.rawValue
-    @AppStorage(MenuBarStyle.hideFromSharingKey) private var hideFromSharing = false
+    @AppStorage(MenuBarStyle.hideFromSharingKey) private var hideFromSharing = true
     @AppStorage(IslandController.enabledKey) private var island = true
 
     var body: some View {
@@ -50,7 +51,7 @@ struct AppearanceSettings: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Toggle("Остров у выреза экрана во время записи", isOn: $island)
+            Toggle("Остров у выреза экрана во время записи (если у экрана есть вырез)", isOn: $island)
                 .disabled(style == MenuBarStyle.discreet.rawValue)
                 .help("Красная точка и таймер вокруг выреза MacBook; при наведении — уровни звука, отметка и стоп. В режиме «Незаметно» не показывается.")
             Toggle("Прятать MeetRec при показе экрана", isOn: $hideFromSharing)

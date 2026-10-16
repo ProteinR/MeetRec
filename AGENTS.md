@@ -56,10 +56,12 @@ What MeetRec does instead:
   failed copy only warns. Log line `Transcript copied: <src> → <dst>`. Manual recordings are never
   copied; their transcript stays only next to the video.
 
-- Safety while recording: the Mac and displays are kept awake; a warning (notification with
-  "Записывать «монитор»" / "Игнорировать", and a banner in the panel) when the Teams meeting window is
-  not on the recorded display for 10 s; alerts when the file stops growing for 30 s, the picture is
-  completely black for 30 s, or the whole Mac's CPU stays above 90 % for a minute. The panel shows
+- Safety while recording: the Mac and displays are kept awake. In the first 30 s the Teams meeting
+  window must show up on the recorded display once; if it was only seen on another monitor, one
+  silent warning ("Записывать «монитор»" / "Оставить как есть"); later moves and minimising (screen
+  sharing) are ignored. Silent alerts when the file stops growing or the picture is black for 30 s,
+  or the microphone gives dead silence (not even room noise) for a minute (once per recording);
+  the other side being silent and high CPU are never alerted (CPU is only logged). The panel shows
   system CPU and MeetRec's own CPU/memory; the log gets a `Load:` line every 30 s (idle: every 10 min).
 - "Встреча идёт, а запись не ведётся": the detector also runs with auto-recording off and reminds
   once per meeting (also after a failed auto-start or a manual stop mid-meeting), with a start button.
@@ -77,6 +79,9 @@ What MeetRec does instead:
   person or extra sample) and renames them in the transcript, joining neighbouring lines; the meetings
   copy is updated only if it is still identical to the transcript. The run file follows renames.
 
+- Words: Teams = "встреча", browser/Telegram = "звонок"; "Запись сохранена"; "транскрипт" for the
+  result, "транскрибация" for the process. Alerts during a recording have no sound; "hide from screen
+  sharing" is on by default; the island only shows on a notched main screen.
 - "Значок в меню": the menu bar look while recording (red icon + timer / red icon only / discreet:
   monochrome icon, filled while recording, no timer, no auto-opening of the panel), and "Прятать
   MeetRec при показе экрана" (`sharingType = .none` on the status item and panel windows; whether a
@@ -102,6 +107,29 @@ What MeetRec does instead:
 - Settings live on a separate page behind the gear (general: folder, log, launch at login,
   watchdog; video; transcription incl. copy rules; meetings incl. browser rules; menu bar look with
   a preview). The main page keeps the daily things.
+
+- UX rules: the panel opens only by the user (click on the item / island / a notification, or a
+  manual launch; not at login or a watchdog relaunch). Live moments (recording started, call
+  question, recording saved) are a small toast under the menu bar item (`Toast.swift`) that never
+  takes keyboard focus; start/saved fold away by themselves, a question waits for an answer or the
+  end of the call. Problems (silent mic, disk, cut recording, permissions) are macOS notifications.
+  After Start/Stop in the panel the button morphs and the panel fades out. Right click on the item
+  opens a quick menu; ⌘, opens settings.
+
+- Microphone follows the call (`AudioDevices.swift`): CoreAudio process objects tell which input
+  device the call app captures from (`kAudioProcessPropertyDevices`, input scope only). In "По
+  умолчанию" mode a meeting recording starts with that device and switches mid-recording
+  (`SCStream.updateConfiguration`) when the call or the system default changes and stays for two
+  checks (~6 s); a microphone chosen by hand (in settings or during the recording) is never changed,
+  only suggested once per device. The live status has a microphone menu.
+
+- Countdown before an automatic recording (Teams, browser rules; not in the discreet style): from
+  "the app took the mic" to the start, grey seconds next to the menu bar icon and a panel banner
+  "Через N с начну записывать…" with "Записать сейчас" / "Не записывать" (skips this meeting only).
+
+- Each meeting app has a mode in settings, "Записывать" (record by itself, with the countdown) or
+  "Спрашивать" (the "Записать?" question); defaults: Teams records, browser and Telegram ask
+  (`meetingAppModes`, `RecorderModel.asks(_:)`). Browser site rules show while the browser asks.
 
 Planned next: Zoom and other apps once checked for false positives.
 

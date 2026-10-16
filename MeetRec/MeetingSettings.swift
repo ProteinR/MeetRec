@@ -7,9 +7,9 @@ struct MeetingSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle("Определять встречи и записывать сами", isOn: $model.meetingDetection)
+            Toggle("Определять встречи и звонки автоматически", isOn: $model.meetingDetection)
                 .onChange(of: model.meetingDetection) { model.configureDetector() }
-            Text("Teams: запись начнётся сама, когда он возьмёт микрофон дольше \(Int(MeetingDetector.startAfter)) с. Браузер и Telegram держат микрофон не только для звонков, поэтому MeetRec спросит, записывать ли. Запись встречи останавливается через \(Int(MeetingDetector.endAfter)) с после того, как приложение отпустит микрофон; начатые вручную — нет.")
+            Text("Встреча замечается, когда приложение берёт микрофон. «Записывать» — запись начнётся сама через несколько секунд, у значка идёт отсчёт. «Спрашивать» — появится вопрос «Записать?». Остановится запись сама, через \(Int(MeetingDetector.endAfter)) с после конца встречи.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -28,16 +28,26 @@ struct MeetingSettings: View {
                         set: { model.setMeetingApp(app, enabled: $0) }
                     ))
                     .disabled(!app.supported || !model.meetingDetection)
-                    if app.supported && app.asks {
+                    if app.supported {
                         Spacer()
-                        Text("спросит").font(.caption2).foregroundStyle(.tertiary)
+                        Picker("Режим", selection: Binding(get: { model.asks(app) }, set: { model.setAsks(app, $0) })) {
+                            Text("Записывать").tag(false)
+                            Text("Спрашивать").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .fixedSize()
+                        .controlSize(.small)
+                        .disabled(!model.meetingDetection || !model.selectedMeetingApps.contains(app.id))
+                        .help(model.asks(app) ? "Спросит «Записать?», когда \(app.name) возьмёт микрофон"
+                                              : "Начнёт запись сама, с отсчётом у значка")
                     } else if let note = app.note {
                         Spacer()
                         Text(note).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
                     }
                 }
             }
-            if installed.contains(where: { $0.id == "browser" }) {
+            if let browser = installed.first(where: { $0.id == "browser" }), model.asks(browser) {
                 BrowserRulesEditor()
                     .disabled(!model.meetingDetection || !model.selectedMeetingApps.contains("browser"))
             }
@@ -63,7 +73,7 @@ struct BrowserRulesEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Записывать сразу, без вопроса, если в заголовке вкладки есть").font(.caption.weight(.semibold))
+            Text("Браузер: записывать без вопроса, если в заголовке вкладки есть").font(.caption.weight(.semibold))
                 .padding(.top, 4)
             ForEach(model.browserRules) { rule in
                 HStack(spacing: 6) {
@@ -87,7 +97,7 @@ struct BrowserRulesEditor: View {
                 Label("Добавить сайт", systemImage: "plus.circle.fill")
             }
             .buttonStyle(.borderless)
-            Text("MeetRec видит заголовок активной вкладки каждого окна браузера. Название записи попадёт в имя файла после даты.")
+            Text("MeetRec видит заголовок только активной вкладки каждого окна браузера: если в начале звонка открыта другая вкладка (например, словарь), появится обычный вопрос. Название записи попадёт в имя файла после даты.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

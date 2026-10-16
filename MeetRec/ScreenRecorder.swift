@@ -126,6 +126,8 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private var live = LiveStatus()
     /// The display the recording started on; full-screen capture returns to it.
     private var displayID: CGDirectDisplayID?
+    /// The running stream's configuration, changed in place for a microphone switch.
+    private var configuration: SCStreamConfiguration?
 
     /// Normal windows of other apps that can be recorded on their own.
     static func shareableWindows() async throws -> [CaptureWindow] {
@@ -139,6 +141,22 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                                  title: window.title ?? "", bundleID: app.bundleIdentifier)
         }
         .sorted { ($0.appName, $0.title) < ($1.appName, $1.title) }
+    }
+
+    /// Switches the running recording to another microphone (`nil` = system default), in the same
+    /// file and track. ScreenCaptureKit resamples to the track's format, so the file stays consistent.
+    func setMicrophone(_ id: String?) async throws {
+        guard let stream, let configuration, configuration.captureMicrophone else { throw RecorderError.notRecording }
+        let previous = configuration.microphoneCaptureDeviceID
+        configuration.microphoneCaptureDeviceID = id
+        do {
+            try await stream.updateConfiguration(configuration)
+            Log.info("Microphone switched: \(previous ?? "default") → \(id ?? "default")", "recorder")
+        } catch {
+            configuration.microphoneCaptureDeviceID = previous
+            Log.error("Microphone switch to \(id ?? "default") failed: \(Log.describe(error))", "recorder")
+            throw error
+        }
     }
 
     /// Switches a running recording between the whole display (`windowID` nil) and a single window,
@@ -306,6 +324,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         }
         self.stream = stream
         self.displayID = display.displayID
+        self.configuration = config
 
         do {
             try await stream.startCapture()
@@ -480,6 +499,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         }
         stream = nil
         displayID = nil
+        configuration = nil
         guard let (writer, started, inputs, summary) = state else {
             Log.debug("finish() called with nothing to finish", "recorder")
             return nil
