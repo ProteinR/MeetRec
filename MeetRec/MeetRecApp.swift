@@ -212,6 +212,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(QuickMenuItem("Показать последнюю запись") { NSWorkspace.shared.activateFileViewerSelecting([last]) })
         }
         menu.addItem(QuickMenuItem("Открыть папку с записями") { model.openFolder() })
+        menu.addItem(QuickMenuItem(CameraMirror.shared.isShown ? "Закрыть зеркало" : "Как я выгляжу") { CameraMirror.shared.toggle() })
         menu.addItem(.separator())
         menu.addItem(QuickMenuItem("Настройки…", key: ",") { [weak self] in
             self?.showPanel()
@@ -271,6 +272,7 @@ struct ContentView: View {
     @EnvironmentObject private var model: RecorderModel
     @EnvironmentObject private var transcriber: Transcriber
     @StateObject private var micMonitor = MicrophoneMonitor()
+    @StateObject private var displayPreview = DisplayPreview()
     @State private var openSection: String?
     @State private var showingSettings = false
     @State private var closeAfterToggle = false
@@ -475,6 +477,14 @@ struct ContentView: View {
                 ElapsedLabel()
             } else {
                 Button {
+                    close()
+                    CameraMirror.shared.toggle()
+                } label: {
+                    Image(systemName: "person.crop.square").font(.system(size: 14))
+                }
+                .buttonStyle(.borderless)
+                .help("Как я выгляжу: зеркало с камеры")
+                Button {
                     showingSettings = true
                 } label: {
                     Image(systemName: "gearshape").font(.system(size: 14))
@@ -532,13 +542,33 @@ struct ContentView: View {
             if model.microphone {
                 micPreview
             }
+            if let display = model.effectiveDisplay {
+                DisplayPreviewRow(display: display, isAuto: model.displayID == RecorderModel.autoDisplay,
+                                  preview: displayPreview)
+            }
         }
         .disabled(model.isRecording)
-        .onAppear(perform: updateMicPreview)
-        .onChange(of: model.panelVisible) { updateMicPreview() }
+        .onAppear(perform: updatePreviews)
+        .onChange(of: model.panelVisible) { updatePreviews() }
         .onChange(of: model.microphone) { updateMicPreview() }
         .onChange(of: model.microphoneID) { updateMicPreview() }
-        .onChange(of: model.isRecording) { updateMicPreview() }
+        .onChange(of: model.isRecording) { updatePreviews() }
+        .onChange(of: model.displayID) { updateDisplayPreview() }
+        .onChange(of: model.displays) { updateDisplayPreview() }
+    }
+
+    private func updatePreviews() {
+        updateMicPreview()
+        updateDisplayPreview()
+    }
+
+    /// Picture of the display "Авто" or the picker resolves to, refreshed while the panel is open.
+    private func updateDisplayPreview() {
+        if model.panelVisible, !model.isRecording, let display = model.effectiveDisplay {
+            displayPreview.start(displayID: display.id)
+        } else {
+            displayPreview.stop()
+        }
     }
 
     /// Live level of the chosen microphone, so a silent or wrong device is obvious before recording.

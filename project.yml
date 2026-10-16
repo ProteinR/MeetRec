@@ -34,6 +34,7 @@ targets:
         # Menu bar only, no Dock icon.
         LSUIElement: true
         NSMicrophoneUsageDescription: MeetRec records your microphone together with the screen.
+        NSCameraUsageDescription: MeetRec shows your camera as a mirror before a meeting. Nothing is recorded.
         NSScreenCaptureUsageDescription: MeetRec records the selected display.
         NSAppleEventsUsageDescription: MeetRec opens recordings in QuickTime Player at a marked moment.
     settings:

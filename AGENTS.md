@@ -45,6 +45,12 @@ What MeetRec does instead:
   which always comes first so Finder sorts by time: `2026-10-16 14-03-22 Weekly sync.mov`. The
   recordings list can rename (keeping the timestamp first), move to Trash, re-transcribe (new `name (2).md`, old kept) and search
   names and transcript text. Renames and deletes take the `.md` and `.markers.json` files along.
+- Before recording, the panel shows a thumbnail of the display that will be recorded ("Будет
+  записан …", refreshed every 2 s while the panel is open, `DisplayPreview.swift`), so it is clear
+  what "Авто" resolves to.
+- "Как я выгляжу" (person icon next to the gear, or the quick menu): a floating mirrored camera
+  window (`CameraMirror.swift`) to check yourself before a meeting; camera picker on hover, Esc or ✕
+  closes it and stops the camera. Nothing is recorded.
 - Launch at login (`SMAppService`) toggle; Teams' "Microsoft Teams Audio" loopback is hidden from
   the microphone list.
 
