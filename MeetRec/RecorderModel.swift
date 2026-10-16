@@ -129,6 +129,14 @@ final class RecorderModel: ObservableObject {
     private var meetingTitle: String?
     /// Title from a browser rule, applied when the recording it starts begins.
     private var pendingTitle: String?
+    /// The browser rule's title of the current recording ("Skyeng"), for the header badge.
+    @Published private(set) var ruleTitle: String?
+
+    /// "Teams", "Браузер" or the rule's "Skyeng" for an automatic recording; nil for a manual one.
+    var autoBadge: String? {
+        guard let app = autoStartedBy else { return nil }
+        return ruleTitle ?? app.replacingOccurrences(of: "Microsoft ", with: "")
+    }
     /// The browser rule that is starting a recording, tagged on its file.
     private var pendingRuleID: String?
     /// The microphone being recorded right now (CoreAudio UID).
@@ -1189,6 +1197,7 @@ final class RecorderModel: ObservableObject {
         markers = []
         captureWindow = nil
         meetingTitle = pendingTitle
+        ruleTitle = pendingTitle
         pendingTitle = nil
         live.update(load: nil)
         loadSampler = LoadSampler()
@@ -1237,7 +1246,8 @@ final class RecorderModel: ObservableObject {
     /// Updates the timer and the live status panel; logs whenever a source changes state.
     private func scheduleTick() {
         timer?.invalidate()
-        let interval = panelVisible ? 0.2 : 1.0
+        // Meters at ~3 updates a second look smooth enough and cost less than 5.
+        let interval = panelVisible ? 0.33 : 1.0
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
@@ -1328,6 +1338,7 @@ final class RecorderModel: ObservableObject {
         recordingDisplayID = nil
         autoStartedBy = nil
         autoStartedAppID = nil
+        ruleTitle = nil
         captureWindow = nil
         Watchdog.recordingStopped()
         cancelStopCountdown()

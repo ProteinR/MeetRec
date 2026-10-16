@@ -408,7 +408,10 @@ struct ContentView: View {
                 LiveStatusPanel()
                 Divider()
                 RecordingControls()
-                recordButton
+                // During the stop countdown its banner already offers "Остановить сейчас".
+                if model.stopCountdown == nil {
+                    recordButton
+                }
             } else {
                 // A noticed call replaces the start button: one clear question instead of two red buttons.
                 if let countdown = model.countdown, !model.isRecording {
@@ -455,8 +458,8 @@ struct ContentView: View {
         HStack {
             Text("MeetRec").font(.headline)
             Spacer()
-            if let app = model.autoStartedBy, model.isRecording {
-                Text("авто · \(app.replacingOccurrences(of: "Microsoft ", with: ""))")
+            if let badge = model.autoBadge, model.isRecording {
+                Text("авто · \(badge)")
                     .font(.caption2.weight(.medium))
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(Capsule().fill(Color.accentColor.opacity(0.25)))
@@ -659,6 +662,66 @@ struct LiveStatusPanel: View {
     }
 }
 
+/// Microphones to switch to during a recording (status row "Микрофон").
+struct MicrophoneMenuItems: View {
+    @EnvironmentObject private var model: RecorderModel
+
+    var body: some View {
+        ForEach(model.microphones) { mic in
+            Button {
+                model.switchMicrophone(to: mic.id, byUser: true)
+            } label: {
+                if mic.id == model.recordingMicUID {
+                    Label(mic.name, systemImage: "checkmark")
+                } else {
+                    Text(mic.name)
+                }
+            }
+        }
+    }
+}
+
+/// Monitors and windows to record (status row "Экран").
+struct CaptureMenuItems: View {
+    @EnvironmentObject private var model: RecorderModel
+
+    var body: some View {
+        // Whole monitors first: the one being recorded is ticked, another can be switched to.
+        ForEach(model.displays) { display in
+            Button {
+                if display.id == model.recordingDisplayID {
+                    model.record(window: nil)
+                } else {
+                    model.switchDisplay(to: display.id)
+                }
+            } label: {
+                if model.captureWindow == nil && display.id == model.recordingDisplayID {
+                    Label("Монитор «\(display.name)»", systemImage: "checkmark")
+                } else {
+                    Label("Монитор «\(display.name)»", systemImage: "display")
+                }
+            }
+        }
+        Divider()
+        if model.windows.isEmpty {
+            Text("Нет окон")
+        }
+        ForEach(model.windows) { window in
+            Button {
+                model.record(window: window)
+            } label: {
+                if model.captureWindow?.id == window.id {
+                    Label(window.label, systemImage: "checkmark")
+                } else {
+                    Text("Только окно: \(window.label)")
+                }
+            }
+        }
+        Divider()
+        Button("Обновить список окон") { model.refreshWindows() }
+    }
+}
+
 /// Live "is everything being recorded?" panel shown while recording.
 struct StatusPanel: View {
     let health: RecordingHealth
@@ -667,9 +730,12 @@ struct StatusPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Статус записи").font(.subheadline.weight(.semibold))
-            StatusRow(icon: "mic.fill", signal: health.microphone)
+            // The device lines are menus: switching happens where the device is shown.
+            StatusRow(icon: "mic.fill", signal: health.microphone, menu: health.microphone.state == .off ? nil : AnyView(MicrophoneMenuItems()),
+                      menuHelp: "Переключить микрофон, не останавливая запись")
             StatusRow(icon: "speaker.wave.2.fill", signal: health.systemAudio)
-            StatusRow(icon: "display", signal: health.screen)
+            StatusRow(icon: "display", signal: health.screen, menu: AnyView(CaptureMenuItems()),
+                      menuHelp: "Записывать другой монитор или только одно окно")
             StatusRow(icon: "internaldrive", signal: health.file)
             if let load {
                 HStack(spacing: 8) {
@@ -707,6 +773,9 @@ struct StatusPanel: View {
 struct StatusRow: View {
     let icon: String
     let signal: SignalHealth
+    /// Items of a menu opened from the detail line (the device being recorded).
+    var menu: AnyView?
+    var menuHelp: String?
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
@@ -719,16 +788,32 @@ struct StatusRow: View {
                     Spacer()
                     Circle().fill(color).frame(width: 8, height: 8)
                 }
-                Text(signal.detail)
-                    .font(.caption)
-                    .foregroundStyle(signal.state == .noSignal ? .red : .secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                if let menu {
+                    Menu {
+                        menu
+                    } label: {
+                        detail
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.visible)
+                    .fixedSize()
+                    .help(menuHelp ?? "")
+                } else {
+                    detail
+                }
                 if let level = signal.levelDB {
                     LevelMeter(levelDB: level)
                 }
             }
         }
+    }
+
+    private var detail: some View {
+        Text(signal.detail)
+            .font(.caption)
+            .foregroundStyle(signal.state == .noSignal ? .red : .secondary)
+            .lineLimit(1)
+            .truncationMode(.middle)
     }
 
     private var color: Color {
@@ -800,78 +885,6 @@ struct RecordingControls: View {
                 Text("Отметок: \(model.markers.count), последняя на \(last.timeText)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-            HStack {
-                Text("Записывать")
-                Spacer()
-                Menu {
-                    // Whole monitors first: the one being recorded is ticked, another can be switched to.
-                    ForEach(model.displays) { display in
-                        Button {
-                            if display.id == model.recordingDisplayID {
-                                model.record(window: nil)
-                            } else {
-                                model.switchDisplay(to: display.id)
-                            }
-                        } label: {
-                            if model.captureWindow == nil && display.id == model.recordingDisplayID {
-                                Label("Монитор «\(display.name)»", systemImage: "checkmark")
-                            } else {
-                                Label("Монитор «\(display.name)»", systemImage: "display")
-                            }
-                        }
-                    }
-                    Divider()
-                    if model.windows.isEmpty {
-                        Text("Нет окон")
-                    }
-                    ForEach(model.windows) { window in
-                        Button {
-                            model.record(window: window)
-                        } label: {
-                            if model.captureWindow?.id == window.id {
-                                Label(window.label, systemImage: "checkmark")
-                            } else {
-                                Text(window.label)
-                            }
-                        }
-                    }
-                    Divider()
-                    Button("Обновить список окон") { model.refreshWindows() }
-                } label: {
-                    Text(model.captureWindow.map { $0.label }
-                         ?? "Монитор «\(model.displays.first { $0.id == model.recordingDisplayID }?.name ?? "—")»")
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 320)
-                .disabled(model.isBusy)
-            }
-            if model.microphone {
-                HStack {
-                    Text("Микрофон")
-                    Spacer()
-                    Menu {
-                        ForEach(model.microphones) { mic in
-                            Button {
-                                model.switchMicrophone(to: mic.id, byUser: true)
-                            } label: {
-                                if mic.id == model.recordingMicUID {
-                                    Label(mic.name, systemImage: "checkmark")
-                                } else {
-                                    Text(mic.name)
-                                }
-                            }
-                        }
-                    } label: {
-                        Text(AudioDevices.name(of: model.recordingMicUID)).lineLimit(1).truncationMode(.middle)
-                    }
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 320)
-                    .disabled(model.isBusy)
-                    .help("Переключить микрофон, не останавливая запись")
-                }
             }
             if model.captureWindow != nil {
                 Text("Пишется только это окно: другие окна и уведомления в запись не попадут.")

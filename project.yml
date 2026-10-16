@@ -1,6 +1,8 @@
 name: MeetRec
 options:
   bundleIdPrefix: com.dmemruk
+  # The UI is Russian: system formatters (file sizes, dates) and panels then speak Russian too.
+  developmentLanguage: ru
   deploymentTarget:
     macOS: "15.0"
 settings:
@@ -24,6 +26,8 @@ targets:
       path: MeetRec/Info.plist
       properties:
         CFBundleDisplayName: MeetRec
+        CFBundleDevelopmentRegion: ru
+        CFBundleLocalizations: [ru]
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.productivity
