@@ -173,3 +173,22 @@ final class HealthTrackerTests: XCTestCase {
         XCTAssertEqual(health.file.state, .noSignal)
     }
 }
+
+final class WindowFitTests: XCTestCase {
+    func testWideWindowIsCentredVertically() {
+        // 1815×892 window into a 2560×1440 frame: full width, equal bars above and below.
+        let rect = ScreenRecorder.centeredRect(content: CGRect(x: 1869, y: 408, width: 1815, height: 892), width: 2560, height: 1440)
+        XCTAssertEqual(rect.width, 2560)
+        XCTAssertEqual(rect.height, 1258)
+        XCTAssertEqual(rect.minX, 0)
+        XCTAssertEqual(rect.minY, 91)
+    }
+
+    func testTallWindowIsCentredHorizontally() {
+        let rect = ScreenRecorder.centeredRect(content: CGRect(x: 0, y: 0, width: 800, height: 1000), width: 1920, height: 1080)
+        XCTAssertEqual(rect.height, 1080)
+        XCTAssertEqual(rect.width, 864)
+        XCTAssertEqual(rect.minX, 528)
+        XCTAssertEqual(rect.minY, 0)
+    }
+}

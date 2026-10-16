@@ -238,6 +238,9 @@ struct RecordingRow: View {
                 Button("Транскрибировать") { transcriber.enqueue(item.url) }
                     .disabled(transcriber.modelsState != .ready || isBusy)
             }
+            if transcriber.runningFile == item.url {
+                Button("Остановить транскрибацию") { transcriber.cancelCurrent() }
+            }
             if !item.markers.isEmpty {
                 Divider()
                 Button(addingChapters ? "Добавляю главы…" : "Добавить отметки в видео как главы") { addChapters() }

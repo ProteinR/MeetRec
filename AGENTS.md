@@ -37,7 +37,8 @@ What MeetRec does instead:
   panel so it is visible, and stops 15 s after Teams releases the mic (never stops manual recordings).
 
 - During a recording: ⭐ markers (⌃⌥⌘M or the panel button) saved to `<recording>.markers.json` and
-  inserted into the transcript; switching to a single window (others and notifications left out),
+  inserted into the transcript; switching to a single window (others and notifications left out; the window alone is scaled to
+  fill the frame, `desktopIndependentWindow` + `scalesToFit`),
   falling back to the whole screen if that window closes.
 - Disk space guard: no start below 1 GB free, warning below 3 GB, automatic clean stop below 500 MB.
 - File names get the Teams meeting window's title (only that; browser tabs and other windows are
@@ -45,9 +46,12 @@ What MeetRec does instead:
   which always comes first so Finder sorts by time: `2026-10-16 14-03-22 Weekly sync.mov`. The
   recordings list can rename (keeping the timestamp first), move to Trash, re-transcribe (new `name (2).md`, old kept) and search
   names and transcript text. Renames and deletes take the `.md` and `.markers.json` files along.
-- Before recording, the panel shows a thumbnail of the display that will be recorded ("Будет
-  записан …", refreshed every 2 s while the panel is open, `DisplayPreview.swift`), so it is clear
-  what "Авто" resolves to.
+- Monitor choice is an accordion section on the main page titled with the display to be recorded;
+  opened, it shows live thumbnails of all displays (refreshed every 2 s, `DisplayPreview.swift`),
+  the one to be recorded framed in red, an "Авто" switch, and a red frame around that whole screen
+  (`DisplayHighlight`, click-through) so the choice is visible on the monitor itself. The same frame
+  blinks softly three times on the recorded screen when any recording starts or switches screens
+  (not in the discreet style).
 - "Как я выгляжу" (person icon next to the gear, or the quick menu): a floating mirrored camera
   window (`CameraMirror.swift`) to check yourself before a meeting; camera picker on hover, Esc or ✕
   closes it and stops the camera. Nothing is recorded.
@@ -112,14 +116,18 @@ What MeetRec does instead:
   rule (`rule:<id>`), so e.g. Skyeng lessons are copied to their own folder.
 - Settings live on a separate page behind the gear (general: folder, log, launch at login,
   watchdog; video; transcription incl. copy rules; meetings incl. browser rules; menu bar look with
-  a preview). The main page keeps the daily things.
+  a preview). The main page keeps the daily things: no transcription block (progress is per recording in
+  the list, cancel in its right-click menu) and no Quit button (it is in the item's right-click menu).
 
 - UX rules: the panel opens only by the user (click on the item / island / a notification, or a
   manual launch; not at login or a watchdog relaunch). Live moments (recording started, call
   question, recording saved) are a small toast under the menu bar item (`Toast.swift`) that never
   takes keyboard focus; start/saved fold away by themselves, a question waits for an answer or the
   end of the call. Problems (silent mic, disk, cut recording, permissions) are macOS notifications.
-  After Start/Stop in the panel the button morphs and the panel fades out. Right click on the item
+  After Start in the panel the button morphs and the panel fades out. A stop of any kind
+  while the panel is open fades the whole panel out at once (`foldPanelNotification`, layout frozen
+  meanwhile) without waiting for the file; the "Запись сохранена" toast gives the result.
+  No markers while stopping. Right click on the item
   opens a quick menu; ⌘, opens settings.
 
 - Microphone follows the call (`AudioDevices.swift`): CoreAudio process objects tell which input
@@ -147,6 +155,9 @@ What MeetRec does instead:
   recordings list shows "⭐ N"; each time opens the video in QuickTime at that moment (AppleScript,
   `QuickTimeOpener`); older recordings have "Добавить отметки в видео как главы".
 
+- Switching what is recorded mid-recording (another monitor, a window, back) fades through black in the video: `ScreenRecorder`
+  writes darkened copies of the last frame (0.35 s out, black until the new screen's first frame,
+  0.45 s in; a static screen sends no frames of its own) and never writes a frame older than the last.
 - Monitor unplugged mid-recording: the capture switches to the remaining screen in the same file
   (`preservesAspectRatio`: fitted, never cropped — the OBS failure mode was a fixed 4K canvas and a
   source bound to a missing display). If capture stopped anyway, the part is saved and transcribed

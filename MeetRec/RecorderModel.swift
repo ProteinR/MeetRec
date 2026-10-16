@@ -66,6 +66,8 @@ final class RecorderModel: ObservableObject {
     @Published private(set) var microphones: [MicrophoneInfo] = []
     @Published private(set) var isRecording = false
     @Published private(set) var isBusy = false
+    /// Stop pressed, the file (and its chapters) is being finished: nothing recording-related works now.
+    var isStopping: Bool { isRecording && isBusy }
     /// Timer, level meters and CPU: published separately so the panel does not redraw on every tick.
     let live = LiveRecording()
     var health: RecordingHealth? { live.health }
@@ -109,6 +111,9 @@ final class RecorderModel: ObservableObject {
     @Published private(set) var meetingWindowDisplay: DisplayInfo?
 
     static let showPanelNotification = Notification.Name("MeetRecShowPanel")
+    /// A stop began: the open panel fades out at once (nothing in it is useful any more), the toast
+    /// tells the result.
+    static let foldPanelNotification = Notification.Name("MeetRecFoldPanel")
     private let detector = MeetingDetector()
 
     private let recorder = ScreenRecorder()
@@ -373,6 +378,7 @@ final class RecorderModel: ObservableObject {
             do {
                 let name = try await recorder.setTarget(windowID: nil, displayID: displayID)
                 recordingDisplayID = displayID
+                DisplayHighlight.shared.flash(displayID: displayID)
                 captureWindow = nil
                 recordingNames.display = name
                 healthTracker?.displayName = name
@@ -1007,6 +1013,7 @@ final class RecorderModel: ObservableObject {
                     pendingRuleID = nil
                 }
                 recordingDisplayID = display.id
+                DisplayHighlight.shared.flash(displayID: display.id)
                 autoStartedBy = autoApp?.name
                 autoStartedAppID = autoApp?.id
                 didStart()
@@ -1031,6 +1038,7 @@ final class RecorderModel: ObservableObject {
             return
         }
         isBusy = true
+        if panelVisible { NotificationCenter.default.post(name: Self.foldPanelNotification, object: nil) }
         Log.info("Stopping after \(elapsedText)\(reason.map { " (\($0))" } ?? "")")
         if let meeting = detector.currentMeeting, reason == nil {
             // Stopped by hand while the meeting goes on: remind once in case it was a mistake.
@@ -1066,8 +1074,9 @@ final class RecorderModel: ObservableObject {
             lastStopToast = Toast(kind: .stopped, title: "Запись сохранена · \(duration)",
                                   detail: detail.isEmpty ? file?.lastPathComponent : detail.prefix(1).uppercased() + detail.dropFirst(),
                                   file: file)
-            // With the panel open the result is visible there (it shows the toast as it folds away).
-            if !panelVisible { showStopToast() }
+            // The panel folded away when the stop began; if it was opened again since, the toast waits
+            // until it closes (ToastController).
+            showStopToast()
         }
     }
 
@@ -1076,8 +1085,8 @@ final class RecorderModel: ObservableObject {
     /// Marks the current moment of the recording; it shows up in the transcript as "⭐ 12:34".
     func addMarker() {
         let current = recorder.currentFile()
-        guard isRecording, let file = current.url else {
-            Log.debug("Marker ignored: not recording")
+        guard isRecording, !isStopping, let file = current.url else {
+            Log.debug("Marker ignored: \(isStopping ? "stopping" : "not recording")")
             return
         }
         let origin = current.sessionStartedAt ?? startedAt ?? Date()

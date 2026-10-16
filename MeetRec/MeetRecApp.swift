@@ -100,6 +100,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
+        NotificationCenter.default.publisher(for: RecorderModel.foldPanelNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.panel.closeAnimated() }
+            .store(in: &cancellables)
+
         // Auto-recording opens the panel so it is obvious that recording started.
         NotificationCenter.default.publisher(for: RecorderModel.showPanelNotification)
             .receive(on: RunLoop.main)
@@ -204,7 +209,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(QuickMenuItem(model.isRecording ? "Остановить запись" : "Начать запись", key: "r",
                                    modifiers: [.control, .option, .command]) { model.toggle() })
-        if model.isRecording {
+        if model.isRecording && !model.isStopping {
             menu.addItem(QuickMenuItem("Отметить момент", key: "m", modifiers: [.control, .option, .command]) { model.addMarker() })
         }
         menu.addItem(.separator())
@@ -304,12 +309,15 @@ struct ContentView: View {
         }
         .onExitCommand { if showingSettings { showingSettings = false } else { close() } }
         .onChange(of: model.isRecording) { _, recording in
-            guard closeAfterToggle else { return }
+            guard closeAfterToggle, recording else { return }
             closeAfterToggle = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                closeAnimated()
-                if !recording { model.showStopToast() }
-            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { closeAnimated() }
+        }
+        // A stop began (button, banner, hotkey, island, automatic) and the panel fades out: keep the
+        // layout as it is meanwhile, so nothing inside rearranges during the fade.
+        .onReceive(NotificationCenter.default.publisher(for: RecorderModel.foldPanelNotification)) { _ in
+            closeAfterToggle = false
+            frozenLayout = true
         }
         .onChange(of: model.isBusy) { _, busy in
             // Start failed (nothing changed): keep the panel open to show the error.
@@ -437,12 +445,12 @@ struct ContentView: View {
             }
             // While recording the panel shows only what concerns the recording itself.
             if !recordingLayout {
-                TranscriptionStatus()
+                // Transcription progress is shown per recording in the list, not here.
                 RecordingsSection(isExpanded: expanded("recordings"))
                 Divider()
                 bottomRow
             }
-            if let notice = model.stopNotice, !model.isRecording {
+            if let notice = model.stopNotice, !model.isRecording, frozenLayout == nil {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: notice.hasPrefix("Запись прервалась") ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
                         .foregroundStyle(notice.hasPrefix("Запись прервалась") ? .orange : .green)
@@ -499,7 +507,8 @@ struct ContentView: View {
     /// meeting, the menu bar icon and the island show the recording from there.
     private var recordButton: some View {
         RecordButton(isRecording: model.isRecording, isBusy: model.isBusy) {
-            closeAfterToggle = true
+            // Starting folds the panel once recording runs; a stop folds it at once (foldPanelNotification).
+            closeAfterToggle = !model.isRecording
             frozenLayout = model.isRecording
             model.toggle()
         }
@@ -507,44 +516,30 @@ struct ContentView: View {
 
     private var sources: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                HStack(spacing: 6) {
-                    Image(systemName: "display").foregroundStyle(.secondary).frame(width: 18)
-                    Picker("Монитор", selection: $model.displayID) {
-                        Text(autoDisplayTitle).tag(RecorderModel.autoDisplay)
-                        ForEach(model.displays) { display in
-                            Text(display.name).tag(Int(display.id))
-                        }
+            // Audio first, then the picture. The rows share the monitor card's grid: icon in its 24 pt
+            // icon column, content from where its title starts, switches lined up on the right.
+            sourceRow(icon: "mic.fill", isOn: $model.microphone) {
+                Picker("Микрофон", selection: $model.microphoneID) {
+                    Text("По умолчанию").tag("")
+                    ForEach(model.microphones) { mic in
+                        Text(mic.name).tag(mic.id)
                     }
-                    .labelsHidden()
-                    .help("Какой монитор записывать. «Авто» — внешний, если подключён; сейчас: \(model.effectiveDisplay?.name ?? "нет")")
                 }
-                .frame(maxWidth: .infinity)
-                HStack(spacing: 6) {
-                    Image(systemName: "mic.fill").foregroundStyle(.secondary).frame(width: 18)
-                    Picker("Микрофон", selection: $model.microphoneID) {
-                        Text("По умолчанию").tag("")
-                        ForEach(model.microphones) { mic in
-                            Text(mic.name).tag(mic.id)
-                        }
-                    }
-                    .labelsHidden()
-                    .help("Какой микрофон записывать. «По умолчанию» — сейчас: \(AVCaptureDevice.default(for: .audio)?.localizedName ?? "нет")")
-                }
-                .frame(maxWidth: .infinity)
+                .labelsHidden()
+                .help("Какой микрофон записывать. «По умолчанию» — сейчас: \(AVCaptureDevice.default(for: .audio)?.localizedName ?? "нет")")
                 .disabled(!model.microphone)
-            }
-            HStack(spacing: 20) {
-                Toggle("Звук системы", isOn: $model.systemAudio)
-                Toggle("Микрофон", isOn: $model.microphone)
-                Spacer(minLength: 0)
             }
             if model.microphone {
                 micPreview
+                    .padding(.leading, 44)
+                    .padding(.trailing, 10)
             }
-            if let display = model.effectiveDisplay {
-                DisplayPreviewRow(display: display, isAuto: model.displayID == RecorderModel.autoDisplay,
-                                  preview: displayPreview)
+            sourceRow(icon: "speaker.wave.2.fill", isOn: $model.systemAudio) {
+                Text("Звук системы")
+            }
+            CollapsibleSection(title: model.effectiveDisplay?.name ?? "Монитор не найден", icon: "display",
+                               summary: displaySummary, isExpanded: expanded("display")) {
+                DisplayChooser(preview: displayPreview)
             }
         }
         .disabled(model.isRecording)
@@ -553,8 +548,32 @@ struct ContentView: View {
         .onChange(of: model.microphone) { updateMicPreview() }
         .onChange(of: model.microphoneID) { updateMicPreview() }
         .onChange(of: model.isRecording) { updatePreviews() }
+        .onChange(of: openSection) { updateDisplayPreview() }
         .onChange(of: model.displayID) { updateDisplayPreview() }
         .onChange(of: model.displays) { updateDisplayPreview() }
+        .onDisappear { DisplayHighlight.shared.hide() }
+    }
+
+    /// A source with its on/off switch, aligned with the collapsible cards below.
+    private func sourceRow<Content: View>(icon: String, isOn: Binding<Bool>, @ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(isOn.wrappedValue ? .primary : .tertiary)
+                .frame(width: 24)
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Toggle("", isOn: isOn)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .labelsHidden()
+        }
+        .padding(.horizontal, 10)
+    }
+
+    private var displaySummary: String {
+        guard let display = model.effectiveDisplay else { return "" }
+        let kind = display.isBuiltIn ? "встроенный экран" : "внешний монитор"
+        return model.displayID == RecorderModel.autoDisplay ? "Авто · \(kind)" : kind
     }
 
     private func updatePreviews() {
@@ -562,22 +581,22 @@ struct ContentView: View {
         updateDisplayPreview()
     }
 
-    /// Picture of the display "Авто" or the picker resolves to, refreshed while the panel is open.
+    /// While the monitor section is open: pictures of all displays, and a red frame on the screen
+    /// that will be recorded.
     private func updateDisplayPreview() {
-        if model.panelVisible, !model.isRecording, let display = model.effectiveDisplay {
-            displayPreview.start(displayID: display.id)
+        if model.panelVisible, !model.isRecording, openSection == "display", let display = model.effectiveDisplay {
+            displayPreview.start()
+            DisplayHighlight.shared.show(displayID: display.id)
         } else {
             displayPreview.stop()
+            DisplayHighlight.shared.hide()
         }
     }
 
     /// Live level of the chosen microphone, so a silent or wrong device is obvious before recording.
     private var micPreview: some View {
         VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
-                Image(systemName: "mic.fill").font(.caption).foregroundStyle(.secondary)
-                LevelMeter(levelDB: micMonitor.levelDB)
-            }
+            LevelMeter(levelDB: micMonitor.levelDB)
             Text(micPreviewText)
                 .font(.caption2)
                 .foregroundStyle(micMonitor.receiving ? Color.secondary : Color.orange)
@@ -656,7 +675,7 @@ struct ContentView: View {
         .disabled(model.isRecording)
     }
 
-    /// Recordings folder and the app's own buttons in one row.
+    /// Recordings folder. Quitting is in the right-click menu of the menu bar item.
     private var bottomRow: some View {
         HStack(spacing: 8) {
             Image(systemName: "folder")
@@ -667,14 +686,9 @@ struct ContentView: View {
             Spacer(minLength: 4)
             Button("Открыть") { model.openFolder() }
                 .help("Открыть папку с записями в Finder")
-            Divider().frame(height: 16)
-            Button("Выйти") { NSApp.terminate(nil) }
-                .buttonStyle(.borderless)
-                .disabled(model.isRecording)
         }
     }
 
-    private var autoDisplayTitle: String { "Авто" }
 }
 
 /// The recording timer; observes only `LiveRecording`, so it redraws once a second on its own.
@@ -947,6 +961,10 @@ struct RecordButton: View {
     @State private var pressed = false
     @State private var ripple = false
 
+    private var title: String {
+        isRecording ? (isBusy ? "Сохраняю запись…" : "Остановить запись") : "Начать запись"
+    }
+
     private static let startColor = Color(red: 0.96, green: 0.26, blue: 0.27)
     private static let stopColor = Color(red: 0.62, green: 0.08, blue: 0.10)
 
@@ -965,8 +983,8 @@ struct RecordButton: View {
                 }
                 .frame(width: 20)
                 ZStack(alignment: .leading) {
-                    Text(isRecording ? "Остановить запись" : "Начать запись")
-                        .id(isRecording)
+                    Text(title)
+                        .id(title)
                         .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity),
                                                 removal: .move(edge: .top).combined(with: .opacity)))
                 }

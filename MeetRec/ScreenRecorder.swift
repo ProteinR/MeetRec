@@ -1,6 +1,7 @@
 import Accelerate
 import AppKit
 import AVFoundation
+import CoreImage
 import CoreMedia
 import ScreenCaptureKit
 
@@ -129,6 +130,24 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private var displayID: CGDirectDisplayID?
     /// The running stream's configuration, changed in place for a microphone switch.
     private var configuration: SCStreamConfiguration?
+    /// The single window being recorded; nil = the whole display.
+    private var windowID: CGWindowID?
+    /// ScreenCaptureKit's own `destinationRect` (the whole frame), restored for display capture.
+    private var wholeFrameRect = CGRect.zero
+
+    // Fade through black when the recording moves to another display (queue only).
+    private enum FadePhase { case out(start: Double), black(since: Double), into(start: Double) }
+    private static let fadeOutDuration = 0.35
+    private static let fadeInDuration = 0.45
+    private var fade: FadePhase?
+    private var fadeTimer: DispatchSourceTimer?
+    /// Set once the new display is being captured: its first frame starts the fade in.
+    private var waitingForNewDisplay = false
+    /// The last complete frame: during a fade it is written again, darkened, because a static screen
+    /// delivers no new frames.
+    private var latestFrame: CVPixelBuffer?
+    private var fadePool: CVPixelBufferPool?
+    private lazy var ciContext = CIContext(options: [.cacheIntermediates: false])
 
     /// Normal windows of other apps that can be recorded on their own.
     static func shareableWindows() async throws -> [CaptureWindow] {
@@ -161,17 +180,25 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     }
 
     /// Switches a running recording between the whole display (`windowID` nil) and a single window,
-    /// or to another display (`displayID`). The output size stays the same (another display's picture
-    /// is fitted in); a window is shown where it is on its display, with everything else (other
-    /// windows, notifications) left out. Returns the name of the display now captured.
+    /// or to another display (`displayID`). The output size stays the same: another display's picture
+    /// or the window alone (other windows and notifications left out) is scaled to fill the frame,
+    /// keeping its proportions. Every switch fades through black. Returns the name of the display now
+    /// captured (for a window, the one showing it).
     @discardableResult
     func setTarget(windowID: CGWindowID?, displayID newDisplayID: CGDirectDisplayID? = nil) async throws -> String {
         guard let stream, self.displayID != nil else { throw RecorderError.notRecording }
+        let changesTarget = windowID != self.windowID || (newDisplayID != nil && newDisplayID != self.displayID)
         if let newDisplayID { self.displayID = newDisplayID }
         guard let displayID = self.displayID else { throw RecorderError.notRecording }
+        // The picture fades to black, the capture switches, then it fades in.
+        let fading = changesTarget && queue.sync { startFadeOut() }
+        if fading {
+            try? await Task.sleep(for: .seconds(Self.fadeOutDuration))
+        }
         let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
         let filter: SCContentFilter
         let display: SCDisplay
+        var windowFrame = CGRect.zero
         if let windowID {
             guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
                 throw RecorderError.windowNotFound
@@ -183,7 +210,9 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                 throw RecorderError.displayNotFound
             }
             display = found
-            filter = SCContentFilter(display: display, including: [window])
+            // The window alone, scaled up to the frame (`scalesToFit`), not a small window on black.
+            filter = SCContentFilter(desktopIndependentWindow: window)
+            windowFrame = window.frame
             Log.info("Capture target → window \(windowID) \"\(window.owningApplication?.applicationName ?? "?") — \(window.title ?? "")\" frame=\(NSStringFromRect(window.frame)) on display \(display.displayID)", "recorder")
         } else {
             guard let found = content.displays.first(where: { $0.displayID == displayID }) ?? content.displays.first else {
@@ -194,7 +223,23 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             filter = SCContentFilter(display: display, excludingApplications: ownApp, exceptingWindows: [])
             Log.info("Capture target → whole display \(display.displayID)", "recorder")
         }
-        try await stream.updateContentFilter(filter)
+        do {
+            // A window of other proportions is centred (ScreenCaptureKit puts it at the top left).
+            if let configuration {
+                let rect = windowID == nil ? wholeFrameRect : Self.centeredRect(content: windowFrame,
+                                                                       width: configuration.width, height: configuration.height)
+                if configuration.destinationRect != rect {
+                    configuration.destinationRect = rect
+                    try await stream.updateConfiguration(configuration)
+                }
+            }
+            try await stream.updateContentFilter(filter)
+        } catch {
+            if fading { queue.sync { startFadeIn() } }
+            throw error
+        }
+        self.windowID = windowID
+        if fading { queue.sync { waitingForNewDisplay = true } }
         return NSScreen.screens.first {
             ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == display.displayID
         }?.localizedName ?? "монитор \(display.displayID)"
@@ -249,6 +294,8 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         config.showsCursor = true
         // Another display switched to mid-recording (monitor unplugged) is fitted in, never cropped.
         config.preservesAspectRatio = true
+        // A single window (switched to mid-recording) fills the frame instead of keeping its size.
+        config.scalesToFit = true
         config.queueDepth = 6
         config.capturesAudio = options.systemAudio
         config.excludesCurrentProcessAudio = true
@@ -328,6 +375,8 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         self.stream = stream
         self.displayID = display.displayID
         self.configuration = config
+        self.windowID = nil
+        self.wholeFrameRect = config.destinationRect
 
         do {
             try await stream.startCapture()
@@ -380,6 +429,18 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             }
             guard let videoInput else { return }
             let pts = sampleBuffer.presentationTimeStamp
+            latestFrame = sampleBuffer.imageBuffer
+            if fade != nil {
+                // The fade timer writes the frames meanwhile; the new display's first frame fades in.
+                if waitingForNewDisplay {
+                    waitingForNewDisplay = false
+                    startFadeIn()
+                }
+                return
+            }
+            // After a fade the written frames are stamped "now"; a real frame captured just before
+            // would be out of order, which fails the writer.
+            if stats.lastVideoPTS.isValid, pts <= stats.lastVideoPTS { return }
             if !sessionStarted {
                 writer.startSession(atSourceTime: pts)
                 sessionStarted = true
@@ -497,12 +558,15 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             finishing = true
             statsTimer?.cancel()
             statsTimer = nil
+            endFade()
+            latestFrame = nil
             let inputs = [videoInput, systemAudioInput, microphoneInput].compactMap { $0 }
             return (writer, sessionStarted, inputs, stats.summary(since: startedAt))
         }
         stream = nil
         displayID = nil
         configuration = nil
+        windowID = nil
         guard let (writer, started, inputs, summary) = state else {
             Log.debug("finish() called with nothing to finish", "recorder")
             return nil
@@ -537,6 +601,118 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             self.finishing = false
         }
         return result
+    }
+
+    // MARK: - Fade between displays (queue)
+
+    /// Returns false when there is nothing to fade (no frame written yet).
+    private func startFadeOut() -> Bool {
+        guard sessionStarted, !finishing, latestFrame != nil else { return false }
+        fade = .out(start: Self.hostNow().seconds)
+        waitingForNewDisplay = false
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now(), repeating: 1.0 / 30)
+        timer.setEventHandler { [weak self] in self?.fadeTick() }
+        fadeTimer?.cancel()
+        fadeTimer = timer
+        timer.resume()
+        Log.info("Fade out for the display switch", "capture")
+        return true
+    }
+
+    private func startFadeIn() {
+        guard fade != nil else { return }
+        fade = .into(start: Self.hostNow().seconds)
+        Log.info("Fade in on the new display", "capture")
+    }
+
+    private func endFade() {
+        fade = nil
+        waitingForNewDisplay = false
+        fadeTimer?.cancel()
+        fadeTimer = nil
+        fadePool = nil
+    }
+
+    /// Writes the latest frame, darkened for the current point of the fade.
+    private func fadeTick() {
+        guard let phase = fade else { return }
+        guard !finishing, let writer, writer.status == .writing, let videoInput else { endFade(); return }
+        let now = Self.hostNow()
+        let level: Double
+        switch phase {
+        case .out(let start):
+            let progress = (now.seconds - start) / Self.fadeOutDuration
+            level = 1 - min(1, progress)
+            if progress >= 1 { fade = .black(since: now.seconds) }
+        case .black(let since):
+            level = 0
+            // No frame from the new display (static screen, failed switch): fade in what there is.
+            if now.seconds - since > 1.5 { startFadeIn() }
+        case .into(let start):
+            let progress = (now.seconds - start) / Self.fadeInDuration
+            level = min(1, progress)
+            if progress >= 1 { endFade() }
+        }
+        guard videoInput.isReadyForMoreMediaData, let frame = latestFrame,
+              !stats.lastVideoPTS.isValid || now > stats.lastVideoPTS,
+              let sample = darkened(frame, level: level * level * (3 - 2 * level), at: now) else { return }
+        if videoInput.append(sample) {
+            live.videoFrames += 1
+            stats.videoAppended += 1
+            stats.lastVideoPTS = now
+            stats.lastVideoArrival = Date()
+        } else {
+            stats.videoAppendFailed += 1
+            Log.error("Fade frame append failed: writer status=\(writer.status.rawValue) error=\(Log.describe(writer.error))", "capture")
+            endFade()
+        }
+    }
+
+    private func darkened(_ frame: CVPixelBuffer, level: Double, at pts: CMTime) -> CMSampleBuffer? {
+        if fadePool == nil {
+            let attributes: [CFString: Any] = [
+                kCVPixelBufferPixelFormatTypeKey: CVPixelBufferGetPixelFormatType(frame),
+                kCVPixelBufferWidthKey: CVPixelBufferGetWidth(frame),
+                kCVPixelBufferHeightKey: CVPixelBufferGetHeight(frame),
+                kCVPixelBufferIOSurfacePropertiesKey: [:] as [CFString: Any],
+            ]
+            CVPixelBufferPoolCreate(nil, nil, attributes as CFDictionary, &fadePool)
+        }
+        guard let fadePool else { return nil }
+        var output: CVPixelBuffer?
+        CVPixelBufferPoolCreatePixelBuffer(nil, fadePool, &output)
+        guard let output else { return nil }
+        let f = CGFloat(level)
+        let image = CIImage(cvPixelBuffer: frame).applyingFilter("CIColorMatrix", parameters: [
+            "inputRVector": CIVector(x: f, y: 0, z: 0, w: 0),
+            "inputGVector": CIVector(x: 0, y: f, z: 0, w: 0),
+            "inputBVector": CIVector(x: 0, y: 0, z: f, w: 0),
+        ])
+        ciContext.render(image, to: output)
+        CVBufferPropagateAttachments(frame, output)
+        var format: CMVideoFormatDescription?
+        CMVideoFormatDescriptionCreateForImageBuffer(allocator: nil, imageBuffer: output, formatDescriptionOut: &format)
+        guard let format else { return nil }
+        var timing = CMSampleTimingInfo(duration: .invalid, presentationTimeStamp: pts, decodeTimeStamp: .invalid)
+        var sample: CMSampleBuffer?
+        CMSampleBufferCreateReadyWithImageBuffer(allocator: nil, imageBuffer: output, formatDescription: format,
+                                                 sampleTiming: &timing, sampleBufferOut: &sample)
+        return sample
+    }
+
+    /// The largest rectangle of the content's proportions centred in a width × height frame.
+    static func centeredRect(content: CGRect, width: Int, height: Int) -> CGRect {
+        guard content.width > 0, content.height > 0 else { return .zero }
+        let frameW = CGFloat(width), frameH = CGFloat(height)
+        let scale = min(frameW / content.width, frameH / content.height)
+        let w = (content.width * scale).rounded(), h = (content.height * scale).rounded()
+        return CGRect(x: ((frameW - w) / 2).rounded(), y: ((frameH - h) / 2).rounded(), width: w, height: h)
+    }
+
+    /// The clock ScreenCaptureKit stamps its frames with.
+    private static func hostNow() -> CMTime {
+        CMClockGetTime(CMClockGetHostTimeClock())
     }
 
     private func add(_ input: AVAssetWriterInput, to writer: AVAssetWriter) throws {

@@ -117,59 +117,6 @@ struct TranscriptionSettings: View {
     }
 }
 
-/// One line under the main controls while a transcription runs, failed, or just finished.
-struct TranscriptionStatus: View {
-    @EnvironmentObject private var transcriber: Transcriber
-
-    var body: some View {
-        switch transcriber.job {
-        case .running(let file, let phase, let startedAt):
-            HStack(alignment: .top, spacing: 8) {
-                ProgressView().controlSize(.small)
-                VStack(alignment: .leading, spacing: 2) {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        let percent = transcriber.progress.map { " · \(Int($0 * 100))%" } ?? ""
-                        Text("Транскрибация\(percent) · \(Self.format(context.date.timeIntervalSince(startedAt)))")
-                            .font(.callout).monospacedDigit()
-                    }
-                    Text("\(phase) — \(file.lastPathComponent)").font(.caption).foregroundStyle(.secondary)
-                        .lineLimit(2).truncationMode(.middle)
-                    if !transcriber.queue.isEmpty {
-                        Text("В очереди: \(transcriber.queue.count)").font(.caption2).foregroundStyle(.secondary)
-                    }
-                }
-                Spacer()
-                Button("Стоп") { transcriber.cancelCurrent() }.buttonStyle(.link)
-            }
-        case .failed(let message):
-            Label(message, systemImage: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
-        case .idle:
-            if let transcript = transcriber.lastTranscript {
-                VStack(alignment: .leading, spacing: 2) {
-                    Button {
-                        QuickLookPresenter.shared.preview(transcript)
-                    } label: {
-                        Label("Просмотреть транскрипт", systemImage: "doc.text")
-                    }
-                    .buttonStyle(.link)
-                    if let summary = transcriber.lastSummary {
-                        Text(summary).font(.caption).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-        }
-    }
-
-    private static func format(_ seconds: TimeInterval) -> String {
-        let total = Int(seconds)
-        return String(format: "%d:%02d", total / 60, total % 60)
-    }
-}
-
 /// "Копировать транскрипты": rules "app → folder", each with its own folder; "+" adds another.
 struct CopyRulesEditor: View {
     @EnvironmentObject private var transcriber: Transcriber
