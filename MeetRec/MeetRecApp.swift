@@ -446,21 +446,12 @@ struct ContentView: View {
             // While recording the panel shows only what concerns the recording itself.
             if !recordingLayout {
                 // Transcription progress is shown per recording in the list, not here.
+                // The recordings folder opens from the search row inside; quitting is in the menu bar
+                // item's right-click menu.
                 RecordingsSection(isExpanded: expanded("recordings"))
-                Divider()
-                bottomRow
             }
             if let notice = model.stopNotice, !model.isRecording, frozenLayout == nil {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: notice.hasPrefix("Запись прервалась") ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                        .foregroundStyle(notice.hasPrefix("Запись прервалась") ? .orange : .green)
-                    Text(notice).font(.caption).fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                    Button { model.stopNotice = nil } label: { Image(systemName: "xmark").font(.caption2) }
-                        .buttonStyle(.borderless)
-                }
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.06)))
+                LastRecordingNotice(notice: notice, file: model.lastFile) { model.stopNotice = nil }
             }
             if let error = model.errorMessage {
                 Text(error)
@@ -675,20 +666,77 @@ struct ContentView: View {
         .disabled(model.isRecording)
     }
 
-    /// Recordings folder. Quitting is in the right-click menu of the menu bar item.
-    private var bottomRow: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "folder")
-            Text(model.folderURL.lastPathComponent)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .help(model.folderPath)
-            Spacer(minLength: 4)
-            Button("Открыть") { model.openFolder() }
-                .help("Открыть папку с записями в Finder")
+}
+
+/// The last recording at the bottom of the panel: saved (when, how long) and its transcript —
+/// progress while it runs, then a click opens it.
+struct LastRecordingNotice: View {
+    let notice: String
+    let file: URL?
+    let close: () -> Void
+    @EnvironmentObject private var transcriber: Transcriber
+
+    private var interrupted: Bool { notice.hasPrefix("Запись прервалась") }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 5) {
+                row(icon: interrupted ? "exclamationmark.triangle.fill" : "checkmark.circle.fill",
+                    color: interrupted ? .orange : .green) {
+                    Text(notice).fixedSize(horizontal: false, vertical: true)
+                }
+                if let file {
+                    transcript(file)
+                }
+            }
+            Spacer(minLength: 0)
+            Button(action: close) { Image(systemName: "xmark").font(.caption2) }
+                .buttonStyle(.borderless)
+        }
+        .font(.caption)
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.06)))
+    }
+
+    @ViewBuilder
+    private func transcript(_ file: URL) -> some View {
+        if transcriber.runningFile == file {
+            row(icon: nil, color: .secondary) {
+                Text("Транскрибация\(transcriber.progress.map { " · \(Int($0 * 100))%" } ?? "…")").monospacedDigit()
+            }
+        } else if transcriber.queue.contains(file) {
+            row(icon: "clock", color: .secondary) { Text("В очереди на транскрибацию") }
+        } else if let transcript = Transcriber.existingTranscript(for: file) {
+            row(icon: "checkmark.circle.fill", color: .green) {
+                Button("Транскрипт готов") { QuickLookPresenter.shared.preview(transcript) }
+                    .buttonStyle(.link)
+                    .help("Открыть транскрипт")
+            }
+        } else if let failure = transcriber.failures[file.path] {
+            row(icon: "exclamationmark.triangle.fill", color: .orange) {
+                Button("Транскрибация не удалась — повторить") { transcriber.enqueue(file) }
+                    .buttonStyle(.link)
+                    .help(failure)
+            }
         }
     }
 
+    /// Icon column of the same width for every line, so the texts line up.
+    private func row<Content: View>(icon: String?, color: Color, @ViewBuilder content: () -> Content) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Group {
+                if let icon {
+                    Image(systemName: icon).foregroundStyle(color)
+                } else {
+                    ProgressView(value: transcriber.progress ?? 0)
+                        .progressViewStyle(.circular)
+                        .controlSize(.mini)
+                }
+            }
+            .frame(width: 14)
+            content()
+        }
+    }
 }
 
 /// The recording timer; observes only `LiveRecording`, so it redraws once a second on its own.

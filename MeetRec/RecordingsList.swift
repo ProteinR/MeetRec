@@ -76,17 +76,24 @@ struct RecordingsSection: View {
     var body: some View {
         CollapsibleSection(title: "Записи", icon: "film.stack", summary: summary, isExpanded: $isExpanded) {
             VStack(spacing: 6) {
-                HStack(spacing: 4) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Поиск по названиям и транскриптам", text: $query)
-                        .textFieldStyle(.plain)
-                    if !query.isEmpty {
-                        Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
-                            .buttonStyle(.borderless)
+                HStack(spacing: 8) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                        TextField("Поиск по названиям и транскриптам", text: $query)
+                            .textFieldStyle(.plain)
+                        if !query.isEmpty {
+                            Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                                .buttonStyle(.borderless)
+                        }
                     }
+                    .padding(.horizontal, 6).padding(.vertical, 4)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
+                    Button { model.openFolder() } label: {
+                        Image(systemName: "folder")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Открыть папку «\(model.folderURL.lastPathComponent)» в Finder")
                 }
-                .padding(.horizontal, 6).padding(.vertical, 4)
-                .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
 
                 if items.isEmpty {
                     Text(query.isEmpty ? "Пока нет записей в папке «\(model.folderURL.lastPathComponent)»" : "Ничего не найдено")

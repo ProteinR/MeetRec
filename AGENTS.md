@@ -117,7 +117,8 @@ What MeetRec does instead:
 - Settings live on a separate page behind the gear (general: folder, log, launch at login,
   watchdog; video; transcription incl. copy rules; meetings incl. browser rules; menu bar look with
   a preview). The main page keeps the daily things: no transcription block (progress is per recording in
-  the list, cancel in its right-click menu) and no Quit button (it is in the item's right-click menu).
+  the list, cancel in its right-click menu) no Quit button (it is in the item's right-click menu) and no folder row (the folder
+  button is next to the search field in "Записи").
 
 - UX rules: the panel opens only by the user (click on the item / island / a notification, or a
   manual launch; not at login or a watchdog relaunch). Live moments (recording started, call
@@ -126,7 +127,9 @@ What MeetRec does instead:
   end of the call. Problems (silent mic, disk, cut recording, permissions) are macOS notifications.
   After Start in the panel the button morphs and the panel fades out. A stop of any kind
   while the panel is open fades the whole panel out at once (`foldPanelNotification`, layout frozen
-  meanwhile) without waiting for the file; the "Запись сохранена" toast gives the result.
+  meanwhile) without waiting for the file; the "Запись сохранена" toast gives the result. The panel then keeps a notice for the last
+  recording (`LastRecordingNotice`): saved with start–end time and duration, and its transcript state
+  (percent while running, "Транскрипт готов" opens it, retry on failure).
   No markers while stopping. Right click on the item
   opens a quick menu; ⌘, opens settings.
 

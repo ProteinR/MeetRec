@@ -1045,6 +1045,7 @@ final class RecorderModel: ObservableObject {
             scheduleMeetingReminder(meeting, after: 60)
         }
         let duration = elapsedText
+        let began = startedAt
         let title = meetingTitle
         let appID = autoStartedAppID
         Task {
@@ -1066,7 +1067,9 @@ final class RecorderModel: ObservableObject {
             }
             isBusy = false
             didStop(file: file)
-            stopNotice = ["Запись сохранена · \(duration)", reason].compactMap { $0 }.joined(separator: " · ")
+            // "14:03–14:25 · 22:10": when it was, so it is easy to tell which meeting this is.
+            let span = began.map { "\($0.formatted(date: .omitted, time: .shortened))–\(Date().formatted(date: .omitted, time: .shortened)) · " } ?? ""
+            stopNotice = ["Запись сохранена · \(span)\(duration)", reason].compactMap { $0 }.joined(separator: " · ")
             let transcriber = Transcriber.shared
             let transcriptNote = file != nil && transcriber.transcribeAfterRecording && transcriber.modelsState == .ready
                 ? "транскрипт появится рядом с видео" : nil
