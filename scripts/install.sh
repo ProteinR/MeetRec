@@ -23,5 +23,9 @@ pkill -x MeetRec 2>/dev/null || true
 mkdir -p ~/Applications
 rm -rf ~/Applications/MeetRec.app
 ditto build/dd/Build/Products/Release/MeetRec.app ~/Applications/MeetRec.app
+# The build copy would show up as a second MeetRec in Launchpad / Spotlight: remove it.
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+"$LSREGISTER" -u "$PWD/build/dd/Build/Products/Release/MeetRec.app" 2>/dev/null || true
+rm -rf build/dd/Build/Products/Release/MeetRec.app
 open ~/Applications/MeetRec.app
 echo "Installed ~/Applications/MeetRec.app"

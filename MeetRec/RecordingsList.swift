@@ -6,6 +6,8 @@ struct RecordingItem: Identifiable, Equatable {
     let size: Int64
     /// Where the search query was found in the transcript, for the row's subtitle.
     var snippet: String?
+    /// Moments marked during the recording.
+    var markers: [Marker] = []
     var id: String { url.path }
 }
 
@@ -22,7 +24,7 @@ enum RecordingsStore {
             .compactMap { url -> RecordingItem? in
                 let values = try? url.resourceValues(forKeys: Set(keys))
                 let date = values?.creationDate ?? values?.contentModificationDate ?? .distantPast
-                return RecordingItem(url: url, date: date, size: Int64(values?.fileSize ?? 0))
+                return RecordingItem(url: url, date: date, size: Int64(values?.fileSize ?? 0), markers: MarkerFile.load(for: url))
             }
             .sorted { $0.date > $1.date }
         return limit.map { Array(items.prefix($0)) } ?? items
@@ -154,6 +156,8 @@ struct RecordingRow: View {
     @State private var newTitle = ""
     @State private var error: String?
     @State private var namingSpeakers = false
+    @State private var showingMarkers = false
+    @State private var addingChapters = false
     @FocusState private var titleFocused: Bool
 
     private static let dateFormatter: DateFormatter = {
@@ -166,6 +170,9 @@ struct RecordingRow: View {
     var body: some View {
         VStack(spacing: 4) {
             row
+            if showingMarkers {
+                markersList
+            }
             if namingSpeakers {
                 SpeakersEditor(recording: item.url) {
                     namingSpeakers = false
@@ -198,6 +205,15 @@ struct RecordingRow: View {
                     .truncationMode(.tail)
             }
             Spacer(minLength: 4)
+            if !renaming, !item.markers.isEmpty {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { showingMarkers.toggle() }
+                } label: {
+                    Text("⭐ \(item.markers.count)").font(.caption).monospacedDigit()
+                }
+                .buttonStyle(.borderless)
+                .help("Отметки: открыть видео на нужном моменте")
+            }
             if !renaming { status }
         }
         .padding(.vertical, 4)
@@ -221,6 +237,11 @@ struct RecordingRow: View {
             } else {
                 Button("Транскрибировать") { transcriber.enqueue(item.url) }
                     .disabled(transcriber.modelsState != .ready || isBusy)
+            }
+            if !item.markers.isEmpty {
+                Divider()
+                Button(addingChapters ? "Добавляю главы…" : "Добавить отметки в видео как главы") { addChapters() }
+                    .disabled(addingChapters || isBusy)
             }
             Divider()
             Button("Переименовать…", action: startRename)
@@ -298,6 +319,38 @@ struct RecordingRow: View {
         } catch {
             self.error = "Не удалось переименовать: \(error.localizedDescription)"
             Log.error("Rename of \(item.url.lastPathComponent) failed: \(Log.describe(error))", "files")
+        }
+    }
+
+    /// Marked moments as buttons; each opens the video in QuickTime at that time.
+    private var markersList: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 6)], alignment: .leading, spacing: 6) {
+            ForEach(Array(item.markers.enumerated()), id: \.offset) { _, marker in
+                Button {
+                    QuickTimeOpener.open(item.url, at: marker.time)
+                } label: {
+                    Text("⭐ \(marker.timeText)").font(.caption).monospacedDigit()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Открыть видео на \(marker.timeText)")
+            }
+        }
+        .padding(.leading, 30)
+        .padding(.bottom, 4)
+    }
+
+    /// For recordings made before markers became chapters automatically.
+    private func addChapters() {
+        addingChapters = true
+        Task {
+            do {
+                try await ChapterWriter.addChapters(item.markers, to: item.url)
+            } catch {
+                self.error = "Главы не добавлены: \(error.localizedDescription)"
+                Log.warning("Chapters not added to \(item.url.lastPathComponent): \(Log.describe(error))", "files")
+            }
+            addingChapters = false
         }
     }
 

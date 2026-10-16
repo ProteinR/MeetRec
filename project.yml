@@ -35,6 +35,7 @@ targets:
         LSUIElement: true
         NSMicrophoneUsageDescription: MeetRec records your microphone together with the screen.
         NSScreenCaptureUsageDescription: MeetRec records the selected display.
+        NSAppleEventsUsageDescription: MeetRec opens recordings in QuickTime Player at a marked moment.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dmemruk.MeetRec

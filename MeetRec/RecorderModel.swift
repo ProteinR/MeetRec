@@ -131,6 +131,8 @@ final class RecorderModel: ObservableObject {
     private var pendingTitle: String?
     /// The browser rule's title of the current recording ("Skyeng"), for the header badge.
     @Published private(set) var ruleTitle: String?
+    /// The browser rule that started the current recording, to continue it after an interruption.
+    private var currentRuleID: String?
 
     /// "Teams", "Браузер" or the rule's "Skyeng" for an automatic recording; nil for a manual one.
     var autoBadge: String? {
@@ -194,13 +196,8 @@ final class RecorderModel: ObservableObject {
         detector.onPending = { [weak self] pending in self?.pendingChanged(pending) }
         detector.onEnding = { [weak self] ending in self?.endingChanged(ending) }
         configureDetector()
-        recorder.onUnexpectedStop = { [weak self] error in
-            Log.error("Recording stopped unexpectedly: \(Log.describe(error))")
-            self?.stopNotice = "Запись прервалась: \(error.localizedDescription)"
-            Notifier.shared.send(id: "meetrec-stopped-unexpectedly", title: "Запись прервалась",
-                                 body: "\(error.localizedDescription). Записанное до этого момента сохранено.")
-            self?.didStop(file: nil)
-            self?.errorMessage = "Запись остановлена: \(error.localizedDescription)"
+        recorder.onUnexpectedStop = { [weak self] error, file in
+            self?.recordingInterrupted(error, file: file)
         }
         hotKey = HotKey(keyCode: kVK_ANSI_R, modifiers: cmdKey | optionKey | controlKey) { [weak self] in
             Log.info("Hotkey \(Self.hotKeyHint) pressed")
@@ -550,6 +547,52 @@ final class RecorderModel: ObservableObject {
         Log.info("User chose not to record this \(countdown.app.name) meeting", "meetings")
     }
 
+    // MARK: - Monitor unplugged, capture stopped
+
+    /// The recorded monitor went away (unplugged, lid closed): keep recording the screen that is left,
+    /// in the same file. Its picture is fitted into the recording's size, never cropped.
+    private func recordedDisplayLost() {
+        guard let fallback = effectiveDisplay else {
+            Log.error("Recorded display is gone and no other display is available", "devices")
+            return
+        }
+        Log.warning("Switching the recording to display \(fallback.id) \(fallback.name)", "devices")
+        switchDisplay(to: fallback.id)
+        showToast(Toast(kind: .info, title: "Монитор отключён", detail: "Запись продолжается: «\(fallback.name)»"))
+    }
+
+    private var lastAutomaticRestart = Date.distantPast
+
+    /// Capture stopped on its own (e.g. the monitor vanished before the switch). The part recorded so
+    /// far is saved and transcribed; a new recording continues on the screen that is available, as the
+    /// same kind (an automatic meeting recording still stops when the meeting ends). At most once in
+    /// two minutes, so a persistent failure does not loop.
+    private func recordingInterrupted(_ error: Error, file: URL?) {
+        Log.error("Recording stopped unexpectedly: \(Log.describe(error)); saved part: \(file?.lastPathComponent ?? "none")")
+        let app = MeetingApp.all.first { $0.id == autoStartedAppID }
+        let rule = ruleTitle
+        let ruleID = currentRuleID
+        let wasAuto = autoStartedBy != nil && !autoStopDisabled
+        didStop(file: file)
+        let restart = Date().timeIntervalSince(lastAutomaticRestart) > 120 && effectiveDisplay != nil
+        if restart {
+            lastAutomaticRestart = Date()
+            Log.warning("Continuing in a new recording after the interruption", "recorder")
+            pendingTitle = rule
+            pendingRuleID = ruleID
+            start(autoApp: wasAuto ? app : nil)
+            stopNotice = nil
+            Notifier.shared.send(id: "meetrec-stopped-unexpectedly", title: "Запись прервалась и продолжена",
+                                 body: "\(error.localizedDescription). Записанное сохранено, запись продолжается в новом файле.",
+                                 silent: true)
+        } else {
+            stopNotice = "Запись прервалась: \(error.localizedDescription)"
+            errorMessage = "Запись остановлена: \(error.localizedDescription)"
+            Notifier.shared.send(id: "meetrec-stopped-unexpectedly", title: "Запись прервалась",
+                                 body: "\(error.localizedDescription). Записанное до этого момента сохранено.")
+        }
+    }
+
     // MARK: - Countdown before the automatic stop
 
     /// The seconds between "the meeting's app released the microphone" and the automatic stop.
@@ -792,6 +835,7 @@ final class RecorderModel: ObservableObject {
                      + " → effective: \(effectiveDisplay.map { "\($0.id) \($0.name)" } ?? "none")", "devices")
             if isRecording, let recordingDisplayID, !displays.contains(where: { $0.id == recordingDisplayID }) {
                 Log.warning("Recorded display \(recordingDisplayID) disappeared during recording", "devices")
+                recordedDisplayLost()
             }
         }
         if microphones != previousMics {
@@ -957,6 +1001,7 @@ final class RecorderModel: ObservableObject {
                     // Decided now, while it is known: transcription may run much later.
                     RecordingTag.setMeetingApp(autoApp.id, on: options.outputURL)
                 }
+                currentRuleID = pendingRuleID
                 if let ruleID = pendingRuleID {
                     RecordingTag.setRule(ruleID, on: options.outputURL)
                     pendingRuleID = nil
@@ -1001,6 +1046,15 @@ final class RecorderModel: ObservableObject {
             }
             if let recorded = file, let title {
                 file = renameWithTitle(recorded, title: title)
+            }
+            // Markers become chapters of the video before anything else reads the file (transcription).
+            let marked = markers
+            if let recorded = file, !marked.isEmpty {
+                do {
+                    try await ChapterWriter.addChapters(marked, to: recorded)
+                } catch {
+                    Log.warning("Chapters not added to \(recorded.lastPathComponent): \(Log.describe(error)); the recording is unchanged", "recorder")
+                }
             }
             isBusy = false
             didStop(file: file)

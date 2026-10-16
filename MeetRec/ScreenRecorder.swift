@@ -110,7 +110,8 @@ private struct Stats {
 /// a later transcription step can tell "me" (microphone) from "them" (system audio).
 final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     /// Called on the main queue when capture stops on its own (display unplugged, permission revoked…).
-    var onUnexpectedStop: ((Error) -> Void)?
+    /// Called with the error and the file (closed and playable up to that moment, if anything was recorded).
+    var onUnexpectedStop: ((Error, URL?) -> Void)?
 
     private let queue = DispatchQueue(label: "com.dmemruk.MeetRec.capture")
     private var stream: SCStream?
@@ -246,6 +247,8 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(options.fps))
         config.pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
         config.showsCursor = true
+        // Another display switched to mid-recording (monitor unplugged) is fitted in, never cropped.
+        config.preservesAspectRatio = true
         config.queueDepth = 6
         config.capturesAudio = options.systemAudio
         config.excludesCurrentProcessAudio = true
@@ -439,8 +442,8 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     func stream(_ stream: SCStream, didStopWithError error: Error) {
         Log.error("Stream stopped with error: \(Log.describe(error))", "recorder")
         Task {
-            await finish()
-            await MainActor.run { onUnexpectedStop?(error) }
+            let file = await finish()
+            await MainActor.run { onUnexpectedStop?(error, file) }
         }
     }
 

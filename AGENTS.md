@@ -134,7 +134,22 @@ What MeetRec does instead:
   "Спрашивать" (the "Записать?" question); defaults: Teams records, browser and Telegram ask
   (`meetingAppModes`, `RecorderModel.asks(_:)`). Browser site rules show while the browser asks.
 
-Planned next: Zoom and other apps once checked for false positives.
+- Markers become chapters: after a recording with markers stops, `ChapterWriter` copies the file
+  without re-encoding (reader → writer, ~1 s per minute) adding a 3GPP text track associated with the
+  video as its chapter list ("Начало", "⭐ 1 · 12:34"…), checks the copy (tracks, duration, chapters),
+  then replaces the original and restores the xattr tags; on any failure the original stays. The
+  recordings list shows "⭐ N"; each time opens the video in QuickTime at that moment (AppleScript,
+  `QuickTimeOpener`); older recordings have "Добавить отметки в видео как главы".
+
+- Monitor unplugged mid-recording: the capture switches to the remaining screen in the same file
+  (`preservesAspectRatio`: fitted, never cropped — the OBS failure mode was a fixed 4K canvas and a
+  source bound to a missing display). If capture stopped anyway, the part is saved and transcribed
+  and a new recording continues on the available screen as the same kind (auto meeting / rule), at
+  most once per 2 minutes.
+
+Planned next: Zoom and other apps once checked for false positives. Later: an own viewer window in
+MeetRec (video, the list of markers and the transcript side by side; clicking a line or a marker jumps
+there) instead of handing markers to QuickTime.
 
 Principles: small, native (Swift, ScreenCaptureKit, no Electron, no third-party Swift packages),
 dependable over feature-rich. Prefer fewer features, and never risk losing a recording.
@@ -191,6 +206,7 @@ Requires Xcode and XcodeGen. `project.yml` is the source of truth; the `.xcodepr
 
 ```bash
 xcodebuild test -project MeetRec.xcodeproj -scheme MeetRec -destination 'platform=macOS' -derivedDataPath build/dd-test
+rm -rf build/dd-test/Build/Products/Debug/MeetRec.app   # else it shows up as a second MeetRec in Launchpad
 python3 -m unittest discover -s Tests   # transcribe.py helpers, no models needed
 ```
 
