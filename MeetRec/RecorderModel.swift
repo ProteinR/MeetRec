@@ -1056,13 +1056,14 @@ final class RecorderModel: ObservableObject {
             if let recorded = file, let title {
                 file = renameWithTitle(recorded, title: title)
             }
-            // Markers become chapters of the video before anything else reads the file (transcription).
+            // Before anything else reads the file (transcription): markers become chapters and both
+            // audio tracks get a mixed track that every player plays.
             let marked = markers
-            if let recorded = file, !marked.isEmpty {
+            if let recorded = file {
                 do {
-                    try await ChapterWriter.addChapters(marked, to: recorded)
+                    try await ChapterWriter.finish(recorded, markers: marked)
                 } catch {
-                    Log.warning("Chapters not added to \(recorded.lastPathComponent): \(Log.describe(error)); the recording is unchanged", "recorder")
+                    Log.warning("Recording not finished (chapters, mixed audio) for \(recorded.lastPathComponent): \(Log.describe(error)); the recording is unchanged", "recorder")
                 }
             }
             isBusy = false

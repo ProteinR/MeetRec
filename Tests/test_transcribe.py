@@ -73,5 +73,40 @@ class SpeakerTests(unittest.TestCase):
         self.assertEqual(dropped, 1)
 
 
+
+class MicrophoneTests(unittest.TestCase):
+    def test_stream_roles(self):
+        self.assertEqual(transcribe.stream_roles([True, False, False]), {"microphone": 1, "system": 2})
+        self.assertEqual(transcribe.stream_roles([True, True]), {"system": 0, "microphone": 1})
+        self.assertEqual(transcribe.stream_roles([True]), {})
+
+    def test_speaker_on_the_microphone_is_me(self):
+        # 0-2 s: loud on the microphone, quiet in the system audio (the user); 2-4 s: the other way round.
+        microphone = [-25.0] * 40 + [-48.0] * 40
+        system = [-80.0] * 40 + [-20.0] * 40
+        turns = [{"start": 0.0, "end": 2.0, "speaker": "A"}, {"start": 2.0, "end": 4.0, "speaker": "B"}]
+        shares = transcribe.microphone_shares(turns, microphone, system)
+        self.assertAlmostEqual(shares["A"][0], 1.0)
+        self.assertAlmostEqual(shares["B"][0], 0.0)
+        # The voice match got it the wrong way round: the microphone wins.
+        names, mine = transcribe.name_microphone_speakers({"A": "Speaker 1", "B": "Dima"}, shares, "Dima")
+        self.assertEqual(names, {"A": "Dima", "B": "Speaker 2"})
+        self.assertEqual(mine, {"A"})
+
+    def test_phrase_spoken_into_the_microphone_is_mine(self):
+        # One diarized speaker says both phrases (the echo test plays the user's voice back): the one
+        # heard through the microphone is the user's, the playback stays with the speaker.
+        microphone = [-25.0] * 40 + [-60.0] * 40
+        system = [-80.0] * 40 + [-20.0] * 40
+        segments = [{"start": 0.0, "end": 2.0, "text": "test"}, {"start": 2.0, "end": 4.0, "text": "test"}]
+        turns = [{"start": 0.0, "end": 4.0, "speaker": "A"}]
+        lines, _ = transcribe.build_lines(segments, turns, {"A": "Speaker 1"}, "Dima", (microphone, system))
+        self.assertEqual([text for _, text in lines], ["[00:00:00] Dima: test", "[00:00:02] Speaker 1: test"])
+
+    def test_without_my_name_nothing_changes(self):
+        names = {"A": "Speaker 1"}
+        self.assertEqual(transcribe.name_microphone_speakers(names, {"A": (1.0, 5.0)}, "")[0], names)
+
+
 if __name__ == "__main__":
     unittest.main()

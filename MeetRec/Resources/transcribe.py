@@ -100,28 +100,67 @@ def fail(code, message):
 
 # ── Audio ────────────────────────────────────────────────────────────────────────────────────────
 
-def audio_stream_count(recording):
+def audio_streams(recording):
+    """Audio streams in file order, each as True when it is the default (played) one."""
     result = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index", "-of", "csv=p=0",
-         str(recording)],
+        ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index:stream_disposition=default",
+         "-of", "csv=p=0", str(recording)],
         capture_output=True, text=True, check=True,
     )
-    return len(result.stdout.split())
+    return [line.split(",")[-1].strip() == "1" for line in result.stdout.split()]
+
+
+def stream_roles(streams):
+    """Positions of the microphone and system audio among the audio streams, as far as known.
+
+    MeetRec writes [system, microphone]; after a recording it puts a mix of both first, the only
+    default stream: [mix, microphone, system]. A single stream (one source was off) is unknown."""
+    if len(streams) >= 3 and not all(streams):
+        separate = [i for i, default in enumerate(streams) if not default]
+        if len(separate) >= 2:
+            return {"microphone": separate[0], "system": separate[1]}
+    if len(streams) == 2:
+        return {"system": 0, "microphone": 1}
+    return {}
 
 
 def extract_audio(recording, wav):
-    """Mono 16 kHz WAV. MeetRec files carry system audio and microphone as separate tracks; both are
-    mixed, otherwise ffmpeg would take only the first track and the user's own voice would be lost."""
-    streams = audio_stream_count(recording)
-    if streams == 0:
+    """Mono 16 kHz WAV of everyone, plus the microphone and system audio on their own when the file
+    has them apart (`{"microphone": path, "system": path}`), to tell the user from the other side.
+
+    The mix MeetRec adds for players is not used: the raw tracks are mixed here without the gain."""
+    streams = audio_streams(recording)
+    if not streams:
         fail("no_audio", "В записи нет звука")
+    roles = stream_roles(streams)
+    sources = [roles["microphone"], roles["system"]] if roles else list(range(len(streams)))
     command = ["ffmpeg", "-v", "error", "-y", "-i", str(recording), "-vn"]
-    if streams > 1:
-        inputs = "".join(f"[0:a:{i}]" for i in range(streams))
-        command += ["-filter_complex", f"{inputs}amix=inputs={streams}:normalize=0[a]", "-map", "[a]"]
+    if len(sources) > 1:
+        inputs = "".join(f"[0:a:{i}]" for i in sources)
+        command += ["-filter_complex", f"{inputs}amix=inputs={len(sources)}:normalize=0[a]", "-map", "[a]"]
+    else:
+        command += ["-map", f"0:a:{sources[0]}"]
     command += ["-ac", "1", "-ar", str(SAMPLE_RATE), str(wav)]
-    log(f"ffmpeg: {streams} audio stream(s) → {wav}")
+    log(f"ffmpeg: {len(streams)} audio stream(s), using {sources} {roles or ''} → {wav}")
     subprocess.run(command, check=True)
+    separate = {}
+    for role, position in roles.items():
+        path = wav.with_name(f"{role}.wav")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(recording), "-vn", "-map", f"0:a:{position}",
+                        "-ac", "1", "-ar", str(SAMPLE_RATE), str(path)], check=True)
+        separate[role] = path
+    return separate
+
+
+def frame_levels(path, frame=0.05):
+    """Loudness (dB) of each `frame` seconds of a WAV."""
+    import numpy as np
+
+    audio = load_audio(path)
+    size = int(SAMPLE_RATE * frame)
+    count = len(audio) // size
+    frames = audio[: count * size].reshape(count, size)
+    return (20 * np.log10(np.sqrt((frames ** 2).mean(axis=1)) + 1e-9)).tolist()
 
 
 def load_audio(path):
@@ -221,6 +260,53 @@ def match_speakers(embeddings, references, threshold):
     return names, scores
 
 
+def microphone_frames(start, end, microphone_db, system_db, frame=0.05, margin=6.0, floor=-50.0):
+    """(frames, frames heard through the user's microphone) between start and end: sound clearly
+    louder in the microphone track than in the system audio."""
+    first, last = int(start / frame), min(int(end / frame), len(microphone_db), len(system_db))
+    mic = sum(1 for i in range(first, last) if microphone_db[i] > floor and microphone_db[i] > system_db[i] + margin)
+    return max(last - first, 0), mic
+
+
+def microphone_shares(turns, microphone_db, system_db, frame=0.05):
+    """For each diarized speaker: the share of their speaking time that comes through the user's
+    microphone, and their seconds of speech."""
+    stats = {}
+    for turn in turns:
+        total, mic = microphone_frames(turn["start"], turn["end"], microphone_db, system_db, frame)
+        before = stats.get(turn["speaker"], (0, 0))
+        stats[turn["speaker"]] = (before[0] + total, before[1] + mic)
+    return {label: (mic / total if total else 0.0, total * frame) for label, (total, mic) in stats.items()}
+
+
+def spoken_into_microphone(segment, levels, min_share=0.6):
+    """A recognised phrase heard mostly through the user's microphone: the user said it, even when
+    diarization put it with someone else (the Teams echo test plays the user's voice back)."""
+    total, mic = microphone_frames(segment["start"], segment["end"], *levels)
+    return total > 0 and mic / total >= min_share
+
+
+def name_microphone_speakers(names, shares, me, min_share=0.6, min_seconds=1.0):
+    """Speakers heard through the user's microphone are the user, whatever their voice matched.
+    Anyone else who matched the user's voice becomes an unnamed speaker. Returns new names and the
+    labels taken as the user."""
+    mine = {label for label, (share, seconds) in shares.items() if share >= min_share and seconds >= min_seconds}
+    if not me or not mine:
+        return names, set()
+    result = dict(names)
+    taken = {name for name in names.values() if name.startswith("Speaker ")}
+    number = 1
+    for label in sorted(names):
+        if label in mine:
+            result[label] = me
+        elif names[label] == me:
+            while f"Speaker {number}" in taken:
+                number += 1
+            result[label] = f"Speaker {number}"
+            taken.add(result[label])
+    return result, mine
+
+
 def assign_speaker(segment, turns):
     best, overlap = None, 0.0
     for turn in turns:
@@ -235,14 +321,17 @@ def format_time(seconds):
     return f"{seconds // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
 
 
-def build_lines(segments, turns, names):
+def build_lines(segments, turns, names, me=None, levels=None):
+    """Transcript lines; with the user's name and the microphone/system levels, phrases spoken into
+    the microphone are the user's."""
     lines, previous, dropped = [], object(), 0
     for segment in segments:
         label = assign_speaker(segment, turns)
-        if label is None:
+        mine = bool(me and levels and spoken_into_microphone(segment, levels))
+        if label is None and not mine:
             dropped += 1  # Whisper hallucinations in silence ("Thank you.")
             continue
-        name = names[label]
+        name = me if mine else names[label]
         if lines and name == previous:
             lines[-1][2] += " " + segment["text"]
         else:
@@ -299,7 +388,10 @@ def transcribe(args):
     with tempfile.TemporaryDirectory() as tmp:
         wav = Path(tmp) / "audio.wav"
         emit("phase", name="Извлечение звука")
-        extract_audio(recording, wav)
+        separate = extract_audio(recording, wav)
+        levels = None
+        if not args.no_diarization and args.me and len(separate) == 2:
+            levels = (frame_levels(separate["microphone"]), frame_levels(separate["system"]))
         if args.no_diarization:
             emit("phase", name="Распознавание речи")
             asr = run_asr(str(wav), args.language)
@@ -315,7 +407,13 @@ def transcribe(args):
     speakers_summary = []
     if diarization:
         names, scores = match_speakers(diarization["embeddings"], load_speakers(args.speakers), args.threshold)
-        lines, dropped = build_lines(asr["segments"], diarization["turns"], names)
+        if levels:
+            shares = microphone_shares(diarization["turns"], *levels)
+            names, mine = name_microphone_speakers(names, shares, args.me)
+            for label, (share, seconds) in sorted(shares.items()):
+                scores[label]["microphone"] = round(share, 2)
+                log(f"{label}: {share:.0%} of {seconds:.0f}s through the microphone{' → ' + args.me if label in mine else ''}")
+        lines, dropped = build_lines(asr["segments"], diarization["turns"], names, args.me, levels)
         engine = f"{ENGINE} + pyannote community-1"
         speaking = {}
         for turn in diarization["turns"]:
@@ -393,6 +491,7 @@ def main():
     t.add_argument("--speakers")
     t.add_argument("--runs-dir")
     t.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD)
+    t.add_argument("--me", default="", help="the user's name: whoever speaks into the microphone track")
     t.set_defaults(handler=transcribe)
 
     e = commands.add_parser("enroll-sample")

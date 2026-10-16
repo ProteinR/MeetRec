@@ -165,6 +165,9 @@ final class Transcriber: ObservableObject {
                          "--speakers", speakersFile.path, "--runs-dir", runsDir.path]
         if !diarization { arguments.append("--no-diarization") }
         if !language.isEmpty { arguments += ["--language", language] }
+        // Whoever speaks into the microphone track is the user, whatever the voice match says.
+        let me = myName.trimmingCharacters(in: .whitespaces)
+        if !me.isEmpty { arguments += ["--me", me] }
         Log.info("Transcription started: \(file.lastPathComponent) diarization=\(diarization) language=\(language.isEmpty ? "auto" : language) → \(output.path)", "transcribe")
 
         Task {

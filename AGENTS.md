@@ -27,7 +27,13 @@ What MeetRec does instead:
 - Live recording status: microphone and system audio level meters with the actual device name,
   screen and file state; a ⚠️ in the menu bar when a source stops delivering.
 - Crash-safe fragmented `.mov` with separate tracks for video, system audio and microphone; around
-  0.5 GB per hour at 1440p HEVC.
+  0.5 GB per hour at 1440p HEVC. After the stop the file gets a mixed audio track first
+  (`ChapterWriter.finish` + `AudioMixer`, one copy together with the chapters): audio layout
+  1 — mix (the only enabled/default track), 2 — microphone, 3 — system audio, one alternate group.
+  Players that play one track (IINA, VLC, browsers, messengers) play both sides; QuickTime does not
+  double them. In the mix the microphone is raised once per recording to the other side's speech
+  level (ScreenCaptureKit gives the raw mic, the call app's side comes processed and ~10 dB louder),
+  max +18 dB, soft limiter; the separate tracks stay as recorded. On failure the file stays as written.
 - Optional local transcription after each recording (mlx-whisper + pyannote, nothing leaves the Mac),
   speaker names from enrolled voices including the owner's own voice sample, and a recordings list
   showing which videos are transcribed or how far a running transcription is.
@@ -208,7 +214,11 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
   `Resources/transcribe.py`): after a recording, optionally runs the bundled helper with `uv run`
   (mlx-whisper large-v3-turbo + pyannote speaker-diarization-community-1, adapted from
   inventire-workspace `.agents/skills/transcribe-meeting`). Both audio tracks are mixed before
-  recognition. Transcript: `<recording>.md` next to the video, never overwritten. Models: the shared
+  recognition. The helper finds them by the default flag ([mix, mic, system] or
+  older [system, mic]; the player mix is not used). Whoever speaks into the microphone is the user
+  (`--me`, "Моё имя"): a phrase heard mostly through the microphone track is theirs, and a diarized
+  speaker with ≥60% of speech there gets the name, whatever the voice match says; voice samples name
+  only the other side. The run file records each speaker's microphone share. Transcript: `<recording>.md` next to the video, never overwritten. Models: the shared
   Hugging Face cache `~/.cache/huggingface/hub` (pyannote is gated: needs an HF token and accepted
   conditions). Voices: `~/Library/Application Support/MeetRec/speakers.json`, seeded once as a copy of
   `~/.local/share/inventire-meetings/speakers.json`; "record voice sample" enrolls the user's own voice
