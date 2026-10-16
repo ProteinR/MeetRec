@@ -297,16 +297,30 @@ enum MeetingTitle {
         }
     }
 
-    /// The title of a Teams meeting window, if one is open.
+    /// Teams' own hidden windows, open even without a meeting ("Teams NRC" named recordings).
+    private static let teamsHelperTitles: Set<String> = ["teams nrc"]
+
+    /// The title of a Teams meeting window, if one is open: a real window (not a tiny or hidden
+    /// helper), a visible one first; a minimised meeting window (screen sharing) still counts.
     static func teamsMeeting() -> String? {
+        let windows = teamsMeetingWindows().filter { !$0.title.isEmpty && !teamsHelperTitles.contains($0.title.lowercased()) }
+        return (windows.first(where: \.onScreen) ?? windows.first)?.title
+    }
+
+    /// All Teams windows for the log: title, size, visible — to tell meeting windows from helpers.
+    static func describeTeamsWindows() -> String {
         let teams = MeetingApp.all.first { $0.id == "teams" }
-        for window in windows() where teams?.matches(window.bundleID) == true {
-            let first = window.title.components(separatedBy: " | ").first?.trimmingCharacters(in: .whitespaces) ?? ""
-            guard !first.isEmpty, !teamsSections.contains(first.lowercased()) else { continue }
-            let cleaned = clean(window.title)
-            if !cleaned.isEmpty { return cleaned }
+        guard let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return "none" }
+        let parts: [String] = list.compactMap { info in
+            guard (info[kCGWindowLayer as String] as? Int) == 0,
+                  let pid = info[kCGWindowOwnerPID as String] as? Int,
+                  teams?.matches(NSRunningApplication(processIdentifier: pid_t(pid))?.bundleIdentifier ?? "") == true,
+                  let title = info[kCGWindowName as String] as? String, !title.isEmpty else { return nil }
+            let bounds = (info[kCGWindowBounds as String] as? NSDictionary).flatMap { CGRect(dictionaryRepresentation: $0) } ?? .zero
+            let onScreen = info[kCGWindowIsOnscreen as String] as? Bool ?? false
+            return "\"\(title)\" \(Int(bounds.width))x\(Int(bounds.height))@\(Int(bounds.minX)),\(Int(bounds.minY))\(onScreen ? " visible" : "")"
         }
-        return nil
+        return parts.isEmpty ? "none" : parts.joined(separator: "; ")
     }
 
     static func clean(_ title: String) -> String {

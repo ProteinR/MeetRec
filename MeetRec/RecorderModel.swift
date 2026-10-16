@@ -1198,7 +1198,7 @@ final class RecorderModel: ObservableObject {
         lastTitleCheck = Date()
         let title = MeetingTitle.teamsMeeting()
         if let title, title != meetingTitle {
-            Log.info("Recording title: \"\(title)\"")
+            Log.info("Recording title: \"\(title)\" (Teams windows: \(MeetingTitle.describeTeamsWindows()))")
             meetingTitle = title
         }
     }
@@ -1436,6 +1436,7 @@ final class RecorderModel: ObservableObject {
         var model = [CChar](repeating: 0, count: max(size, 1))
         sysctlbyname("hw.model", &model, &size, nil, 0)
         Log.info("──────── MeetRec \(version) launched, macOS \(ProcessInfo.processInfo.operatingSystemVersionString), \(String(cString: model)), log: \(Log.fileURL.path)")
+        Log.debug("Teams windows: \(MeetingTitle.describeTeamsWindows())")
         Log.info("Permissions: screen=\(CGPreflightScreenCaptureAccess() ? "granted" : "not granted") microphone=\(Self.describe(AVCaptureDevice.authorizationStatus(for: .audio)))")
     }
 
