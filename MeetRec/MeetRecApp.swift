@@ -28,7 +28,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Started by macOS at login or by the crash watchdog: stay quiet, no panel.
     private var launchedInBackground = false
 
+    /// Unit tests use the app as their host: then nothing starts (no watchdog, hot keys, detector).
+    static let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+
     func applicationWillFinishLaunching(_ notification: Notification) {
+        guard !Self.isRunningTests else { return }
         // The launch Apple event is only available this early.
         let event = NSAppleEventManager.shared().currentAppleEvent
         let loginItem = event?.eventID == AEEventID(kAEOpenApplication)
@@ -43,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !Self.isRunningTests else { return }
         let model = RecorderModel.shared
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.target = self
@@ -110,7 +115,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Quitting while recording (logout, shutdown, `install.sh`) first closes the file properly.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        MainActor.assumeIsolated {
+        guard !Self.isRunningTests else { return .terminateNow }
+        return MainActor.assumeIsolated {
             let model = RecorderModel.shared
             guard model.isRecording || model.isBusy else { return .terminateNow }
             Log.warning("Quit requested while recording: finishing the file first")
@@ -126,6 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard !Self.isRunningTests else { return false }
         Log.info("App reopened, showing panel")
         Task { @MainActor in self.showPanel() }
         return false

@@ -185,7 +185,8 @@ struct HealthTracker {
         }
         // Audio buffers arrive even in silence, so with any audio track the file must keep growing.
         // Video-only recordings of a static screen legitimately stand still.
-        let expectsGrowth = (microphoneOn && status.lastMicBuffer != nil) || (systemAudioOn && status.lastSystemBuffer != nil)
+        let expectsGrowth = status.fileURL != nil
+            && ((microphoneOn && status.lastMicBuffer != nil) || (systemAudioOn && status.lastSystemBuffer != nil))
         let stalledFor = expectsGrowth ? now.timeIntervalSince(lastFileGrowth) : 0
 
         if let luma = status.frameMaxLuma, luma <= Self.blackLuma {

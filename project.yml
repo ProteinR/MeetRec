@@ -8,8 +8,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "0.2.0"
+    CURRENT_PROJECT_VERSION: "2"
     # No Apple Developer account: ad-hoc signing, no hardened runtime.
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Manual
@@ -39,3 +39,19 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dmemruk.MeetRec
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    scheme:
+      testTargets:
+        - MeetRecTests
+  # Unit tests of the logic that is easy to break (file names, transcripts, rules, health). The app is
+  # the test host but starts empty under XCTest (see AppDelegate.isRunningTests).
+  MeetRecTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/MeetRecTests
+    dependencies:
+      - target: MeetRec
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dmemruk.MeetRecTests
+        GENERATE_INFOPLIST_FILE: YES

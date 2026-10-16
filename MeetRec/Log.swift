@@ -12,8 +12,11 @@ enum Log {
     }
 
     static let fileURL: URL = {
-        let dir = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Logs/MeetRec", isDirectory: true)
+        // Unit tests log to a temporary folder, not into the real recording log.
+        let dir = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            ? FileManager.default.temporaryDirectory.appendingPathComponent("MeetRecTests", isDirectory: true)
+            : FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("Logs/MeetRec", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("meetrec.log")
     }()

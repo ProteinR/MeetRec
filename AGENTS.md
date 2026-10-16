@@ -187,6 +187,17 @@ Requires Xcode and XcodeGen. `project.yml` is the source of truth; the `.xcodepr
 ./scripts/install.sh   # build Release, re-sign, install to ~/Applications, relaunch
 ```
 
+## Tests
+
+```bash
+xcodebuild test -project MeetRec.xcodeproj -scheme MeetRec -destination 'platform=macOS' -derivedDataPath build/dd-test
+python3 -m unittest discover -s Tests   # transcribe.py helpers, no models needed
+```
+
+`Tests/MeetRecTests` covers file names and companions, tags, transcript speaker renaming, meeting
+apps and rules, and the health tracker. The app is the test host but starts empty under XCTest
+(`AppDelegate.isRunningTests`: no watchdog, hot keys or detector) and logs to a temporary folder.
+
 ## Signing and permissions (important)
 
 There is no Apple Developer account. Xcode builds ad-hoc; `install.sh` then re-signs with the local
