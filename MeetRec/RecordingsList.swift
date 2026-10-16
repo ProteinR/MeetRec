@@ -112,6 +112,9 @@ struct RecordingsSection: View {
             }
         }
         .onAppear(perform: reload)
+        // Files may have been renamed, moved or deleted in Finder since the list was read.
+        .onChange(of: model.panelVisible) { if model.panelVisible { reload() } }
+        .onChange(of: isExpanded) { if isExpanded { reload() } }
         .onChange(of: model.lastFile) { reload() }
         .onChange(of: model.folderPath) { reload() }
         .onChange(of: transcriber.transcriptsVersion) { reload() }
