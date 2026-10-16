@@ -585,7 +585,27 @@ struct ContentView: View {
     }
 
     /// Live level of the chosen microphone, so a silent or wrong device is obvious before recording.
+    @ViewBuilder
     private var micPreview: some View {
+        if micMonitor.waitingForCheck {
+            // Bluetooth: opening the mic switches AirPods to the headset profile and makes a Bluetooth
+            // mouse stutter, so only on request.
+            HStack(spacing: 6) {
+                Text("\(micMonitor.deviceName ?? "Микрофон"): Bluetooth")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Button("Проверить") { micMonitor.check(deviceID: model.microphoneID) }
+                    .buttonStyle(.link)
+                    .font(.caption2)
+                    .help("Включит микрофон, чтобы показать уровень. Наушники переключатся в режим гарнитуры, пока панель открыта")
+            }
+        } else {
+            micLevel
+        }
+    }
+
+    private var micLevel: some View {
         VStack(alignment: .leading, spacing: 3) {
             LevelMeter(levelDB: micMonitor.levelDB)
             Text(micPreviewText)
