@@ -323,6 +323,18 @@ enum MeetingTitle {
         return parts.isEmpty ? "none" : parts.joined(separator: "; ")
     }
 
+    /// A browser tab title without what a page changes on its own: the unread count "(13)", "•" and
+    /// emoji such as 🔊. "(3) • Английский Skysmart 🔊 - Google Chrome" → "Английский Skysmart".
+    static func tabKey(_ title: String) -> String {
+        var text = title
+        for suffix in appSuffixes {
+            if let range = text.range(of: suffix) { text = String(text[..<range.lowerBound]) }
+        }
+        if let count = text.range(of: #"^\s*\(\d+\)"#, options: .regularExpression) { text.removeSubrange(count) }
+        let kept = text.unicodeScalars.map { CharacterSet.alphanumerics.contains($0) ? Character($0) : " " }
+        return String(kept).split(separator: " ").joined(separator: " ")
+    }
+
     static func clean(_ title: String) -> String {
         var text = title
         for suffix in appSuffixes {

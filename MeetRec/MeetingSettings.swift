@@ -76,6 +76,7 @@ struct BrowserRulesEditor: View {
             Text("Браузер: записывать без вопроса, если в заголовке вкладки есть").font(.caption.weight(.semibold))
                 .padding(.top, 4)
             ForEach(model.browserRules) { rule in
+                VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     TextField("Текст вкладки", text: binding(rule, \.keyword))
                         .textFieldStyle(.roundedBorder)
@@ -90,6 +91,11 @@ struct BrowserRulesEditor: View {
                     .buttonStyle(.borderless)
                     .help("Убрать правило")
                 }
+                Toggle("Собеседник один (в транскрипте все, кроме меня, — один человек)", isOn: oneOther(rule))
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+                    .help("Например, урок: если голос преподавателя меняется со связью, он не распадётся на двух спикеров")
+                }
             }
             Button {
                 model.browserRules.append(BrowserRule(keyword: "", title: ""))
@@ -97,11 +103,20 @@ struct BrowserRulesEditor: View {
                 Label("Добавить сайт", systemImage: "plus.circle.fill")
             }
             .buttonStyle(.borderless)
-            Text("MeetRec видит заголовок только активной вкладки каждого окна браузера: если в начале звонка открыта другая вкладка (например, словарь), появится обычный вопрос. Название записи попадёт в имя файла после даты.")
+            Text("MeetRec видит заголовок только активной вкладки каждого окна браузера: если в начале звонка открыта другая вкладка (например, словарь), появится обычный вопрос. Название записи попадёт в имя файла после даты. Несколько вариантов текста — через запятую.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private func oneOther(_ rule: BrowserRule) -> Binding<Bool> {
+        Binding(get: { rule.oneOther == true }, set: { value in
+            var rules = model.browserRules
+            guard let index = rules.firstIndex(where: { $0.id == rule.id }) else { return }
+            rules[index].oneOther = value
+            model.browserRules = rules
+        })
     }
 
     private func binding(_ rule: BrowserRule, _ field: WritableKeyPath<BrowserRule, String>) -> Binding<String> {

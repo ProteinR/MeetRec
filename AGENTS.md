@@ -120,7 +120,11 @@ What MeetRec does instead:
 - Browser rules (`browserAutoRules`): text in a browser window title (active tab) → record without
   asking, with an optional file title, e.g. "Vimbox" → "Skyeng" for English lessons. Such recordings
   also get the xattr `com.dmemruk.MeetRec.rule = <rule id>`, and copy rules can target a browser
-  rule (`rule:<id>`), so e.g. Skyeng lessons are copied to their own folder.
+  rule (`rule:<id>`), so e.g. Skyeng lessons are copied to their own folder. A rule's text may hold
+  several variants separated by commas ("Vimbox, Skysmart": Skyeng lessons show either). A rule can
+  be marked "Собеседник один": its recordings are transcribed with `--one-other`, so everyone not
+  taken as the user becomes one speaker (a teacher's voice changes with a bad connection and
+  diarization splits it).
 - Settings live on a separate page behind the gear (general: folder, log, launch at login,
   watchdog; video; transcription incl. copy rules; meetings incl. browser rules; menu bar look with
   a preview). The main page keeps the daily things: no transcription block (progress is per recording in
@@ -156,7 +160,12 @@ What MeetRec does instead:
 
 - Countdown before the automatic stop (the app released the mic, 15 s): grey seconds after the
   timer ("34:12 · 9") and a panel banner with "Остановить сейчас" / "Продолжить запись" (then it
-  keeps running like a manual recording). Taking the mic again cancels it.
+  keeps running like a manual recording). Taking the mic again cancels it. In the first minute of a
+  recording a meeting end does not stop it: it waits until the minute is over and stops only if the
+  app has not taken the mic back (calls drop the mic for a moment while connecting). A browser
+  call's tab is remembered at the start (rule match, else the frontmost browser window; title
+  normalised by `MeetingTitle.tabKey`): while a browser window still shows it, a released mic does
+  not end the call (lessons mute for minutes while listening); closing or leaving the tab does.
 - Each meeting app has a mode in settings, "Записывать" (record by itself, with the countdown) or
   "Спрашивать" (the "Записать?" question); defaults: Teams records, browser and Telegram ask
   (`meetingAppModes`, `RecorderModel.asks(_:)`). Browser site rules show while the browser asks.
@@ -179,8 +188,24 @@ What MeetRec does instead:
 
 Planned next: Zoom and other apps once checked for false positives. Later: an own viewer window in
 MeetRec (video, the list of markers and the transcript side by side; clicking a line or a marker jumps
-there) instead of handing markers to QuickTime. Also later: a screenshot tool like Shottr (capture an
-area/window, then annotate: blur/pixelate parts, arrows, outlines (rectangle/ellipse), text).
+there) instead of handing markers to QuickTime.
+
+Planned next: screenshots like Shottr (agreed 2026-10-16):
+
+- ⌘⇧4 (the owner has macOS's own area shortcut turned off; Shottr uses it today) takes an area
+  screenshot. The screen is not dimmed at first; only the cursor turns into a crosshair. Once a
+  selection is being dragged, everything outside it dims and the size in pixels shows next to it.
+  Esc cancels.
+- After the capture: no thumbnail for now. The image is copied to the clipboard and saved as PNG
+  to a folder, each step switchable in settings ("Копировать в буфер", "Сохранять в папку" + the
+  folder). File names start with the timestamp like recordings: `2026-10-16 14-03-22.png`.
+- Main page: an accordion "Скриншоты" under "Записи" with the last five as thumbnails and a folder
+  button. Right click on a thumbnail: "Редактировать", "Копировать", "Распознать текст",
+  "Показать в Finder", "В корзину".
+- "Редактировать" opens the screenshot in a window with a small toolbar: arrow, rectangle, ellipse,
+  text, blur (pixelate), crop, OCR (Vision, local, Russian + English: select an area or take the
+  whole image, the text goes to the clipboard), colours, undo; then copy / save.
+- Settings get a "Скриншоты" section: hotkey, copy, save, folder.
 
 Principles: small, native (Swift, ScreenCaptureKit, no Electron, no third-party Swift packages),
 dependable over feature-rich. Prefer fewer features, and never risk losing a recording.

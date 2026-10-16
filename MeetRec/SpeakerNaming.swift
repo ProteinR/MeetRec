@@ -19,12 +19,11 @@ struct RunSpeaker: Identifiable, Equatable {
 /// transcriptions recognise them, and the transcript is updated.
 enum SpeakerNaming {
     enum Failure: LocalizedError {
-        case noRun, noEmbedding(String), ambiguous(String)
+        case noRun, noEmbedding(String)
         var errorDescription: String? {
             switch self {
             case .noRun: return "Нет данных о голосах: транскрибируйте запись с разбивкой по ролям"
             case .noEmbedding(let label): return "Нет отпечатка голоса для \(label)"
-            case .ambiguous(let name): return "Имя «\(name)» стоит у нескольких спикеров — в тексте их не различить"
             }
         }
     }
@@ -86,10 +85,9 @@ enum SpeakerNaming {
         transcriber.loadSpeakers()
 
         guard oldName != name else { return }
-        if names.filter({ $0.key != label && $0.value == oldName }).count > 0 { throw Failure.ambiguous(oldName) }
-
-        // 2. Diarization record, so the list shows the new name.
-        names[label] = name
+        // 2. Diarization record, so the list shows the new name. Speakers sharing the old name are one
+        // person in the text (a "one other person" call, the user heard in two voices): all renamed.
+        for (other, value) in names where value == oldName { names[other] = name }
         run["names"] = names
         try JSONSerialization.data(withJSONObject: run).write(to: runURL(for: recording), options: .atomic)
 

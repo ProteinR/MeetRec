@@ -168,6 +168,10 @@ final class Transcriber: ObservableObject {
         // Whoever speaks into the microphone track is the user, whatever the voice match says.
         let me = myName.trimmingCharacters(in: .whitespaces)
         if !me.isEmpty { arguments += ["--me", me] }
+        if let ruleID = RecordingTag.rule(of: file),
+           BrowserRule.saved().first(where: { $0.id.uuidString == ruleID })?.oneOther == true {
+            arguments.append("--one-other")
+        }
         Log.info("Transcription started: \(file.lastPathComponent) diarization=\(diarization) language=\(language.isEmpty ? "auto" : language) → \(output.path)", "transcribe")
 
         Task {

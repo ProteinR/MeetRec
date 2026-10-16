@@ -94,6 +94,9 @@ final class MeetingDetector {
     /// The meeting's app released the microphone: (app, since) until the meeting ends (`endAfter`);
     /// nil when it takes the mic again or the meeting has ended. Drives the stop countdown.
     var onEnding: ((MeetingApp, Date)?) -> Void = { _ in }
+    /// The meeting goes on although its app released the microphone (a browser call whose tab is
+    /// still open: the user muted the mic to listen). Asked only while the mic is released.
+    var keepsMeeting: (MeetingApp) -> Bool = { _ in false }
 
     private var enabledApps: [MeetingApp] = []
     private var timer: Timer?
@@ -102,6 +105,8 @@ final class MeetingDetector {
     private var inactiveSince: Date?
     private var meetingApp: MeetingApp?
     private var lastHolders: Set<String> = []
+    /// `keepsMeeting` said yes since the mic was released (logged once).
+    private var kept = false
     private let ownPID = ProcessInfo.processInfo.processIdentifier
 
     var isRunning: Bool { timer != nil }
@@ -131,6 +136,7 @@ final class MeetingDetector {
         activeSince = nil
         inactiveSince = nil
         meetingApp = nil
+        kept = false
         onStatus?(nil)
         Log.info("Meeting detection off", "meetings")
     }
@@ -149,6 +155,7 @@ final class MeetingDetector {
         if let holding {
             if inactiveSince != nil, meetingApp != nil { onEnding(nil) }
             inactiveSince = nil
+            kept = false
             if activeApp != holding {
                 activeApp = holding
                 activeSince = now
@@ -176,7 +183,21 @@ final class MeetingDetector {
                 activeSince = nil
                 if meetingApp == nil { onPending(nil) }
             }
-            if let meeting = meetingApp {
+            if let meeting = meetingApp, keepsMeeting(meeting) {
+                if inactiveSince != nil {
+                    inactiveSince = nil
+                    onEnding(nil)
+                }
+                if !kept {
+                    kept = true
+                    Log.info("\(meeting.name): microphone off, but the call tab is still open; the call goes on", "meetings")
+                }
+                onStatus?("Микрофон выключен · вкладка звонка открыта")
+            } else if let meeting = meetingApp {
+                if kept {
+                    kept = false
+                    Log.info("\(meeting.name): the call tab is gone", "meetings")
+                }
                 if inactiveSince == nil {
                     inactiveSince = now
                     onEnding((meeting, now))

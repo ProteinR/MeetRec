@@ -43,6 +43,9 @@ final class TranscriptAndRulesTests: XCTestCase {
         XCTAssertEqual(MeetingTitle.clean("Weekly sync | Microsoft Teams"), "Weekly sync")
         XCTAssertEqual(MeetingTitle.clean("Weekly sync | Calendar | Microsoft Teams"), "Weekly sync")
         XCTAssertEqual(MeetingTitle.clean("(11) Vimbox - Google Chrome"), "(11) Vimbox")
+        XCTAssertEqual(MeetingTitle.tabKey("(3) • Английский Skysmart 🔊 - Google Chrome"), "Английский Skysmart")
+        XCTAssertEqual(MeetingTitle.tabKey("Английский Skysmart"), "Английский Skysmart")
+        XCTAssertEqual(MeetingTitle.tabKey("🔊"), "")
     }
 
     func testMeetingAppsMatchTheirProcesses() throws {

@@ -16,7 +16,7 @@ Human-readable diagnostics go to stderr, which the app writes to its log.
 
 Commands:
   download                         fetch both models (and build the uv environment)
-  transcribe <recording> --output <md> [--no-diarization] [--language xx] [--speakers file] [--me Name]
+  transcribe <recording> --output <md> [--no-diarization] [--language xx] [--speakers file] [--me Name] [--one-other]
   enroll-sample <wav> --name <Name> --speakers <file>
 """
 import argparse
@@ -307,6 +307,19 @@ def name_microphone_speakers(names, shares, me, min_share=0.6, min_seconds=1.0):
     return result, mine
 
 
+def merge_other_side(names, speaking, me):
+    """A one-on-one call (a lesson): everyone who is not the user is the one other person, even when
+    diarization split them (a voice changes when the connection gets worse). They take the name of
+    whoever of them was recognised by voice, else of the one who spoke most; the user stays as is."""
+    others = sorted((label for label in names if not (me and names[label] == me)),
+                    key=lambda label: speaking.get(label, 0.0), reverse=True)
+    if len(others) < 2:
+        return names
+    known = [label for label in others if not names[label].startswith("Speaker ")]
+    name = names[known[0]] if known else "Speaker 1"
+    return {label: (name if label in others else value) for label, value in names.items()}
+
+
 def assign_speaker(segment, turns):
     best, overlap = None, 0.0
     for turn in turns:
@@ -413,11 +426,16 @@ def transcribe(args):
             for label, (share, seconds) in sorted(shares.items()):
                 scores[label]["microphone"] = round(share, 2)
                 log(f"{label}: {share:.0%} of {seconds:.0f}s through the microphone{' → ' + args.me if label in mine else ''}")
-        lines, dropped = build_lines(asr["segments"], diarization["turns"], names, args.me, levels)
-        engine = f"{ENGINE} + pyannote community-1"
         speaking = {}
         for turn in diarization["turns"]:
             speaking[turn["speaker"]] = speaking.get(turn["speaker"], 0.0) + turn["end"] - turn["start"]
+        if args.one_other:
+            merged = merge_other_side(names, speaking, args.me)
+            if merged != names:
+                log(f"One other person: {', '.join(sorted(l for l in names if merged[l] != names[l]))} → {merged}")
+            names = merged
+        lines, dropped = build_lines(asr["segments"], diarization["turns"], names, args.me, levels)
+        engine = f"{ENGINE} + pyannote community-1"
         for label in sorted(speaking, key=speaking.get, reverse=True):
             match = scores[label]
             speakers_summary.append({"label": label, "name": names[label], "minutes": round(speaking[label] / 60, 1),
@@ -492,6 +510,7 @@ def main():
     t.add_argument("--runs-dir")
     t.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD)
     t.add_argument("--me", default="", help="the user's name: whoever speaks into the microphone track")
+    t.add_argument("--one-other", action="store_true", help="a one-on-one call: everyone but the user is one person")
     t.set_defaults(handler=transcribe)
 
     e = commands.add_parser("enroll-sample")

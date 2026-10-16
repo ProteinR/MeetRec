@@ -200,6 +200,7 @@ final class RecorderModel: ObservableObject {
         detector.onMeetingEnded = { [weak self] app in self?.meetingEnded(app) }
         detector.onPending = { [weak self] pending in self?.pendingChanged(pending) }
         detector.onEnding = { [weak self] ending in self?.endingChanged(ending) }
+        detector.keepsMeeting = { [weak self] app in self?.callTabOpen(app) ?? false }
         configureDetector()
         recorder.onUnexpectedStop = { [weak self] error, file in
             self?.recordingInterrupted(error, file: file)
@@ -657,18 +658,18 @@ final class RecorderModel: ObservableObject {
         get { (try? JSONDecoder().decode([BrowserRule].self, from: Data(browserRulesJSON.utf8))) ?? [] }
         set {
             browserRulesJSON = (try? String(decoding: JSONEncoder().encode(newValue), as: UTF8.self)) ?? "[]"
-            Log.info("Browser auto-record rules: " + newValue.map { "\"\($0.keyword)\" → \"\($0.title)\"" }.joined(separator: "; "), "meetings")
+            Log.info("Browser auto-record rules: " + newValue.map { "\"\($0.keyword)\" → \"\($0.title)\"\($0.oneOther == true ? " (1:1)" : "")" }.joined(separator: "; "), "meetings")
         }
     }
 
     /// A rule whose text appears in the title of a browser window (its active tab).
     private func matchingBrowserRule(for app: MeetingApp) -> BrowserRule? {
-        let rules = browserRules.filter { !$0.keyword.trimmingCharacters(in: .whitespaces).isEmpty }
+        let rules = browserRules.filter { !$0.keywords.isEmpty }
         guard !rules.isEmpty else { return nil }
         let titles = MeetingTitle.windows().filter { app.matches($0.bundleID) }.map(\.title)
         Log.debug("Browser window titles: " + titles.map { "\"\($0)\"" }.joined(separator: ", "), "meetings")
         return rules.first { rule in
-            titles.contains { $0.localizedCaseInsensitiveContains(rule.keyword.trimmingCharacters(in: .whitespaces)) }
+            titles.contains(where: rule.matches)
         }
     }
 
@@ -950,11 +951,54 @@ final class RecorderModel: ObservableObject {
             Log.info("Meeting in \(app.name) ended; the user chose to keep recording", "meetings")
             return
         }
+        // A call often drops the mic for a moment right at its start (a web lesson reconnecting): the
+        // user said "Записать" and the call came back 20 s later, but a 15-second file was saved and
+        // the same call was asked about again. A young recording waits for the app to come back.
+        if let startedAt, case let age = Date().timeIntervalSince(startedAt), age < Self.youngRecording {
+            let wait = Self.youngRecording - age
+            Log.info("Meeting in \(app.name) ended \(Int(age)) s into the recording; waiting \(Int(wait)) s for it to come back", "meetings")
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
+                guard let self, self.isRecording, self.startedAt == startedAt, self.autoStartedAppID == app.id,
+                      !self.autoStopDisabled else { return }
+                guard self.detector.currentMeeting?.id != app.id else {
+                    Log.info("\(app.name) took the microphone again; the recording goes on", "meetings")
+                    return
+                }
+                Log.info("Auto-stopping recording: \(app.name) meeting did not come back", "meetings")
+                self.stop(reason: app.asks ? "звонок в \(Self.callPlace(app)) завершился" : "встреча в \(Self.callPlace(app)) завершилась")
+            }
+            return
+        }
         Log.info("Auto-stopping recording: \(app.name) meeting ended", "meetings")
         // The "Запись сохранена" toast makes the end obvious (see stop()).
         stop(reason: app.asks ? "звонок в \(Self.callPlace(app)) завершился" : "встреча в \(Self.callPlace(app)) завершилась")
 
     }
+
+    // MARK: - Browser call tab
+
+    /// The tab of a browser call being recorded (`MeetingTitle.tabKey`). While a browser window still
+    /// shows it, the call goes on with the mic released: lessons mute the mic for minutes while
+    /// listening to audio. Closing the tab (or switching away from it) ends the call as usual.
+    private var callTab: String?
+
+    /// The tab the call is in: the window matching a browser rule, else the frontmost browser window.
+    private func rememberCallTab(_ app: MeetingApp) {
+        let windows = MeetingTitle.windows().filter { app.matches($0.bundleID) }
+        let rules = browserRules
+        let window = windows.first { window in rules.contains { $0.matches(window.title) } } ?? windows.first
+        let key = window.map { MeetingTitle.tabKey($0.title) } ?? ""
+        callTab = key.isEmpty ? nil : key
+        Log.info("Call tab: \(callTab.map { "\"\($0)\"" } ?? "unknown")", "meetings")
+    }
+
+    private func callTabOpen(_ app: MeetingApp) -> Bool {
+        guard isRecording, autoStartedAppID == app.id, !autoStopDisabled, let callTab else { return false }
+        return MeetingTitle.windows().contains { app.matches($0.bundleID) && MeetingTitle.tabKey($0.title) == callTab }
+    }
+
+    /// A meeting recording younger than this is not stopped as soon as the meeting ends.
+    private static let youngRecording: TimeInterval = 60
 
     func start(autoApp: MeetingApp? = nil) {
         guard !isRecording, !isBusy else {
@@ -1016,6 +1060,7 @@ final class RecorderModel: ObservableObject {
                 DisplayHighlight.shared.flash(displayID: display.id)
                 autoStartedBy = autoApp?.name
                 autoStartedAppID = autoApp?.id
+                if let autoApp, autoApp.id == "browser" { rememberCallTab(autoApp) }
                 didStart()
                 if let free, free < DiskSpace.warnBelow {
                     alert("disk-low", when: true, title: "Мало места на диске",
@@ -1405,6 +1450,7 @@ final class RecorderModel: ObservableObject {
         recordingDisplayID = nil
         autoStartedBy = nil
         autoStartedAppID = nil
+        callTab = nil
         ruleTitle = nil
         captureWindow = nil
         Watchdog.recordingStopped()
@@ -1478,8 +1524,26 @@ final class RecorderModel: ObservableObject {
 /// "If a browser tab titled like this has a call, record it without asking", e.g. "Vimbox" → "Skyeng".
 struct BrowserRule: Codable, Identifiable, Equatable {
     var id = UUID()
-    /// Text looked for in browser window titles (the active tab), case-insensitive.
+    /// Text looked for in browser window titles (the active tab), case-insensitive; several
+    /// separated by commas ("Vimbox, Skysmart": the same lessons show either).
     var keyword: String
     /// Put into the file name after the timestamp; empty keeps just the date.
     var title: String
+    /// A one-on-one call (a lesson): in the transcript everyone not heard through the microphone is
+    /// one person, even when diarization split them because their voice changed with the connection.
+    var oneOther: Bool? = nil
+
+    var keywords: [String] {
+        keyword.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+
+    func matches(_ title: String) -> Bool {
+        keywords.contains { title.localizedCaseInsensitiveContains($0) }
+    }
+
+    /// The saved rules, for code without the model (the transcriber).
+    static func saved() -> [BrowserRule] {
+        let json = UserDefaults.standard.string(forKey: "browserAutoRules") ?? ""
+        return (try? JSONDecoder().decode([BrowserRule].self, from: Data(json.utf8))) ?? []
+    }
 }

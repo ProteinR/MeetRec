@@ -103,6 +103,20 @@ class MicrophoneTests(unittest.TestCase):
         lines, _ = transcribe.build_lines(segments, turns, {"A": "Speaker 1"}, "Dima", (microphone, system))
         self.assertEqual([text for _, text in lines], ["[00:00:00] Dima: test", "[00:00:02] Speaker 1: test"])
 
+    def test_one_other_person_merges_the_other_side(self):
+        # Today's lesson: the teacher split in two when her connection got worse.
+        names = {"S0": "Speaker 1", "S1": "Speaker 2", "S2": "Dima", "S3": "Dima"}
+        speaking = {"S0": 87.0, "S1": 245.0, "S2": 151.0, "S3": 68.0}
+        self.assertEqual(transcribe.merge_other_side(names, speaking, "Dima"),
+                         {"S0": "Speaker 1", "S1": "Speaker 1", "S2": "Dima", "S3": "Dima"})
+        # A recognised voice names the whole other side.
+        names = {"S0": "Юлия", "S1": "Speaker 1", "S2": "Dima"}
+        self.assertEqual(transcribe.merge_other_side(names, {"S1": 9.0, "S0": 1.0}, "Dima"),
+                         {"S0": "Юлия", "S1": "Юлия", "S2": "Dima"})
+        # Nothing to merge.
+        names = {"S0": "Speaker 1", "S2": "Dima"}
+        self.assertEqual(transcribe.merge_other_side(names, {}, "Dima"), names)
+
     def test_without_my_name_nothing_changes(self):
         names = {"A": "Speaker 1"}
         self.assertEqual(transcribe.name_microphone_speakers(names, {"A": (1.0, 5.0)}, "")[0], names)
