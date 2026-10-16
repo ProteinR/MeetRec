@@ -9,6 +9,9 @@ final class HotKey {
     private var handlerRef: EventHandlerRef?
     private let id: UInt32
     private let action: () -> Void
+    /// `RegisterEventHotKey`'s result: not `noErr` when another app (or macOS) already owns the keys.
+    private(set) var status: OSStatus = noErr
+    var isRegistered: Bool { status == noErr && hotKeyRef != nil }
 
     /// - Parameters:
     ///   - keyCode: virtual key code, e.g. `kVK_ANSI_R`.
@@ -34,7 +37,7 @@ final class HotKey {
         }, 1, &eventType, Unmanaged.passUnretained(self).toOpaque(), &handlerRef)
 
         let hotKeyID = EventHotKeyID(signature: Self.signature, id: id)
-        RegisterEventHotKey(UInt32(keyCode), UInt32(modifiers), hotKeyID, GetApplicationEventTarget(), 0, &hotKeyRef)
+        status = RegisterEventHotKey(UInt32(keyCode), UInt32(modifiers), hotKeyID, GetApplicationEventTarget(), 0, &hotKeyRef)
     }
 
     deinit {

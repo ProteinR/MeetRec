@@ -1,4 +1,5 @@
 import AVFoundation
+import Carbon
 import Combine
 import Quartz
 import SwiftUI
@@ -62,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .environmentObject(Transcriber.shared))
         panel.onVisibilityChange = { visible in model.panelVisible = visible }
         island = IslandController(model: model)
+        Screenshotter.shared.start()
         toasts = ToastController(model: model) { [weak self] in
             guard let window = self?.statusItem.button?.window, Self.isOnScreen(window) else { return nil }
             return window.frame
@@ -218,6 +220,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         menu.addItem(QuickMenuItem("Открыть папку с записями") { model.openFolder() })
         menu.addItem(QuickMenuItem(CameraMirror.shared.isShown ? "Закрыть зеркало" : "Как я выгляжу") { CameraMirror.shared.toggle() })
+        for action in ScreenAction.allCases {
+            let shots = Screenshotter.shared
+            let combo = shots.combo(action)
+            var flags: NSEvent.ModifierFlags = []
+            if combo.modifiers & cmdKey != 0 { flags.insert(.command) }
+            if combo.modifiers & shiftKey != 0 { flags.insert(.shift) }
+            if combo.modifiers & optionKey != 0 { flags.insert(.option) }
+            if combo.modifiers & controlKey != 0 { flags.insert(.control) }
+            let key = shots.isEnabled(action) && combo.label.count == 1 ? combo.label.lowercased() : ""
+            menu.addItem(QuickMenuItem(action.title, key: key, modifiers: flags) {
+                // After the menu has closed, so it is not in the picture.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { shots.capture(action) }
+            })
+        }
         menu.addItem(.separator())
         menu.addItem(QuickMenuItem("Настройки…", key: ",") { [weak self] in
             self?.showPanel()
@@ -374,6 +390,8 @@ struct ContentView: View {
                                    isExpanded: expanded("meetings")) { MeetingSettings() }
                 CollapsibleSection(title: "Значок в меню", icon: "menubar.rectangle", summary: appearanceSummary,
                                    isExpanded: expanded("appearance")) { AppearanceSettings() }
+                CollapsibleSection(title: "Скриншоты", icon: "camera.viewfinder", summary: ScreenshotSettings.summary,
+                                   isExpanded: expanded("screenshots-settings")) { ScreenshotSettings() }
             }
         }
     }
@@ -449,6 +467,7 @@ struct ContentView: View {
                 // The recordings folder opens from the search row inside; quitting is in the menu bar
                 // item's right-click menu.
                 RecordingsSection(isExpanded: expanded("recordings"))
+                ScreenshotsSection(isExpanded: expanded("screenshots"), close: close)
             }
             if let notice = model.stopNotice, !model.isRecording, frozenLayout == nil {
                 LastRecordingNotice(notice: notice, file: model.lastFile) { model.stopNotice = nil }

@@ -186,26 +186,46 @@ What MeetRec does instead:
   and a new recording continues on the available screen as the same kind (auto meeting / rule), at
   most once per 2 minutes.
 
+- Screenshots like Shottr (`Screenshots.swift`, `AreaSelector.swift`, `ScreenshotEditor.swift`,
+  `ScreenshotViews.swift`). Two shortcuts, both changeable in settings (click it, press a new one
+  with ⌘/⌥/⌃, Esc cancels, ↺ restores; the same keys for both are refused; a taken Carbon hot key,
+  e.g. still Shottr's, shows "Повторить"): ⇧⌘4 screenshot (macOS's own area shortcut has to be off)
+  and ⇧⌘2 text from the screen (OCR straight to the clipboard, no file). Pressing one first freezes
+  every screen at once (`FrozenScreen`: SCK picture without MeetRec's own windows + the window
+  list; ~0.1 s), then the crosshair goes over the frozen pictures (a layer's contents; selection,
+  tint and badges are shape/text layers: a self-drawing full-screen view left a 46 MB 16-bit
+  backing store cached on XDR screens; crops are copied out so the frozen screens go right away), so the other app's menus, tooltips and hover states
+  (closed when MeetRec takes focus) and a meeting's video stay as they were. Drag = area (outside
+  dims, size in pixels); click = the window under the cursor (tinted while hovering, the cursor is
+  a camera there) with its title bar on a 12 pt strip of wallpaper (the desktop picture alone is
+  captured on that click; rounded corners, nothing that was behind the window shows) or the whole screen on the desktop; Esc or right click cancels; focus goes back to the previous app.
+  Screenshots are copied (PNG + TIFF at point size) and saved as `<timestamp>.png` with the screen
+  scale in its DPI (format "Авто (PNG/JPEG)", the default: JPEG q 0.9 when it is ≤ 40 % of the PNG,
+  i.e. photos and gradients; text stays PNG; edits keep the file's format; the clipboard always gets
+  PNG), to "Скриншоты" in the recordings folder or a chosen one; copy, save and the toast are
+  switchable (with both off it is still copied). The toast shows a preview: drag it into a chat or
+  a browser's upload field (the file itself; unsaved shots get a temporary copy in
+  `$TMPDIR/MeetRec Screenshots`, cleared at launch); it stays while dragging and goes after a drop;
+  a click or "Редактировать" edits. OCR runs without language correction (it broke code and
+  e-mails). The main page has "Скриншоты" under "Записи": "Снимок" and "Текст" buttons, the last
+  five as thumbnails sorted by the name's timestamp (click edits, drag into a chat, right click:
+  edit, copy, recognise text, Finder, Trash). The editor: arrow (A; a middle point bends it, off
+  centre the bend moves towards that end, back onto the line it snaps straight), rectangle (R),
+  ellipse (O), caption (T), steps (N: numbered circles 1, 2, 3…, renumbered after a delete), blur
+  (B: pixelate only that area, averaged squares 6–16 pt, default 8 so text cannot be depixelated;
+  slider), crop (C), OCR (X: an area or "Весь текст"), colours 1–4, ⌘Z / ⇧⌘Z. Every mark stays an
+  object: click selects it (lines by their stroke, so one can draw inside a frame), drag moves it,
+  handles reshape it, a colour recolours it, Delete removes it, Esc deselects or closes the window.
+  The keys work by position (Russian layout too) and not while a caption is typed. ⌘C copies the
+  result, saves it and closes; ⌘S or closing writes it over the same file (a caption still being
+  typed is kept). Marks stay separate from the original pixels until then.
+
 Planned next: Zoom and other apps once checked for false positives. Later: an own viewer window in
 MeetRec (video, the list of markers and the transcript side by side; clicking a line or a marker jumps
 there) instead of handing markers to QuickTime.
 
-Planned next: screenshots like Shottr (agreed 2026-10-16):
-
-- ⌘⇧4 (the owner has macOS's own area shortcut turned off; Shottr uses it today) takes an area
-  screenshot. The screen is not dimmed at first; only the cursor turns into a crosshair. Once a
-  selection is being dragged, everything outside it dims and the size in pixels shows next to it.
-  Esc cancels.
-- After the capture: no thumbnail for now. The image is copied to the clipboard and saved as PNG
-  to a folder, each step switchable in settings ("Копировать в буфер", "Сохранять в папку" + the
-  folder). File names start with the timestamp like recordings: `2026-10-16 14-03-22.png`.
-- Main page: an accordion "Скриншоты" under "Записи" with the last five as thumbnails and a folder
-  button. Right click on a thumbnail: "Редактировать", "Копировать", "Распознать текст",
-  "Показать в Finder", "В корзину".
-- "Редактировать" opens the screenshot in a window with a small toolbar: arrow, rectangle, ellipse,
-  text, blur (pixelate), crop, OCR (Vision, local, Russian + English: select an area or take the
-  whole image, the text goes to the clipboard), colours, undo; then copy / save.
-- Settings get a "Скриншоты" section: hotkey, copy, save, folder.
+Planned next for screenshots: a magnifier at the crosshair, editing a caption's text after it is
+placed, asking before closing the editor overwrites the original (decide with the owner).
 
 Principles: small, native (Swift, ScreenCaptureKit, no Electron, no third-party Swift packages),
 dependable over feature-rich. Prefer fewer features, and never risk losing a recording.
@@ -271,7 +291,7 @@ python3 -m unittest discover -s Tests   # transcribe.py helpers, no models neede
 ```
 
 `Tests/MeetRecTests` covers file names and companions, tags, transcript speaker renaming, meeting
-apps and rules, and the health tracker. The app is the test host but starts empty under XCTest
+apps and rules, the health tracker, and screenshot coordinates and files. The app is the test host but starts empty under XCTest
 (`AppDelegate.isRunningTests`: no watchdog, hot keys or detector) and logs to a temporary folder.
 
 ## Signing and permissions (important)

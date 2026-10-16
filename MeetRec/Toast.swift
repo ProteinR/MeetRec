@@ -6,7 +6,7 @@ import SwiftUI
 /// recording saved. Problems (silent microphone, disk full) go to macOS notifications instead,
 /// because those stay in Notification Center.
 struct Toast: Equatable, Identifiable {
-    enum Kind: Equatable { case started, stopped, info }
+    enum Kind: Equatable { case started, stopped, info, screenshot }
     enum Action: Equatable { case switchMicrophone(uid: String) }
 
     let id = UUID()
@@ -17,9 +17,11 @@ struct Toast: Equatable, Identifiable {
     var file: URL?
     /// A button next to the message ("Переключить").
     var action: Action?
+    /// Screenshot: shown instead of the icon; dragged out it drops `file` into a chat or a browser.
+    var preview: NSImage?
 
     /// How long it stays when not hovered; a suggestion waits a bit longer.
-    var duration: TimeInterval { action != nil ? 12 : (kind == .started ? 4.5 : 7) }
+    var duration: TimeInterval { action != nil ? 12 : kind == .screenshot ? 5 : (kind == .started ? 4.5 : 7) }
 }
 
 /// Shows the current toast or call question in a small floating window under the menu bar item.
@@ -46,6 +48,9 @@ final class ToastController {
     static let promptVisibleFor: TimeInterval = 25
     private var cancellables: Set<AnyCancellable> = []
 
+    /// A screenshot preview is being dragged out: the toast stays until the drop.
+    private var dragging = false
+
     init(model: RecorderModel, anchor: @escaping () -> NSRect?) {
         self.model = model
         self.anchor = anchor
@@ -61,7 +66,8 @@ final class ToastController {
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
 
-        let view = ToastView(onHover: { [weak self] inside in self?.hover(inside) })
+        let view = ToastView(onHover: { [weak self] inside in self?.hover(inside) },
+                             onDrag: { [weak self] state in self?.drag(state) })
             .environmentObject(model)
         let hosting = NSHostingView(rootView: view)
         hosting.sizingOptions = []
@@ -128,9 +134,26 @@ final class ToastController {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
+    /// Dropped somewhere: done, like Shottr's thumbnail; cancelled: the toast folds away as usual.
+    private func drag(_ state: ToastView.DragState) {
+        switch state {
+        case .began:
+            dragging = true
+            hideWork?.cancel()
+        case .ended(let dropped):
+            dragging = false
+            if dropped {
+                Log.info("Screenshot preview dropped into another app", "screenshots")
+                model.dismissToast()
+            } else {
+                hover(false)
+            }
+        }
+    }
+
     private func hover(_ inside: Bool) {
-        hovering = inside
-        if inside {
+        hovering = inside || dragging
+        if hovering {
             hideWork?.cancel()
         } else if model.toast != nil, model.callPrompt == nil {
             scheduleHide(after: 2)
@@ -152,7 +175,10 @@ final class ToastController {
 }
 
 struct ToastView: View {
+    enum DragState { case began, ended(dropped: Bool) }
+
     let onHover: (Bool) -> Void
+    let onDrag: (DragState) -> Void
     @EnvironmentObject private var model: RecorderModel
 
     var body: some View {
@@ -181,9 +207,13 @@ struct ToastView: View {
 
     private func message(_ toast: Toast) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: toast.kind == .started ? "record.circle.fill" : toast.kind == .info ? "mic.fill" : "checkmark.circle.fill")
-                .font(.system(size: 22))
-                .foregroundStyle(toast.kind == .started ? Color.red : toast.kind == .info ? Color.accentColor : Color.green)
+            if let preview = toast.preview, let file = toast.file {
+                screenshotPreview(preview, file: file)
+            } else {
+                Image(systemName: icon(toast.kind))
+                    .font(.system(size: 22))
+                    .foregroundStyle(toast.kind == .started ? Color.red : toast.kind == .info ? Color.accentColor : Color.green)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(toast.title).font(.callout.weight(.semibold))
                 if let detail = toast.detail {
@@ -195,6 +225,12 @@ struct ToastView: View {
                 Button("Переключить") { model.performToastAction(action) }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+            } else if toast.kind == .screenshot, let file = toast.file {
+                Button("Редактировать") {
+                    model.dismissToast()
+                    ScreenshotEditor.open(file)
+                }
+                .controlSize(.small)
             } else if toast.kind == .stopped, let file = toast.file {
                 Button("Показать") {
                     NSWorkspace.shared.activateFileViewerSelecting([file])
@@ -206,6 +242,33 @@ struct ToastView: View {
         .contentShape(Rectangle())
         // A click just puts it away (the panel is one click on the menu bar icon).
         .onTapGesture { model.dismissToast() }
+    }
+
+    /// Drag it into a chat or a browser's upload field; a click edits it.
+    private func screenshotPreview(_ image: NSImage, file: URL) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .aspectRatio(contentMode: .fill)
+            .frame(width: 72, height: 48)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.primary.opacity(0.2), lineWidth: 0.5))
+            .overlay(FileDragSource(file: file, image: image,
+                                    onClick: {
+                                        model.dismissToast()
+                                        ScreenshotEditor.open(file)
+                                    },
+                                    onBegin: { onDrag(.began) },
+                                    onEnd: { onDrag(.ended(dropped: $0)) }))
+            .help("Перетащи в чат или в поле загрузки; клик — редактировать")
+    }
+
+    private func icon(_ kind: Toast.Kind) -> String {
+        switch kind {
+        case .started: return "record.circle.fill"
+        case .info: return "mic.fill"
+        case .stopped: return "checkmark.circle.fill"
+        case .screenshot: return "camera.viewfinder"
+        }
     }
 
     private func prompt(_ app: MeetingApp) -> some View {
@@ -238,6 +301,65 @@ struct ToastView: View {
                 }
                 .buttonStyle(.bordered)
             }
+        }
+    }
+}
+
+/// An AppKit drag source over the toast's preview: drags the file itself (browsers' upload fields and
+/// messengers take files), works in the non-activating toast window and reports where the drag ended.
+private struct FileDragSource: NSViewRepresentable {
+    let file: URL
+    let image: NSImage
+    let onClick: () -> Void
+    let onBegin: () -> Void
+    let onEnd: (Bool) -> Void
+
+    func makeNSView(context: Context) -> SourceView { SourceView() }
+
+    func updateNSView(_ view: SourceView, context: Context) {
+        view.file = file
+        view.image = image
+        view.onClick = onClick
+        view.onBegin = onBegin
+        view.onEnd = onEnd
+    }
+
+    final class SourceView: NSView, NSDraggingSource {
+        var file: URL?
+        var image: NSImage?
+        var onClick: (() -> Void)?
+        var onBegin: (() -> Void)?
+        var onEnd: ((Bool) -> Void)?
+        private var mouseDown: NSEvent?
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
+
+        override func mouseDown(with event: NSEvent) { mouseDown = event }
+
+        override func mouseUp(with event: NSEvent) {
+            if mouseDown != nil { onClick?() }
+            mouseDown = nil
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard let down = mouseDown, let file else { return }
+            let start = down.locationInWindow, now = event.locationInWindow
+            guard hypot(now.x - start.x, now.y - start.y) >= 3 else { return }
+            mouseDown = nil
+            let item = NSDraggingItem(pasteboardWriter: file as NSURL)
+            item.setDraggingFrame(bounds, contents: image)
+            beginDraggingSession(with: [item], event: down, source: self)
+            onBegin?()
+        }
+
+        func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+            .copy
+        }
+
+        func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+            onEnd?(operation != [])
         }
     }
 }
