@@ -77,8 +77,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateStatusItem(recording: false, problem: false)
 
         // Countdown before an automatic recording: grey seconds next to the icon.
-        model.$countdown
-            .map { $0?.seconds }
+        Publishers.CombineLatest(model.$countdown.map { $0?.seconds }, model.$stopCountdown.map { $0?.seconds })
+            .map { "\($0 ?? -1) \($1 ?? -1)" }
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
@@ -154,6 +154,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .foregroundColor: NSColor.secondaryLabelColor,
                 .baselineOffset: 1,
             ])
+            if button.attributedTitle != attributed { button.attributedTitle = attributed }
+            showingCountdown = true
+        } else if recording, let stop = RecorderModel.shared.stopCountdown {
+            // The meeting ended: grey seconds until the automatic stop after the timer, "34:12 · 9".
+            let timer = style == .full ? " " + RecorderModel.shared.elapsedText : ""
+            let attributed = NSMutableAttributedString(string: timer, attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular),
+            ])
+            attributed.append(NSAttributedString(string: " · \(stop.seconds)", attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium),
+                .foregroundColor: NSColor.secondaryLabelColor,
+            ]))
             if button.attributedTitle != attributed { button.attributedTitle = attributed }
             showingCountdown = true
         } else {
@@ -389,6 +401,10 @@ struct ContentView: View {
             header
             if recordingLayout {
                 // Opened to check the recording: the status first, the stop button last, out of the way.
+                if let stop = model.stopCountdown, model.isRecording {
+                    StopCountdownBanner(countdown: stop)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
                 LiveStatusPanel()
                 Divider()
                 RecordingControls()
@@ -1057,6 +1073,51 @@ struct CountdownBanner: View {
                     Text("Не записывать").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+            }
+            .controlSize(.large)
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.06)))
+        .animation(.default, value: countdown.seconds)
+    }
+}
+
+/// "Встреча закончилась, запись остановится через 9 с" with "Остановить сейчас" / "Продолжить запись".
+struct StopCountdownBanner: View {
+    let countdown: RecorderModel.StopCountdown
+    @EnvironmentObject private var model: RecorderModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Text("\(countdown.seconds)")
+                    .font(.system(size: 15, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText(countsDown: true))
+                    .frame(width: 26, height: 26)
+                    .background(Circle().strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1.5))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("\(countdown.app.asks ? "Звонок закончился" : "Встреча закончилась"), запись остановится через \(countdown.seconds) с")
+                        .font(.callout.weight(.semibold))
+                        .contentTransition(.numericText(countsDown: true))
+                    Text("\(countdown.app.name) отпустил микрофон. Если он снова его возьмёт, запись продолжится.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            HStack(spacing: 8) {
+                Button {
+                    model.stopNow()
+                } label: {
+                    Label("Остановить сейчас", systemImage: "stop.fill").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                Button {
+                    model.keepRecording()
+                } label: {
+                    Text("Продолжить запись").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
             }
             .controlSize(.large)
         }

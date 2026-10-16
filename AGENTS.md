@@ -127,6 +127,9 @@ What MeetRec does instead:
   "the app took the mic" to the start, grey seconds next to the menu bar icon and a panel banner
   "Через N с начну записывать…" with "Записать сейчас" / "Не записывать" (skips this meeting only).
 
+- Countdown before the automatic stop (the app released the mic, 15 s): grey seconds after the
+  timer ("34:12 · 9") and a panel banner with "Остановить сейчас" / "Продолжить запись" (then it
+  keeps running like a manual recording). Taking the mic again cancels it.
 - Each meeting app has a mode in settings, "Записывать" (record by itself, with the countdown) or
   "Спрашивать" (the "Записать?" question); defaults: Teams records, browser and Telegram ask
   (`meetingAppModes`, `RecorderModel.asks(_:)`). Browser site rules show while the browser asks.

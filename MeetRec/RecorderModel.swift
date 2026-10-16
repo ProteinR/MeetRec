@@ -184,6 +184,7 @@ final class RecorderModel: ObservableObject {
         detector.onMeetingStarted = { [weak self] app in self?.meetingStarted(app) }
         detector.onMeetingEnded = { [weak self] app in self?.meetingEnded(app) }
         detector.onPending = { [weak self] pending in self?.pendingChanged(pending) }
+        detector.onEnding = { [weak self] ending in self?.endingChanged(ending) }
         configureDetector()
         recorder.onUnexpectedStop = { [weak self] error in
             Log.error("Recording stopped unexpectedly: \(Log.describe(error))")
@@ -541,6 +542,58 @@ final class RecorderModel: ObservableObject {
         Log.info("User chose not to record this \(countdown.app.name) meeting", "meetings")
     }
 
+    // MARK: - Countdown before the automatic stop
+
+    /// The seconds between "the meeting's app released the microphone" and the automatic stop.
+    struct StopCountdown: Equatable {
+        let app: MeetingApp
+        let seconds: Int
+    }
+
+    @Published private(set) var stopCountdown: StopCountdown?
+    private var stopCountdownTimer: Timer?
+    /// "Продолжить запись": this recording no longer stops with the meeting.
+    private var autoStopDisabled = false
+
+    private func endingChanged(_ ending: (MeetingApp, Date)?) {
+        cancelStopCountdown()
+        guard let (app, since) = ending, isRecording, autoStartedBy != nil, !autoStopDisabled,
+              MenuBarStyle.current != .discreet else { return }
+        Log.info("Countdown to automatic stop (\(app.name) released the microphone): \(Int(MeetingDetector.endAfter)) s", "meetings")
+        let update = { [weak self] in
+            guard let self else { return }
+            let left = Int((MeetingDetector.endAfter - Date().timeIntervalSince(since)).rounded(.up))
+            let value = StopCountdown(app: app, seconds: max(left, 1))
+            if value != self.stopCountdown { self.stopCountdown = value }
+        }
+        update()
+        stopCountdownTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+            Task { @MainActor in update() }
+        }
+    }
+
+    private func cancelStopCountdown() {
+        stopCountdownTimer?.invalidate()
+        stopCountdownTimer = nil
+        if stopCountdown != nil { stopCountdown = nil }
+    }
+
+    /// "Остановить сейчас": do not wait for the end of the countdown.
+    func stopNow() {
+        guard let countdown = stopCountdown else { return }
+        cancelStopCountdown()
+        Log.info("User stopped the recording before the stop countdown ended", "meetings")
+        stop(reason: "\(countdown.app.noun) в \(countdown.app.place) \(countdown.app.asks ? "завершился" : "завершилась")")
+    }
+
+    /// "Продолжить запись": keep recording after the meeting, like a manual recording.
+    func keepRecording() {
+        guard stopCountdown != nil else { return }
+        cancelStopCountdown()
+        autoStopDisabled = true
+        Log.info("User chose to keep recording after the meeting", "meetings")
+    }
+
     // MARK: - Browser rules ("record Skyeng without asking")
 
     var browserRules: [BrowserRule] {
@@ -835,6 +888,10 @@ final class RecorderModel: ObservableObject {
             Log.info("Meeting in \(app.name) ended; the recording was started manually, so it keeps running", "meetings")
             return
         }
+        guard !autoStopDisabled else {
+            Log.info("Meeting in \(app.name) ended; the user chose to keep recording", "meetings")
+            return
+        }
         Log.info("Auto-stopping recording: \(app.name) meeting ended", "meetings")
         // The "Запись сохранена" toast makes the end obvious (see stop()).
         stop(reason: app.asks ? "звонок в \(Self.callPlace(app)) завершился" : "встреча в \(Self.callPlace(app)) завершилась")
@@ -1127,6 +1184,8 @@ final class RecorderModel: ObservableObject {
         healthTracker = HealthTracker(startedAt: startedAt ?? Date(), microphoneOn: microphone, systemAudioOn: systemAudio,
                                       microphoneName: recordingNames.microphone, displayName: recordingNames.display)
         cancelCountdown()
+        cancelStopCountdown()
+        autoStopDisabled = false
         markers = []
         captureWindow = nil
         meetingTitle = pendingTitle
@@ -1271,6 +1330,7 @@ final class RecorderModel: ObservableObject {
         autoStartedAppID = nil
         captureWindow = nil
         Watchdog.recordingStopped()
+        cancelStopCountdown()
         _ = idleLoadSampler.sample() // the next idle average starts now, without the recording
         if let sleepActivity {
             ProcessInfo.processInfo.endActivity(sleepActivity)

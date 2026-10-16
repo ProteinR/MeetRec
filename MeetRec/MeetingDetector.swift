@@ -91,6 +91,9 @@ final class MeetingDetector {
     /// An app took the microphone and the meeting is not confirmed yet: (app, since); nil when the
     /// wait ends (meeting started, or the mic was released early). Drives the countdown.
     var onPending: ((MeetingApp, Date)?) -> Void = { _ in }
+    /// The meeting's app released the microphone: (app, since) until the meeting ends (`endAfter`);
+    /// nil when it takes the mic again or the meeting has ended. Drives the stop countdown.
+    var onEnding: ((MeetingApp, Date)?) -> Void = { _ in }
 
     private var enabledApps: [MeetingApp] = []
     private var timer: Timer?
@@ -144,6 +147,7 @@ final class MeetingDetector {
         let holding = enabledApps.first { app in holders.contains(where: app.matches) }
 
         if let holding {
+            if inactiveSince != nil, meetingApp != nil { onEnding(nil) }
             inactiveSince = nil
             if activeApp != holding {
                 activeApp = holding
@@ -173,12 +177,16 @@ final class MeetingDetector {
                 if meetingApp == nil { onPending(nil) }
             }
             if let meeting = meetingApp {
-                if inactiveSince == nil { inactiveSince = now }
+                if inactiveSince == nil {
+                    inactiveSince = now
+                    onEnding((meeting, now))
+                }
                 let released = now.timeIntervalSince(inactiveSince!)
                 if released >= Self.endAfter {
                     Log.info("Meeting ended in \(meeting.name) (mic released \(Int(released)) s)", "meetings")
                     meetingApp = nil
                     inactiveSince = nil
+                    onEnding(nil)
                     onMeetingEnded?(meeting)
                     onStatus?("Жду встречу")
                 } else {
