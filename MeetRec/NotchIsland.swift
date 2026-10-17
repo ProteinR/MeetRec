@@ -193,10 +193,16 @@ struct IslandView: View {
     private var compactRow: some View {
         HStack(spacing: 0) {
             HStack {
-                Circle()
-                    .fill(model.health?.hasProblem == true ? Color.yellow : Color.red)
-                    .frame(width: 9, height: 9)
-                    .shadow(color: .red.opacity(0.8), radius: 4)
+                if model.isPaused {
+                    Image(systemName: "pause.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.orange)
+                } else {
+                    Circle()
+                        .fill(model.health?.hasProblem == true ? Color.yellow : Color.red)
+                        .frame(width: 9, height: 9)
+                        .shadow(color: .red.opacity(0.8), radius: 4)
+                }
                 Spacer(minLength: 0)
             }
             .padding(.leading, 14)
@@ -208,7 +214,7 @@ struct IslandView: View {
                 Spacer(minLength: 0)
                 Text(live.elapsedText)
                     .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(model.isPaused ? Color.orange : Color.white)
                     .contentTransition(.numericText())
             }
             .padding(.trailing, 12)
@@ -228,12 +234,22 @@ struct IslandView: View {
                 meter("speaker.wave.2.fill", health.systemAudio)
             }
             HStack(spacing: 8) {
+                if !model.isPaused {
                 Button {
                     model.addMarker()
                 } label: {
                     Label(model.markers.isEmpty ? "Отметить" : "Отметить · \(model.markers.count)", systemImage: "star.fill")
                         .frame(maxWidth: .infinity)
                 }
+                }
+                Button {
+                    model.togglePause()
+                } label: {
+                    Label(model.isPaused ? "Снять с паузы" : "Пауза", systemImage: model.isPaused ? "play.fill" : "pause.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .tint(.orange)
+                .help(model.isPaused ? "Снять с паузы" : "Пауза")
                 Button {
                     model.stop()
                 } label: {

@@ -78,7 +78,13 @@ final class ScreenshotTests: XCTestCase {
     }
 
     func testKeyComboText() {
-        XCTAssertEqual(KeyCombo.screenshotDefault.text, "⇧⌘4")
+        XCTAssertEqual(ShortcutAction.screenshot.defaultCombo?.text, "⇧⌘4")
+        XCTAssertEqual(ShortcutAction.text.defaultCombo?.text, "⇧⌘2")
+        XCTAssertEqual(ShortcutAction.record.defaultCombo?.text, "⌃⌥⌘R")
+        XCTAssertEqual(ShortcutAction.marker.defaultCombo?.text, "⌃⌥⌘M")
+        XCTAssertNil(ShortcutAction.pause.defaultCombo)
+        XCTAssertEqual(ShortcutAction.screenshot.defaultCombo?.menuKey.key, "4")
+        XCTAssertEqual(ShortcutAction.screenshot.defaultCombo?.menuKey.modifiers, [.command, .shift])
         let combo = KeyCombo(keyCode: kVK_ANSI_S, modifiers: KeyCombo.carbonModifiers([.control, .option, .command]),
                              label: KeyCombo.label(keyCode: kVK_ANSI_S, characters: "s"))
         XCTAssertEqual(combo.text, "⌃⌥⌘S")
@@ -97,13 +103,18 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertEqual(ScreenshotFiles.load(jpeg)?.scale, 2)
     }
 
-    func testListOrderFollowsTheNameNotTheFileDate() throws {
+    func testEditingAnOldShotKeepsItsPlace() throws {
         let shot = try image(width: 4, height: 4)
         let old = try ScreenshotFiles.save(shot, scale: 1, in: folder, date: Date(timeIntervalSince1970: 0))
-        _ = try ScreenshotFiles.save(shot, scale: 1, in: folder, date: Date(timeIntervalSince1970: 600))
-        // Editing the old one rewrites it: a fresh creation date.
+        try FileManager.default.setAttributes([.creationDate: Date(timeIntervalSince1970: 0)], ofItemAtPath: old.path)
+        // A Shottr file, named differently, taken later.
+        let shottr = folder.appendingPathComponent("SCR-20261016-abc.png")
+        try ScreenshotFiles.write(shot, scale: 1, to: shottr)
+        try FileManager.default.setAttributes([.creationDate: Date(timeIntervalSince1970: 600)], ofItemAtPath: shottr.path)
+        // Editing the old one rewrites the file; its creation date stays.
         try ScreenshotFiles.write(shot, scale: 1, to: old)
-        XCTAssertNotEqual(ScreenshotFiles.list(in: folder).items.first?.url, old)
+        XCTAssertEqual(ScreenshotFiles.list(in: folder).items.map(\.url.lastPathComponent),
+                       [shottr.lastPathComponent, old.lastPathComponent])
     }
 
     func testListNewestFirstAndCountsAll() throws {

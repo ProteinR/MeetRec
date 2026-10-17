@@ -33,6 +33,11 @@ struct Marker: Codable, Equatable {
     var time: Double
     var note: String?
 
+    /// A cut pause (`RecorderModel.pauseNote`), not a moment the user marked.
+    var isPause: Bool { note == RecorderModel.pauseNote }
+    /// "⭐ 12:34" or "⏸ 12:34".
+    var label: String { "\(isPause ? "⏸" : "⭐") \(timeText)" }
+
     var timeText: String {
         let total = Int(time)
         let (h, m, s) = (total / 3600, total / 60 % 60, total % 60)

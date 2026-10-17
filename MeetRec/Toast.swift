@@ -225,14 +225,26 @@ struct ToastView: View {
                 Button("Переключить") { model.performToastAction(action) }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-            } else if toast.kind == .screenshot, let file = toast.file {
-                Button("Редактировать") {
-                    model.dismissToast()
-                    ScreenshotEditor.open(file)
+            } else if toast.kind == .screenshot, let file = toast.file, toast.preview != nil {
+                VStack(spacing: 4) {
+                    Button {
+                        model.dismissToast()
+                        ScreenshotEditor.open(file)
+                    } label: {
+                        Text("Редактировать").frame(maxWidth: .infinity)
+                    }
+                    Button {
+                        model.dismissToast()
+                        Screenshotter.shared.recognizeText(file)
+                    } label: {
+                        Text("OCR").frame(maxWidth: .infinity)
+                    }
+                    .help("Распознать текст на снимке и скопировать его")
                 }
                 .controlSize(.small)
+                .fixedSize()
             } else if toast.kind == .stopped, let file = toast.file {
-                Button("Показать") {
+                Button("Показать в Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([file])
                     model.dismissToast()
                 }
@@ -259,7 +271,7 @@ struct ToastView: View {
                                     },
                                     onBegin: { onDrag(.began) },
                                     onEnd: { onDrag(.ended(dropped: $0)) }))
-            .help("Перетащи в чат или в поле загрузки; клик — редактировать")
+            .help("Перетащите в чат или в поле загрузки; клик — редактировать")
     }
 
     private func icon(_ kind: Toast.Kind) -> String {

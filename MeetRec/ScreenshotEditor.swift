@@ -104,7 +104,9 @@ final class ScreenshotEditor: NSObject, NSWindowDelegate {
         // It holds the view's state, and the view holds the document: break the cycle, or every
         // closed editor keeps its picture in memory.
         document.finishEditing = nil
-        if document.dirty { document.save() }
+        // However the editor is left (Esc, ⌘W, the close button), the result is in the clipboard and
+        // in the file. "Копировать" did it already.
+        if !document.copiedOnClose { document.copyResult() }
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         keyMonitor = nil
         Self.editors.removeAll { $0 === self }
@@ -156,13 +158,13 @@ enum EditorTool: String, CaseIterable, Identifiable {
 
     var hint: String {
         switch self {
-        case .arrow: return "Тяни от начала к острию; точка посередине изгибает"
-        case .rectangle, .ellipse: return "Тяни, чтобы обвести"
-        case .caption: return "Кликни, где поставить надпись; Enter — готово"
+        case .arrow: return "Тяните от начала к острию; точка посередине изгибает"
+        case .rectangle, .ellipse: return "Тяните, чтобы обвести"
+        case .caption: return "Кликните, где поставить надпись; Enter — готово"
         case .step: return "Кликай по порядку: 1, 2, 3…"
-        case .blur: return "Выдели, что скрыть"
-        case .crop: return "Выдели, что оставить"
-        case .ocr: return "Выдели область с текстом — он скопируется. Или «Весь текст»"
+        case .blur: return "Выделите, что скрыть"
+        case .crop: return "Выделите, что оставить"
+        case .ocr: return "Выделите область с текстом — он скопируется. Или «Весь текст»"
         }
     }
 
@@ -536,8 +538,12 @@ final class EditorDocument: ObservableObject {
 
     /// Copies the result and saves unsaved marks into the file; false when either failed (the
     /// editor then stays open with the reason in its footer).
+    /// Set once "Копировать" copied and saved, so closing does not do it again.
+    private(set) var copiedOnClose = false
+
     @discardableResult
     func copyResult() -> Bool {
+        copiedOnClose = true
         guard let result = render() else { return false }
         ScreenshotFiles.copy(result, scale: scale)
         Log.info("Edited screenshot copied: \(url.lastPathComponent)", "screenshots")
@@ -831,7 +837,7 @@ struct EditorView: View {
             Text(sizeText)
             Spacer(minLength: 8)
             Text(document.status ?? (document.selectedID != nil
-                ? "Тяни — передвинуть, точки — изменить, Delete — удалить, Esc — снять выбор"
+                ? "Тяните — передвинуть, точки — изменить, Delete — удалить, Esc — снять выбор"
                 : document.tool.hint))
                 .lineLimit(1)
                 .truncationMode(.tail)

@@ -63,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .environmentObject(Transcriber.shared))
         panel.onVisibilityChange = { visible in model.panelVisible = visible }
         island = IslandController(model: model)
+        Shortcuts.shared.start()
         Screenshotter.shared.start()
         toasts = ToastController(model: model) { [weak self] in
             guard let window = self?.statusItem.button?.window, Self.isOnScreen(window) else { return nil }
@@ -71,6 +72,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.$isRecording
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.island.update() }
+            .store(in: &cancellables)
+        model.$isPaused
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.updateStatusItem(recording: model.isRecording, problem: model.health?.hasProblem == true)
+                }
+            }
             .store(in: &cancellables)
 
         // Only when something visible changes: the second, recording on/off, problem on/off.
@@ -151,14 +161,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let style = MenuBarStyle.current
         // Discreet: a plain monochrome icon like any menu bar app; filled while recording.
         let colored = recording && style != .discreet
-        let symbol = problem ? (colored ? "exclamationmark.triangle.fill" : "exclamationmark.triangle")
+        // On pause: a pause sign instead of the record dot, orange, so it is obvious nothing is written.
+        let paused = recording && RecorderModel.shared.isPaused
+        let symbol = paused ? (colored ? "pause.circle.fill" : "pause.circle")
+            : problem ? (colored ? "exclamationmark.triangle.fill" : "exclamationmark.triangle")
             : (recording ? "record.circle.fill" : "record.circle")
         let iconKey = "\(symbol) \(colored) \(problem)"
         if iconKey != statusIconKey {
             statusIconKey = iconKey
             let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "MeetRec")
             image?.isTemplate = !colored
-            button.image = colored ? image?.withSymbolConfiguration(.init(paletteColors: [problem ? .systemYellow : .systemRed])) : image
+            let tint: NSColor = paused ? .systemOrange : problem ? .systemYellow : .systemRed
+            button.image = colored ? image?.withSymbolConfiguration(.init(paletteColors: [tint])) : image
             button.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         }
         if !recording, let countdown = RecordingCountdownTitle.text(RecorderModel.shared.countdown) {
@@ -209,37 +223,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let model = RecorderModel.shared
         if panel.isShown { panel.close() }
         let menu = NSMenu()
-        menu.addItem(QuickMenuItem(model.isRecording ? "Остановить запись" : "Начать запись", key: "r",
-                                   modifiers: [.control, .option, .command]) { model.toggle() })
+        let shortcuts = Shortcuts.shared
+        /// An item showing its shortcut when one is set and on.
+        func item(_ title: String, _ action: ShortcutAction?, handler: @escaping () -> Void) -> QuickMenuItem {
+            let key = action.flatMap { shortcuts.isEnabled($0) ? shortcuts.combo($0)?.menuKey : nil }
+            return QuickMenuItem(title, key: key?.key ?? "", modifiers: key?.modifiers ?? []) { handler() }
+        }
+        menu.addItem(item(model.isRecording ? "Остановить запись" : "Начать запись", .record) { model.toggle() })
         if model.isRecording && !model.isStopping {
-            menu.addItem(QuickMenuItem("Отметить момент", key: "m", modifiers: [.control, .option, .command]) { model.addMarker() })
+            menu.addItem(item(model.isPaused ? "Снять с паузы" : "Пауза", .pause) { model.togglePause() })
+            menu.addItem(item("Отметить момент", .marker) { model.addMarker() })
+        }
+        if let last = model.lastFile {
+            menu.addItem(.separator())
+            menu.addItem(.sectionHeader(title: "Последняя запись"))
+            menu.addItem(QuickMenuItem("Показать в Finder") { NSWorkspace.shared.activateFileViewerSelecting([last]) })
+            let transcriber = Transcriber.shared
+            if transcriber.runningFile == last {
+                let percent = transcriber.progress.map { " \(Int($0 * 100)) %" } ?? "…"
+                let running = QuickMenuItem("Транскрибация\(percent)") {}
+                running.isEnabled = false
+                menu.addItem(running)
+            } else if let transcript = Transcriber.existingTranscript(for: last) {
+                menu.addItem(QuickMenuItem("Открыть транскрипт") { NSWorkspace.shared.open(transcript) })
+            }
         }
         menu.addItem(.separator())
-        if let last = model.lastFile {
-            menu.addItem(QuickMenuItem("Показать последнюю запись") { NSWorkspace.shared.activateFileViewerSelecting([last]) })
-        }
-        menu.addItem(QuickMenuItem("Открыть папку с записями") { model.openFolder() })
-        menu.addItem(QuickMenuItem(CameraMirror.shared.isShown ? "Закрыть зеркало" : "Как я выгляжу") { CameraMirror.shared.toggle() })
-        for action in ScreenAction.allCases {
-            let shots = Screenshotter.shared
-            let combo = shots.combo(action)
-            var flags: NSEvent.ModifierFlags = []
-            if combo.modifiers & cmdKey != 0 { flags.insert(.command) }
-            if combo.modifiers & shiftKey != 0 { flags.insert(.shift) }
-            if combo.modifiers & optionKey != 0 { flags.insert(.option) }
-            if combo.modifiers & controlKey != 0 { flags.insert(.control) }
-            let key = shots.isEnabled(action) && combo.label.count == 1 ? combo.label.lowercased() : ""
-            menu.addItem(QuickMenuItem(action.title, key: key, modifiers: flags) {
+        for action in ShortcutAction.screenshots {
+            menu.addItem(item(action.title, action) {
                 // After the menu has closed, so it is not in the picture.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { shots.capture(action) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { Screenshotter.shared.capture(action) }
             })
         }
         menu.addItem(.separator())
+        menu.addItem(QuickMenuItem(CameraMirror.shared.isShown ? "Закрыть зеркало" : "Как я выгляжу") { CameraMirror.shared.toggle() })
         menu.addItem(QuickMenuItem("Настройки…", key: ",") { [weak self] in
             self?.showPanel()
             model.requestSettings()
         })
-        let quit = QuickMenuItem("Выйти из MeetRec", key: "q") { NSApp.terminate(nil) }
+        let quit = QuickMenuItem("Завершить MeetRec", key: "q") { NSApp.terminate(nil) }
         quit.isEnabled = !model.isRecording
         menu.addItem(quit)
         menu.autoenablesItems = false
@@ -293,6 +315,8 @@ struct ContentView: View {
     @EnvironmentObject private var model: RecorderModel
     @EnvironmentObject private var transcriber: Transcriber
     @StateObject private var micMonitor = MicrophoneMonitor()
+    /// Taken or changed shortcuts show up in the panel at once.
+    @ObservedObject private var shortcuts = Shortcuts.shared
     @StateObject private var displayPreview = DisplayPreview()
     @State private var openSection: String?
     @State private var showingSettings = false
@@ -308,7 +332,7 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if showingSettings && !model.isRecording {
+            if showingSettings {
                 settingsPage
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             } else {
@@ -358,7 +382,7 @@ struct ContentView: View {
         .background {
             // ⌘W closes the panel; the app has no menu bar menu to provide it.
             Button("", action: close).keyboardShortcut("w", modifiers: .command).hidden()
-            Button("") { if !model.isRecording { showingSettings = true } }
+            Button("") { showingSettings = true }
                 .keyboardShortcut(",", modifiers: .command).hidden()
         }
     }
@@ -386,10 +410,17 @@ struct ContentView: View {
                                    isExpanded: expanded("video")) { videoSettings }
                 CollapsibleSection(title: "Транскрибация", icon: "text.bubble.fill", summary: transcriptionSummary,
                                    isExpanded: expanded("transcription")) { TranscriptionSettings() }
-                CollapsibleSection(title: "Автозапись встреч", icon: "person.2.wave.2.fill", summary: meetingSummary,
+                CollapsibleSection(title: "Встречи и звонки", icon: "person.2.wave.2.fill", summary: meetingSummary,
                                    isExpanded: expanded("meetings")) { MeetingSettings() }
-                CollapsibleSection(title: "Значок в меню", icon: "menubar.rectangle", summary: appearanceSummary,
+                CollapsibleSection(title: "Вид во время записи", icon: "menubar.rectangle", summary: appearanceSummary,
                                    isExpanded: expanded("appearance")) { AppearanceSettings() }
+                CollapsibleSection(title: "Сочетания клавиш", icon: "keyboard", summary: shortcutsSummary,
+                                   isExpanded: expanded("shortcuts")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(ShortcutAction.recording) { ShortcutRow(action: $0) }
+                        Text("Скриншот и OCR — в разделе «Скриншоты».").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
                 CollapsibleSection(title: "Скриншоты", icon: "camera.viewfinder", summary: ScreenshotSettings.summary,
                                    isExpanded: expanded("screenshots-settings")) { ScreenshotSettings() }
             }
@@ -408,6 +439,8 @@ struct ContentView: View {
                 }
                 Spacer(minLength: 4)
                 Button("Изменить") { model.chooseFolder() }
+                    .disabled(model.isRecording)
+                    .help(model.isRecording ? "Меняется после записи: текущий файл пишется в эту папку" : "")
             }
             HStack(spacing: 8) {
                 Image(systemName: "doc.text.magnifyingglass")
@@ -458,6 +491,7 @@ struct ContentView: View {
                 } else {
                     recordButton
                 }
+                takenShortcutsWarning
                 Divider()
                 sources
             }
@@ -481,6 +515,35 @@ struct ContentView: View {
         }
     }
 
+    /// A recording shortcut another app holds would silently do nothing.
+    @ViewBuilder
+    private var takenShortcutsWarning: some View {
+        let taken = ShortcutAction.recording.filter { Shortcuts.shared.taken.contains($0) }
+        if !taken.isEmpty {
+            Button {
+                showingSettings = true
+                openSection = "shortcuts"
+            } label: {
+                Label("Не работает: " + taken.compactMap { Shortcuts.shared.combo($0)?.text }.joined(separator: ", ")
+                      + " — сочетание занято другим приложением. Изменить…", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var settingsButton: some View {
+        Button {
+            showingSettings = true
+        } label: {
+            Image(systemName: "gearshape").font(.system(size: 14))
+        }
+        .buttonStyle(.borderless)
+        .help("Настройки")
+    }
+
     private var header: some View {
         HStack {
             Text("MeetRec").font(.headline)
@@ -493,6 +556,7 @@ struct ContentView: View {
             }
             if model.isRecording {
                 ElapsedLabel()
+                settingsButton
             } else {
                 Button {
                     close()
@@ -502,13 +566,7 @@ struct ContentView: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Как я выгляжу: зеркало с камеры")
-                Button {
-                    showingSettings = true
-                } label: {
-                    Image(systemName: "gearshape").font(.system(size: 14))
-                }
-                .buttonStyle(.borderless)
-                .help("Настройки")
+                settingsButton
             }
         }
     }
@@ -668,6 +726,11 @@ struct ContentView: View {
         return hideFromSharing ? "\(style) · скрыт при показе экрана" : style
     }
 
+    private var shortcutsSummary: String {
+        let set = ShortcutAction.recording.compactMap { Shortcuts.shared.hint($0) }
+        return set.isEmpty ? "Не заданы" : set.joined(separator: " · ")
+    }
+
     private var videoSummary: String {
         let resolution = ResolutionPreset(rawValue: model.resolution)?.title ?? model.resolution
         return "\(model.fps) к/с · \(resolution) · \(model.codec == "hevc" ? "HEVC" : "H.264")"
@@ -705,6 +768,11 @@ struct ContentView: View {
         }
         .padding(.top, 4)
         .disabled(model.isRecording)
+        .overlay(alignment: .bottomTrailing) {
+            if model.isRecording {
+                Text("Меняется после записи").font(.caption2).foregroundStyle(.secondary)
+            }
+        }
     }
 
 }
@@ -714,6 +782,7 @@ struct ContentView: View {
 struct LastRecordingNotice: View {
     let notice: String
     let file: URL?
+    @State private var namingSpeakers = false
     let close: () -> Void
     @EnvironmentObject private var transcriber: Transcriber
 
@@ -752,6 +821,15 @@ struct LastRecordingNotice: View {
                 Button("Транскрипт готов") { QuickLookPresenter.shared.preview(transcript) }
                     .buttonStyle(.link)
                     .help("Открыть транскрипт")
+            }
+            if namingSpeakers {
+                SpeakersEditor(recording: file) { namingSpeakers = false }
+            } else if SpeakerNaming.hasUnnamed(file) {
+                row(icon: "person.2.badge.gearshape", color: .secondary) {
+                    Button("Есть безымянные спикеры — подписать…") { namingSpeakers = true }
+                        .buttonStyle(.link)
+                        .help("Назвать «Speaker N» по именам; голоса запомнятся для следующих встреч")
+                }
             }
         } else if let failure = transcriber.failures[file.path] {
             row(icon: "exclamationmark.triangle.fill", color: .orange) {
@@ -1008,19 +1086,52 @@ struct RecordingControls: View {
                 .padding(8)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.12)))
             }
-            Button {
-                model.addMarker()
-            } label: {
-                HStack {
-                    Image(systemName: "star.fill").foregroundStyle(.yellow)
-                    Text("Отметить момент")
-                    Spacer()
-                    Text(RecorderModel.markerHotKeyHint).foregroundStyle(.secondary)
+            if model.isPaused {
+                // Paused: one clear state and one clear way back.
+                HStack(spacing: 8) {
+                    Image(systemName: "pause.circle.fill").foregroundStyle(.orange).font(.title3)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Запись на паузе").font(.callout.weight(.semibold))
+                        Text("Ничего не записывается; в файле пауза будет вырезана")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 4)
                 }
-                .frame(maxWidth: .infinity)
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.12)))
+            }
+            HStack(spacing: 8) {
+                Button {
+                    model.togglePause()
+                } label: {
+                    HStack {
+                        Image(systemName: model.isPaused ? "play.fill" : "pause.fill")
+                            .foregroundStyle(model.isPaused ? Color.green : Color.orange)
+                        Text(model.isPaused ? "Снять с паузы" : "Пауза")
+                        if let hint = model.pauseHotKeyHint {
+                            Spacer()
+                            Text(hint).foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .help(model.isPaused ? "Продолжить запись в тот же файл" : "Ничего не записывать, пока вы не снимете с паузы; в файле пауза будет вырезана")
+                Button {
+                    model.addMarker()
+                } label: {
+                    HStack {
+                        Image(systemName: "star.fill").foregroundStyle(.yellow)
+                        Text("Отметить момент")
+                        if let hint = RecorderModel.markerHotKeyHint {
+                            Spacer()
+                            Text(hint).foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .help("Отметка попадёт в транскрипт как «⭐ время»")
             }
             .controlSize(.large)
-            .help("Отметка попадёт в транскрипт как «⭐ время»")
             if let last = model.markers.last {
                 Text("Отметок: \(model.markers.count), последняя на \(last.timeText)")
                     .font(.caption)
@@ -1079,7 +1190,9 @@ struct RecordButton: View {
                 }
                 .clipped()
                 Spacer()
-                Text(RecorderModel.hotKeyHint).foregroundStyle(.white.opacity(0.7))
+                if let hint = RecorderModel.hotKeyHint {
+                    Text(hint).foregroundStyle(.white.opacity(0.7))
+                }
             }
             .font(.body.weight(.semibold))
             .foregroundStyle(.white)

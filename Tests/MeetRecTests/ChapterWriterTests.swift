@@ -22,6 +22,12 @@ final class ChapterWriterTests: XCTestCase {
         XCTAssertEqual(chapters.map(\.title), ["Начало", "⭐ 1 · 01:05", "⭐ 2 · 12:34"])
     }
 
+    func testPausesAreChaptersButNotNumbered() {
+        let chapters = ChapterWriter.chapters(for: [Marker(time: 60), Marker(time: 120, note: RecorderModel.pauseNote), Marker(time: 180)],
+                                              duration: 3600)
+        XCTAssertEqual(chapters.map(\.title), ["Начало", "⭐ 1 · 01:00", "⏸ Пауза · 02:00", "⭐ 2 · 03:00"])
+    }
+
     func testAddsChaptersAndKeepsMediaAndTags() async throws {
         let movie = folder.appendingPathComponent("rec.mov")
         try await writeTinyMovie(to: movie, seconds: 4)

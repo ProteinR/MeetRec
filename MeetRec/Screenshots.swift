@@ -6,77 +6,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 import Vision
 
-/// A global shortcut as Carbon wants it, with the key's name for showing it ("⇧⌘4").
-struct KeyCombo: Equatable {
-    var keyCode: Int
-    /// Carbon mask: `cmdKey | shiftKey`…
-    var modifiers: Int
-    var label: String
-
-    static let screenshotDefault = KeyCombo(keyCode: kVK_ANSI_4, modifiers: cmdKey | shiftKey, label: "4")
-
-    /// In Apple's order: ⌃⌥⇧⌘.
-    var text: String {
-        var text = ""
-        if modifiers & controlKey != 0 { text += "⌃" }
-        if modifiers & optionKey != 0 { text += "⌥" }
-        if modifiers & shiftKey != 0 { text += "⇧" }
-        if modifiers & cmdKey != 0 { text += "⌘" }
-        return text + label
-    }
-
-    static func carbonModifiers(_ flags: NSEvent.ModifierFlags) -> Int {
-        var mask = 0
-        if flags.contains(.command) { mask |= cmdKey }
-        if flags.contains(.shift) { mask |= shiftKey }
-        if flags.contains(.option) { mask |= optionKey }
-        if flags.contains(.control) { mask |= controlKey }
-        return mask
-    }
-
-    /// A global shortcut needs ⌘, ⌥ or ⌃ (Shift alone would eat ordinary typing).
-    static func isUsable(_ flags: NSEvent.ModifierFlags) -> Bool {
-        !flags.intersection([.command, .option, .control]).isEmpty
-    }
-
-    private static let named: [Int: String] = [
-        kVK_Space: "Space", kVK_Return: "↩", kVK_Tab: "⇥", kVK_Delete: "⌫", kVK_ForwardDelete: "⌦",
-        kVK_LeftArrow: "←", kVK_RightArrow: "→", kVK_UpArrow: "↑", kVK_DownArrow: "↓",
-        kVK_F1: "F1", kVK_F2: "F2", kVK_F3: "F3", kVK_F4: "F4", kVK_F5: "F5", kVK_F6: "F6",
-        kVK_F7: "F7", kVK_F8: "F8", kVK_F9: "F9", kVK_F10: "F10", kVK_F11: "F11", kVK_F12: "F12",
-    ]
-
-    /// "4", "S", "F5", "Space": what the key prints without modifiers, or its name.
-    static func label(keyCode: Int, characters: String?) -> String {
-        if let name = named[keyCode] { return name }
-        let text = (characters ?? "").trimmingCharacters(in: .whitespacesAndNewlines.union(.controlCharacters))
-        return text.isEmpty ? "#\(keyCode)" : text.uppercased()
-    }
-}
-
-/// The two things a shortcut can start: an area screenshot, or text from the screen (OCR).
-enum ScreenAction: String, CaseIterable, Identifiable {
-    case screenshot, text
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .screenshot: return "Снимок области"
-        case .text: return "Текст с экрана"
-        }
-    }
-
-    var defaultCombo: KeyCombo {
-        switch self {
-        case .screenshot: return .screenshotDefault
-        case .text: return KeyCombo(keyCode: kVK_ANSI_2, modifiers: cmdKey | shiftKey, label: "2")
-        }
-    }
-
-    /// UserDefaults: "<prefix>HotKey" (on/off), "<prefix>KeyCode", "<prefix>KeyModifiers", "<prefix>KeyLabel".
-    var prefix: String { rawValue }
-}
-
 /// Screenshots like Shottr: ⇧⌘4 freezes the screens and puts a crosshair over them (`AreaSelector`);
 /// the picked area (or a clicked window) is copied to the clipboard and saved as PNG (or JPEG in
 /// "Авто" for photo-like pictures), each switchable in settings. ⇧⌘2 does the same selection but
@@ -91,100 +20,25 @@ final class Screenshotter: ObservableObject {
     @AppStorage("screenshotCopy") var copyToClipboard = true
     @AppStorage("screenshotSave") var saveToFolder = true
     @AppStorage("screenshotToast") var showToast = true
-    /// Empty: "Скриншоты" inside the recordings folder, so it follows that folder.
+    /// Empty: `defaultFolder`, where Shottr kept them, so the history stays in one place.
     @AppStorage("screenshotFolder") var folderPath = ""
+    static let defaultFolder = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("screenshots", isDirectory: true)
 
-    /// Shortcuts that could not be registered: another app (Shottr) or macOS has them.
-    @Published private(set) var hotKeysTaken: Set<ScreenAction> = []
-    /// Settings wait for a new shortcut for this action; its old one is off meanwhile.
-    @Published private(set) var recordingHotKey: ScreenAction?
     /// Bumped when a screenshot is saved, edited or deleted; the panel list reloads on it.
     @Published private(set) var version = 0
 
-    private var hotKeys: [ScreenAction: HotKey] = [:]
     private var selector: AreaSelector?
     /// The screens are being captured before the crosshair shows.
     private var freezing = false
 
-    var hotKeyCombo: KeyCombo { combo(.screenshot) }
-    var hotKeyHint: String { combo(.screenshot).text }
 
     var folderURL: URL {
-        folderPath.isEmpty
-            ? RecorderModel.shared.folderURL.appendingPathComponent("Скриншоты", isDirectory: true)
-            : URL(fileURLWithPath: folderPath, isDirectory: true)
+        folderPath.isEmpty ? Self.defaultFolder : URL(fileURLWithPath: folderPath, isDirectory: true)
     }
 
     func start() {
-        for action in ScreenAction.allCases { registerHotKey(action) }
         ScreenshotFiles.clearDragCopies()
-    }
-
-    // MARK: - Shortcuts
-
-    func combo(_ action: ScreenAction) -> KeyCombo {
-        let defaults = UserDefaults.standard
-        guard defaults.object(forKey: action.prefix + "KeyCode") != nil else { return action.defaultCombo }
-        return KeyCombo(keyCode: defaults.integer(forKey: action.prefix + "KeyCode"),
-                        modifiers: defaults.integer(forKey: action.prefix + "KeyModifiers"),
-                        label: defaults.string(forKey: action.prefix + "KeyLabel") ?? action.defaultCombo.label)
-    }
-
-    func isEnabled(_ action: ScreenAction) -> Bool {
-        UserDefaults.standard.object(forKey: action.prefix + "HotKey") as? Bool ?? true
-    }
-
-    func setEnabled(_ action: ScreenAction, _ enabled: Bool) {
-        objectWillChange.send()
-        UserDefaults.standard.set(enabled, forKey: action.prefix + "HotKey")
-        registerHotKey(action)
-    }
-
-    /// The other action already using `combo`, if any.
-    func conflict(_ combo: KeyCombo, for action: ScreenAction) -> ScreenAction? {
-        ScreenAction.allCases.first { $0 != action && isEnabled($0) && self.combo($0) == combo }
-    }
-
-    func beginHotKeyRecording(_ action: ScreenAction) {
-        recordingHotKey = action
-        hotKeys[action] = nil
-    }
-
-    /// nil: cancelled, the old shortcut comes back.
-    func endHotKeyRecording(_ action: ScreenAction, _ combo: KeyCombo?) {
-        recordingHotKey = nil
-        if let combo {
-            objectWillChange.send()
-            let defaults = UserDefaults.standard
-            defaults.set(combo.keyCode, forKey: action.prefix + "KeyCode")
-            defaults.set(combo.modifiers, forKey: action.prefix + "KeyModifiers")
-            defaults.set(combo.label, forKey: action.prefix + "KeyLabel")
-            defaults.set(true, forKey: action.prefix + "HotKey")
-            Log.info("\(action.rawValue) hotkey changed to \(combo.text)", "screenshots")
-        }
-        registerHotKey(action)
-    }
-
-    /// Also the "Повторить" button after the keys were freed in the other app.
-    func registerHotKey(_ action: ScreenAction) {
-        hotKeys[action] = nil
-        hotKeysTaken.remove(action)
-        let combo = combo(action)
-        guard isEnabled(action) else {
-            Log.info("\(action.rawValue) hotkey \(combo.text) off", "screenshots")
-            return
-        }
-        let key = HotKey(keyCode: combo.keyCode, modifiers: combo.modifiers) { [weak self] in
-            Log.info("Hotkey \(combo.text) pressed (\(action.rawValue))", "screenshots")
-            Task { @MainActor in self?.capture(action) }
-        }
-        if key.isRegistered {
-            hotKeys[action] = key
-            Log.info("\(action.rawValue) hotkey \(combo.text) registered", "screenshots")
-        } else {
-            hotKeysTaken.insert(action)
-            Log.warning("\(action.rawValue) hotkey \(combo.text) not registered (status \(key.status)): taken by another app or macOS", "screenshots")
-        }
     }
 
     // MARK: - Folder
@@ -221,8 +75,8 @@ final class Screenshotter: ObservableObject {
 
     /// Freezes all screens first (menus and tooltips of the app in front stay in the picture), then
     /// the crosshair over them; a drag takes an area, a click a window or the whole screen, Esc cancels.
-    func capture(_ action: ScreenAction) {
-        guard selector == nil, !freezing else { return }
+    func capture(_ action: ShortcutAction) {
+        guard action == .screenshot || action == .text, selector == nil, !freezing else { return }
         freezing = true
         let previous = NSWorkspace.shared.frontmostApplication
         Task { @MainActor in
@@ -247,15 +101,14 @@ final class Screenshotter: ObservableObject {
                     return
                 }
                 Log.info("Selected \(selection.kind) \(selection.image.width)×\(selection.image.height) px (\(action.rawValue))", "screenshots")
-                switch action {
-                case .screenshot:
-                    self.deliver(selection.image, scale: selection.scale)
-                case .text:
+                if action == .text {
                     let image = selection.image
                     Task {
                         let text = await ScreenshotFiles.recognizeText(in: image)
                         Self.copyRecognized(text, from: "screen")
                     }
+                } else {
+                    self.deliver(selection.image, scale: selection.scale)
                 }
             }
             self.selector = selector
@@ -286,8 +139,9 @@ final class Screenshotter: ObservableObject {
         Log.info("Screenshot \(image.width)×\(image.height) px (\(Int(scale))×)"
                  + (copy || saved == nil ? ", copied" : "") + (saved.map { ", saved: \($0.lastPathComponent)" } ?? ""), "screenshots")
         guard showToast else { return }
-        let title = copy || saved == nil ? "Скриншот скопирован" : "Скриншот сохранён"
-        let detail = saved != nil ? (copy ? "Сохранён в «\(folderURL.lastPathComponent)»" : "Папка «\(folderURL.lastPathComponent)»")
+        // Says it is in the clipboard already, so there is no urge to copy it again.
+        let title = copy && saved != nil ? "Скопирован и сохранён" : copy || saved == nil ? "Скриншот скопирован" : "Скриншот сохранён"
+        let detail = saved != nil ? "Папка «\(folderURL.lastPathComponent)»"
             : (saveToFolder ? "В папку сохранить не удалось" : nil)
         // Something to drag out of the toast even when nothing was saved.
         let dragFile = saved ?? ScreenshotFiles.dragCopy(image, scale: scale)
@@ -380,9 +234,9 @@ enum ScreenshotFiles {
                 let values = try? url.resourceValues(forKeys: Set(keys))
                 return Item(url: url, date: values?.creationDate ?? values?.contentModificationDate ?? .distantPast)
             }
-            // By the name's timestamp: saving an edit rewrites the file (new creation date) and must not
-            // move an old shot to the top.
-            .sorted { ($0.url.deletingPathExtension().lastPathComponent, $0.date) > ($1.url.deletingPathExtension().lastPathComponent, $1.date) }
+            // By when the shot was taken: our names and Shottr's ("SCR-…") differ, so not by name.
+            // Saving an edit keeps the creation date (`write`).
+            .sorted { ($0.date, $0.url.lastPathComponent) > ($1.date, $1.url.lastPathComponent) }
         return (Array(items.prefix(limit)), items.count)
     }
 
@@ -415,7 +269,13 @@ enum ScreenshotFiles {
         guard let data = isJPEG ? jpeg(image, scale: scale) : png(image, scale: scale) else {
             throw NSError(domain: "MeetRec", code: 2, userInfo: [NSLocalizedDescriptionKey: "image encoding failed"])
         }
+        // An atomic write makes a new file; keep the shot's creation date, so an edit does not move it
+        // to the top of the list.
+        let created = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate
         try data.write(to: url, options: .atomic)
+        if let created {
+            try? FileManager.default.setAttributes([.creationDate: created], ofItemAtPath: url.path)
+        }
     }
 
     static func png(_ image: CGImage, scale: CGFloat) -> Data? {

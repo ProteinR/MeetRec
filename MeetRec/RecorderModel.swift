@@ -71,7 +71,13 @@ final class RecorderModel: ObservableObject {
     /// Timer, level meters and CPU: published separately so the panel does not redraw on every tick.
     let live = LiveRecording()
     var health: RecordingHealth? { live.health }
-    @Published private(set) var lastFile: URL?
+    /// Kept across launches, so "Последняя запись" in the menu and the panel survive a restart.
+    @Published private(set) var lastFile: URL? = {
+        guard let path = UserDefaults.standard.string(forKey: "lastRecording"), FileManager.default.fileExists(atPath: path) else { return nil }
+        return URL(fileURLWithPath: path)
+    }() {
+        didSet { UserDefaults.standard.set(lastFile?.path, forKey: "lastRecording") }
+    }
     @Published var errorMessage: String?
     /// Detector state for the UI ("Жду встречу", "Идёт встреча в Teams"…); nil when detection is off.
     @Published private(set) var detectorStatus: String?
@@ -99,6 +105,17 @@ final class RecorderModel: ObservableObject {
     }
     /// Moments marked in the current recording (⌃⌥⌘M or the button).
     @Published private(set) var markers: [Marker] = []
+    /// The recording is on pause: nothing is written, the file is joined up afterwards (like OBS).
+    @Published private(set) var isPaused = false
+    private var pausedSince: Date?
+    /// Pauses before the current one, cut out of the file.
+    private var pausedTotal: TimeInterval = 0
+    private var pauseNoticeSent = false
+    private var pauseQuestionsSent = 0
+    static let pauseNoticeAfter: TimeInterval = 600
+    static let pauseQuestionEvery: TimeInterval = 1800
+    /// The chapter / transcript line where a pause was cut.
+    static let pauseNote = "Пауза"
     /// The single window being recorded instead of the whole display; nil = whole display.
     @Published private(set) var captureWindow: CaptureWindow?
     /// Windows offered in the "what to record" menu while recording.
@@ -125,8 +142,6 @@ final class RecorderModel: ObservableObject {
     private var micMuted = false
     static let micSilenceAlertAfter: TimeInterval = 60
     private var recordingNames = (microphone: "", display: "")
-    private var hotKey: HotKey?
-    private var markerHotKey: HotKey?
     private var lastDiskCheck = Date.distantPast
     private var lastTitleCheck = Date.distantPast
     private var lastWindowCheck = Date.distantPast
@@ -180,8 +195,10 @@ final class RecorderModel: ObservableObject {
     static let highCPUPercent: Double = 90
     private var permissionsMissing: Set<String> = []
 
-    static let hotKeyHint = "⌃⌥⌘R"
-    static let markerHotKeyHint = "⌃⌥⌘M"
+    /// The pause shortcut, when one is set (none by default).
+    var pauseHotKeyHint: String? { Shortcuts.shared.hint(.pause) }
+    static var hotKeyHint: String? { Shortcuts.shared.hint(.record) }
+    static var markerHotKeyHint: String? { Shortcuts.shared.hint(.marker) }
 
     /// The display being recorded (also while one window of it is recorded).
     @Published private(set) var recordingDisplayID: CGDirectDisplayID?
@@ -204,14 +221,6 @@ final class RecorderModel: ObservableObject {
         configureDetector()
         recorder.onUnexpectedStop = { [weak self] error, file in
             self?.recordingInterrupted(error, file: file)
-        }
-        hotKey = HotKey(keyCode: kVK_ANSI_R, modifiers: cmdKey | optionKey | controlKey) { [weak self] in
-            Log.info("Hotkey \(Self.hotKeyHint) pressed")
-            Task { @MainActor in self?.toggle() }
-        }
-        markerHotKey = HotKey(keyCode: kVK_ANSI_M, modifiers: cmdKey | optionKey | controlKey) { [weak self] in
-            Log.info("Hotkey \(Self.markerHotKeyHint) pressed")
-            Task { @MainActor in self?.addMarker() }
         }
         let center = NotificationCenter.default
         observers.append(center.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
@@ -344,7 +353,13 @@ final class RecorderModel: ObservableObject {
     // MARK: - Notification buttons
 
     private func handleNotificationAction(_ action: String) {
-        if action == "ignore-window" {
+        if action == "pause-stop" {
+            stop(reason: "остановлена на паузе")
+        } else if action == "pause-resume" {
+            resume()
+        } else if action == "pause-keep" {
+            Log.info("Pause kept after the reminder")
+        } else if action == "ignore-window" {
             meetingWindowIgnored = true
             meetingWindowWarning = nil
             meetingWindowDisplay = nil
@@ -1139,7 +1154,7 @@ final class RecorderModel: ObservableObject {
             return
         }
         let origin = current.sessionStartedAt ?? startedAt ?? Date()
-        let marker = Marker(time: max(0, Date().timeIntervalSince(origin)))
+        let marker = Marker(time: recordingTime(origin: origin))
         markers.append(marker)
         do {
             try MarkerFile.save(markers, for: file)
@@ -1148,6 +1163,87 @@ final class RecorderModel: ObservableObject {
             Log.error("Could not save markers: \(Log.describe(error))")
         }
         NSSound(named: "Tink")?.play()
+    }
+
+    // MARK: - Pause
+
+    /// Seconds of the file at `date`: wall time since `origin` without the pauses.
+    private func recordingTime(at date: Date = Date(), origin: Date) -> TimeInterval {
+        let current = pausedSince.map { date.timeIntervalSince($0) } ?? 0
+        return max(0, date.timeIntervalSince(origin) - pausedTotal - current)
+    }
+
+    func togglePause() {
+        if isPaused { resume() } else { pause() }
+    }
+
+    /// Nothing is written until `resume()`; a "Пауза" chapter marks where the file is joined up.
+    func pause() {
+        guard isRecording, !isStopping, !isPaused else { return }
+        let now = Date()
+        let current = recorder.currentFile()
+        let origin = current.sessionStartedAt ?? startedAt ?? now
+        let marker = Marker(time: recordingTime(at: now, origin: origin), note: Self.pauseNote)
+        recorder.pause()
+        isPaused = true
+        pausedSince = now
+        pauseNoticeSent = false
+        pauseQuestionsSent = 0
+        if let file = current.url {
+            markers.append(marker)
+            do {
+                try MarkerFile.save(markers, for: file)
+            } catch {
+                Log.error("Could not save the pause marker: \(Log.describe(error))")
+            }
+        }
+        Log.info("Recording paused at \(marker.timeText)")
+    }
+
+    func resume() {
+        guard isRecording, isPaused, let since = pausedSince else { return }
+        recorder.resume()
+        let gap = Date().timeIntervalSince(since)
+        pausedTotal += gap
+        pausedSince = nil
+        isPaused = false
+        clearPauseNotifications()
+        // The pause must not count as a dead microphone, a stalled file or a black screen.
+        if let old = healthTracker {
+            healthTracker = HealthTracker(startedAt: Date(), microphoneOn: old.microphoneOn, systemAudioOn: old.systemAudioOn,
+                                          microphoneName: old.microphoneName, displayName: old.displayName)
+        }
+        Log.info("Recording resumed after a \(Int(gap)) s pause (\(Int(pausedTotal)) s cut in all)")
+    }
+
+    /// A forgotten pause: a quiet notice after 10 minutes, then every 30 a question with buttons.
+    private func checkPauseReminders() {
+        guard isPaused, let since = pausedSince else { return }
+        let paused = Date().timeIntervalSince(since)
+        if !pauseNoticeSent, paused >= Self.pauseNoticeAfter {
+            pauseNoticeSent = true
+            Log.info("Pause reminder: \(Int(paused / 60)) min", "alerts")
+            Notifier.shared.send(id: "meetrec-paused", title: "Запись на паузе \(Int(paused / 60)) минут",
+                                 body: "Ничего не записывается. Нажмите, чтобы открыть MeetRec и снять с паузы.", silent: true)
+        }
+        let due = Int(paused / Self.pauseQuestionEvery)
+        if due > pauseQuestionsSent {
+            pauseQuestionsSent = due
+            let minutes = Int(paused / 60)
+            Log.info("Pause question: \(minutes) min", "alerts")
+            Notifier.shared.remove(id: "meetrec-paused")
+            Notifier.shared.send(id: "meetrec-pause-question", title: "Запись на паузе уже \(minutes) минут",
+                                 body: "Сохранить её, продолжить запись или оставить на паузе?",
+                                 actions: [Notifier.Action(id: "pause-stop", title: "Сохранить и остановить"),
+                                           Notifier.Action(id: "pause-resume", title: "Снять с паузы"),
+                                           Notifier.Action(id: "pause-keep", title: "Оставить на паузе")],
+                                 silent: true)
+        }
+    }
+
+    private func clearPauseNotifications() {
+        Notifier.shared.remove(id: "meetrec-paused")
+        Notifier.shared.remove(id: "meetrec-pause-question")
     }
 
     // MARK: - Window capture
@@ -1340,7 +1436,8 @@ final class RecorderModel: ObservableObject {
             }
             showToast(Toast(kind: .started, title: title,
                             detail: app.map { "Остановится сама, когда \($0.noun) закончится" }
-                                ?? "\(Self.hotKeyHint) — остановить, \(Self.markerHotKeyHint) — отметить момент"))
+                                ?? [Self.hotKeyHint.map { "\($0) — остановить" }, Self.markerHotKeyHint.map { "\($0) — отметить момент" }]
+                                    .compactMap { $0 }.joined(separator: ", ")))
         }
         if let file = recorder.currentFile().url {
             Watchdog.recordingStarted(file: file, autoAppID: autoStartedAppID)
@@ -1368,7 +1465,13 @@ final class RecorderModel: ObservableObject {
 
     private func tick() {
         guard let startedAt, var tracker = healthTracker else { return }
-        live.update(elapsed: Date().timeIntervalSince(startedAt))
+        live.update(elapsed: recordingTime(origin: startedAt))
+        // On pause nothing is written, so there is nothing to watch but the disk and the reminders.
+        if isPaused {
+            checkDiskSpace()
+            checkPauseReminders()
+            return
+        }
         let muted = microphone && InputMuteState.isMuted(uid: recordingMicUID)
         if muted != micMuted {
             micMuted = muted
@@ -1442,6 +1545,10 @@ final class RecorderModel: ObservableObject {
 
     private func didStop(file: URL?) {
         isRecording = false
+        isPaused = false
+        pausedSince = nil
+        pausedTotal = 0
+        clearPauseNotifications()
         timer?.invalidate()
         healthTracker = nil
         live.update(health: nil)

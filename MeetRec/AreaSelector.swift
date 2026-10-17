@@ -200,7 +200,7 @@ final class AreaSelector {
             view.wantsLayer = true
             view.scale = frozen.scale
             view.windowRects = frozen.windows
-            view.hint = purpose == .text ? "Выдели текст — он скопируется · клик по окну — весь его текст · Esc — отмена" : nil
+            view.hint = purpose == .text ? "Выделите текст — он скопируется · клик по окну — весь его текст · Esc — отмена" : nil
             view.onActivity = { [weak self, weak view] in self?.windows.forEach { if $0.overlay !== view { $0.overlay.reset() } } }
             view.onSelect = { [weak self] rect, kind in self?.select(rect, kind: kind, on: frozen) }
             view.onCancel = { [weak self] in self?.finish(nil) }

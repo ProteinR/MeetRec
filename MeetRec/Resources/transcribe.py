@@ -353,26 +353,40 @@ def build_lines(segments, turns, names, me=None, levels=None):
     return [(start, f"[{format_time(start)}] {name}: {text}") for start, name, text in lines], dropped
 
 
+PAUSE_NOTE = "Пауза"  # RecorderModel.pauseNote: where a paused recording was joined up
+
+
 def load_markers(recording):
-    """Moments marked during recording (`<name>.markers.json` next to the video), as seconds."""
+    """Moments marked during recording (`<name>.markers.json` next to the video) as (seconds, note),
+    note "Пауза" for a cut pause and None for the user's own markers."""
     path = recording.with_name(recording.stem + ".markers.json")
     if not path.exists():
         return []
     try:
-        return sorted(float(m["time"]) for m in json.loads(path.read_text(encoding="utf-8")))
+        return sorted(((float(m["time"]), m.get("note")) for m in json.loads(path.read_text(encoding="utf-8"))),
+                      key=lambda marker: marker[0])
     except (ValueError, KeyError, TypeError) as error:
         log(f"Ignoring unreadable markers file {path}: {error}")
         return []
 
 
+def marker_line(marker):
+    """ "⭐ [00:12:34] Отметка" or "⏸ [00:12:34] Пауза"; a marker is seconds or (seconds, note)."""
+    time, note = marker if isinstance(marker, tuple) else (marker, None)
+    return f"⏸ [{format_time(time)}] {PAUSE_NOTE}" if note == PAUSE_NOTE else f"⭐ [{format_time(time)}] Отметка"
+
+
 def insert_markers(timed_lines, markers):
-    """Puts a "⭐" line before the first replica that starts at or after each marker."""
-    result, pending = [], list(markers)
+    """Puts a marker line before the first replica that starts at or after each marker."""
+    def key(marker):
+        return marker[0] if isinstance(marker, tuple) else marker
+
+    result, pending = [], sorted(markers, key=key)
     for start, text in timed_lines:
-        while pending and pending[0] <= start:
-            result.append(f"⭐ [{format_time(pending.pop(0))}] Отметка")
+        while pending and key(pending[0]) <= start:
+            result.append(marker_line(pending.pop(0)))
         result.append(text)
-    result.extend(f"⭐ [{format_time(m)}] Отметка" for m in pending)
+    result.extend(marker_line(m) for m in pending)
     return result
 
 

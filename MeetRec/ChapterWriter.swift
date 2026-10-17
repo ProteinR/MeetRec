@@ -25,11 +25,19 @@ enum ChapterWriter {
         }
     }
 
-    /// "Начало", "⭐ 1 · 12:34", "⭐ 2 · 25:10"…: chapter starts and titles for the markers.
+    /// "Начало", "⭐ 1 · 12:34", "⏸ Пауза · 20:05", "⭐ 2 · 25:10"…: chapter starts and titles for the
+    /// markers; only the user's own markers are numbered.
     static func chapters(for markers: [Marker], duration: Double) -> [(start: Double, title: String)] {
-        let times = Array(Set(markers.map(\.time).filter { $0 > 0.5 && $0 < duration - 0.5 })).sorted()
-        return [(0, "Начало")] + times.enumerated().map { index, time in
-            (time, "⭐ \(index + 1) · \(Marker(time: time).timeText)")
+        var seen = Set<Double>()
+        let inside = markers
+            .filter { $0.time > 0.5 && $0.time < duration - 0.5 }
+            .sorted { $0.time < $1.time }
+            .filter { seen.insert($0.time).inserted }
+        var number = 0
+        return [(0, "Начало")] + inside.map { marker in
+            if marker.isPause { return (marker.time, "⏸ \(RecorderModel.pauseNote) · \(marker.timeText)") }
+            number += 1
+            return (marker.time, "⭐ \(number) · \(marker.timeText)")
         }
     }
 

@@ -147,6 +147,17 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     /// delivers no new frames.
     private var latestFrame: CVPixelBuffer?
     private var fadePool: CVPixelBufferPool?
+
+    // Pause like OBS: nothing is written meanwhile and everything after it is moved back by the pause,
+    // so the file plays straight through (queue only).
+    private var paused = false
+    /// Host time the current pause began.
+    private var pausedAt: CMTime?
+    /// All pauses so far, subtracted from every timestamp written after them.
+    private var pauseOffset = CMTime.zero
+    /// Host time of the last resume: anything captured before it but delivered late is dropped, or its
+    /// shifted time would land before what is already written and fail the writer.
+    private var resumedAt = CMTime.invalid
     private lazy var ciContext = CIContext(options: [.cacheIntermediates: false])
 
     /// Normal windows of other apps that can be recorded on their own.
@@ -243,6 +254,45 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         return NSScreen.screens.first {
             ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == display.displayID
         }?.localizedName ?? "монитор \(display.displayID)"
+    }
+
+    /// Stops writing anything until `resume()`; the stream keeps running, so resuming is instant.
+    func pause() {
+        queue.sync {
+            guard !paused, writer != nil else { return }
+            endFade()
+            paused = true
+            pausedAt = Self.hostNow()
+            Log.info("Paused at host \(String(format: "%.2f", pausedAt?.seconds ?? 0))s, pauses so far \(String(format: "%.1f", pauseOffset.seconds))s", "recorder")
+        }
+    }
+
+    /// Writes again; the time spent paused is cut out of the file.
+    func resume() {
+        queue.sync {
+            guard paused, let pausedAt else { return }
+            let now = Self.hostNow()
+            let gap = CMTimeSubtract(now, pausedAt)
+            pauseOffset = CMTimeAdd(pauseOffset, gap)
+            resumedAt = now
+            paused = false
+            self.pausedAt = nil
+            Log.info("Resumed after \(String(format: "%.1f", gap.seconds))s pause, cut so far \(String(format: "%.1f", pauseOffset.seconds))s", "recorder")
+        }
+    }
+
+    /// The same sample moved back by the pauses so far (nil if it could not be copied).
+    private func shifted(_ sampleBuffer: CMSampleBuffer) -> CMSampleBuffer? {
+        guard pauseOffset != .zero else { return sampleBuffer }
+        if resumedAt.isValid, sampleBuffer.presentationTimeStamp < resumedAt { return nil }
+        guard var timings = try? sampleBuffer.sampleTimingInfos() else { return nil }
+        for index in timings.indices {
+            timings[index].presentationTimeStamp = CMTimeSubtract(timings[index].presentationTimeStamp, pauseOffset)
+            if timings[index].decodeTimeStamp.isValid {
+                timings[index].decodeTimeStamp = CMTimeSubtract(timings[index].decodeTimeStamp, pauseOffset)
+            }
+        }
+        return try? CMSampleBuffer(copying: sampleBuffer, withNewTiming: timings)
     }
 
     /// Returns the current live status and resets the peak meters. Safe to call from any thread.
@@ -369,6 +419,10 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             self.sessionStarted = false
             self.finishing = false
             self.stats = Stats()
+            self.paused = false
+            self.pausedAt = nil
+            self.pauseOffset = .zero
+            self.resumedAt = .invalid
             self.startedAt = Date()
             self.live = LiveStatus(width: width, height: height, fileURL: options.outputURL)
         }
@@ -428,8 +482,9 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                 return
             }
             guard let videoInput else { return }
-            let pts = sampleBuffer.presentationTimeStamp
             latestFrame = sampleBuffer.imageBuffer
+            guard !paused, let sampleBuffer = shifted(sampleBuffer) else { return }
+            let pts = sampleBuffer.presentationTimeStamp
             if fade != nil {
                 // The fade timer writes the frames meanwhile; the new display's first frame fades in.
                 if waitingForNewDisplay {
@@ -474,6 +529,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             }
             live.lastSystemBuffer = Date()
             if let peak = Self.peakLevel(sampleBuffer) { live.systemPeak = max(live.systemPeak, peak) }
+            guard !paused, let sampleBuffer = shifted(sampleBuffer) else { return }
             if append(sampleBuffer, to: systemAudioInput, track: "system audio") {
                 stats.systemAudioAppended += 1
                 stats.lastSystemAudioPTS = sampleBuffer.presentationTimeStamp
@@ -487,6 +543,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             }
             live.lastMicBuffer = Date()
             if let peak = Self.peakLevel(sampleBuffer) { live.micPeak = max(live.micPeak, peak) }
+            guard !paused, let sampleBuffer = shifted(sampleBuffer) else { return }
             if append(sampleBuffer, to: microphoneInput, track: "microphone") {
                 stats.micAppended += 1
                 stats.lastMicPTS = sampleBuffer.presentationTimeStamp
@@ -607,7 +664,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
     /// Returns false when there is nothing to fade (no frame written yet).
     private func startFadeOut() -> Bool {
-        guard sessionStarted, !finishing, latestFrame != nil else { return false }
+        guard sessionStarted, !finishing, !paused, latestFrame != nil else { return false }
         fade = .out(start: Self.hostNow().seconds)
         waitingForNewDisplay = false
         let timer = DispatchSource.makeTimerSource(queue: queue)
@@ -637,20 +694,21 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     /// Writes the latest frame, darkened for the current point of the fade.
     private func fadeTick() {
         guard let phase = fade else { return }
-        guard !finishing, let writer, writer.status == .writing, let videoInput else { endFade(); return }
-        let now = Self.hostNow()
+        guard !finishing, !paused, let writer, writer.status == .writing, let videoInput else { endFade(); return }
+        let host = Self.hostNow()
+        let now = CMTimeSubtract(host, pauseOffset)
         let level: Double
         switch phase {
         case .out(let start):
-            let progress = (now.seconds - start) / Self.fadeOutDuration
+            let progress = (host.seconds - start) / Self.fadeOutDuration
             level = 1 - min(1, progress)
-            if progress >= 1 { fade = .black(since: now.seconds) }
+            if progress >= 1 { fade = .black(since: host.seconds) }
         case .black(let since):
             level = 0
             // No frame from the new display (static screen, failed switch): fade in what there is.
-            if now.seconds - since > 1.5 { startFadeIn() }
+            if host.seconds - since > 1.5 { startFadeIn() }
         case .into(let start):
-            let progress = (now.seconds - start) / Self.fadeInDuration
+            let progress = (host.seconds - start) / Self.fadeInDuration
             level = min(1, progress)
             if progress >= 1 { endFade() }
         }

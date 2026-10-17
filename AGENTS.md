@@ -126,8 +126,9 @@ What MeetRec does instead:
   taken as the user becomes one speaker (a teacher's voice changes with a bad connection and
   diarization splits it).
 - Settings live on a separate page behind the gear (general: folder, log, launch at login,
-  watchdog; video; transcription incl. copy rules; meetings incl. browser rules; menu bar look with
-  a preview). The main page keeps the daily things: no transcription block (progress is per recording in
+  watchdog; video; transcription incl. copy rules; "Встречи и звонки" incl. browser rules; "Вид во
+  время записи" with a preview; "Сочетания клавиш"; "Скриншоты"). They open during a recording too;
+  only "Видео" and the recordings folder are locked then. The main page keeps the daily things: no transcription block (progress is per recording in
   the list, cancel in its right-click menu) no Quit button (it is in the item's right-click menu) and no folder row (the folder
   button is next to the search field in "Записи").
 
@@ -141,8 +142,27 @@ What MeetRec does instead:
   meanwhile) without waiting for the file; the "Запись сохранена" toast gives the result. The panel then keeps a notice for the last
   recording (`LastRecordingNotice`): saved with start–end time and duration, and its transcript state
   (percent while running, "Транскрипт готов" opens it, retry on failure).
-  No markers while stopping. Right click on the item
-  opens a quick menu; ⌘, opens settings.
+  No markers while stopping. Right click on the item opens a quick menu: Начать/Остановить запись,
+  Пауза, Отметить момент | «Последняя запись»: Показать в Finder, Открыть транскрипт (or the
+  transcription percent) | Скриншот, OCR | Как я выгляжу, Настройки…, Завершить MeetRec; shortcuts
+  shown when set. ⌘, opens settings. The last recording is remembered across launches. When its
+  transcript still has "Speaker N", the last-recording notice offers to name them (inline editor).
+- Words: "Скриншот", "OCR", "Удалить" (always to the Trash), "Показать в Finder", "Завершить"; the
+  UI says "вы".
+- Pause (like OBS): "Пауза" in the panel (next to "Отметить момент"), the island and the quick menu;
+  a shortcut can be set (none by default). `ScreenRecorder.pause/resume`: the stream keeps running,
+  nothing is written meanwhile, and every later timestamp is moved back by the pauses so the file
+  plays straight through (samples captured before the resume but delivered late are dropped). A
+  "Пауза" marker (`note`) becomes a "⏸ Пауза · 12:34" chapter (not numbered) and a "⏸" line in the
+  transcript. While paused: orange pause icon in the menu bar, timer and island stopped, an orange
+  banner in the panel, no health alerts (the tracker starts afresh on resume). After 10 min a quiet
+  notification, every 30 min one with "Сохранить и остановить" / "Снять с паузы" / "Оставить на
+  паузе" (it never stops by itself). The automatic stop after a meeting works as usual.
+- Shortcuts (`Shortcuts.swift`): record ⌃⌥⌘R, marker ⌃⌥⌘M, pause (none), screenshot ⇧⌘4, OCR ⇧⌘2;
+  each changeable (settings → "Сочетания клавиш" / "Скриншоты": click, press keys with ⌘/⌥/⌃, Esc
+  cancels, ↺ restores or ✕ clears; the same keys twice are refused). One that cannot be registered
+  (another app has it) shows a warning with "Повторить" in settings and, for the recording ones, a
+  line in the panel.
 
 - Microphone follows the call (`AudioDevices.swift`): CoreAudio process objects tell which input
   device the call app captures from (`kAudioProcessPropertyDevices`, input scope only). In "По
@@ -188,10 +208,9 @@ What MeetRec does instead:
   most once per 2 minutes.
 
 - Screenshots like Shottr (`Screenshots.swift`, `AreaSelector.swift`, `ScreenshotEditor.swift`,
-  `ScreenshotViews.swift`). Two shortcuts, both changeable in settings (click it, press a new one
-  with ⌘/⌥/⌃, Esc cancels, ↺ restores; the same keys for both are refused; a taken Carbon hot key,
-  e.g. still Shottr's, shows "Повторить"): ⇧⌘4 screenshot (macOS's own area shortcut has to be off)
-  and ⇧⌘2 text from the screen (OCR straight to the clipboard, no file). Pressing one first freezes
+  `ScreenshotViews.swift`). Two shortcuts (`Shortcuts.swift`, like all the others): ⇧⌘4 screenshot
+  (macOS's own area shortcut has to be off) and ⇧⌘2 "OCR" (the text straight to the clipboard, no
+  file). Pressing one first freezes
   every screen at once (`FrozenScreen`: SCK picture without MeetRec's own windows + the window
   list; ~0.1 s), then the crosshair goes over the frozen pictures (a layer's contents; selection,
   tint and badges are shape/text layers: a self-drawing full-screen view left a 46 MB 16-bit
@@ -203,23 +222,25 @@ What MeetRec does instead:
   Screenshots are copied (PNG + TIFF at point size) and saved as `<timestamp>.png` with the screen
   scale in its DPI (format "Авто (PNG/JPEG)", the default: JPEG q 0.9 when it is ≤ 40 % of the PNG,
   i.e. photos and gradients; text stays PNG; edits keep the file's format; the clipboard always gets
-  PNG), to "Скриншоты" in the recordings folder or a chosen one; copy, save and the toast are
-  switchable (with both off it is still copied). The toast shows a preview: drag it into a chat or
-  a browser's upload field (the file itself; unsaved shots get a temporary copy in
-  `$TMPDIR/MeetRec Screenshots`, cleared at launch); it stays while dragging and goes after a drop;
-  a click or "Редактировать" edits. OCR runs without language correction (it broke code and
-  e-mails). The main page has "Скриншоты" under "Записи": "Снимок" and "Текст" buttons, the last
-  five as thumbnails sorted by the name's timestamp (click edits, drag into a chat, right click:
-  edit, copy, recognise text, Finder, Trash). The editor: arrow (A; a middle point bends it, off
+  PNG), to `~/Pictures/screenshots` (Shottr's folder, so the history stays in one place; changeable);
+  copy, save and the toast are switchable (with both off it is still copied). The toast says
+  "Скопирован и сохранён" (the owner used to press "copy" in Shottr anyway) and shows a preview:
+  drag it into a chat or a browser's upload field (the file itself; unsaved shots get a temporary
+  copy in `$TMPDIR/MeetRec Screenshots`, cleared at launch); it stays while dragging and goes after
+  a drop; a click or "Редактировать" edits, "OCR" copies the text of the whole shot. OCR runs
+  without language correction (it broke code and e-mails). The main page has "Скриншоты" under
+  "Записи": "Скриншот" and "OCR" buttons, the last five as thumbnails by creation date (Shottr's
+  `SCR-…` files mix in; an edit keeps the creation date; click edits, drag into a chat, right
+  click: edit, copy, OCR, Finder, Удалить). The editor: arrow (A; a middle point bends it, off
   centre the bend moves towards that end, back onto the line it snaps straight), rectangle (R),
   ellipse (O), caption (T), steps (N: numbered circles 1, 2, 3…, renumbered after a delete), blur
   (B: pixelate only that area, averaged squares 6–16 pt, default 8 so text cannot be depixelated;
   slider), crop (C), OCR (X: an area or "Весь текст"), colours 1–4, ⌘Z / ⇧⌘Z. Every mark stays an
   object: click selects it (lines by their stroke, so one can draw inside a frame), drag moves it,
   handles reshape it, a colour recolours it, Delete removes it, Esc deselects or closes the window.
-  The keys work by position (Russian layout too) and not while a caption is typed. ⌘C copies the
-  result, saves it and closes; ⌘S or closing writes it over the same file (a caption still being
-  typed is kept). Marks stay separate from the original pixels until then.
+  The keys work by position (Russian layout too) and not while a caption is typed. However the
+  editor is left (⌘C "Копировать", Esc, ⌘W, the close button), the result is copied and written over
+  the same file (a caption still being typed is kept); ⌘S saves without closing. Marks stay separate from the original pixels until then.
 
 Planned next: Zoom and other apps once checked for false positives. Later: an own viewer window in
 MeetRec (video, the list of markers and the transcript side by side; clicking a line or a marker jumps
@@ -250,7 +271,8 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
 - `MeetRec/Log.swift`: logs to `~/Library/Logs/MeetRec/meetrec.log` (rotated at 5 MB) and the unified
   log, subsystem `com.dmemruk.MeetRec`. Stats every 10 s, verified track info after each recording.
   Read this log first when something goes wrong.
-- `MeetRec/HotKey.swift`: Carbon global hotkey (no Accessibility permission needed).
+- `MeetRec/HotKey.swift`: Carbon global hotkey (no Accessibility permission needed), reports whether
+  it was registered; `Shortcuts.swift` owns all of them.
 - `MeetRec/MeetingDetector.swift` + `MeetingSettings.swift`: polls CoreAudio process objects once a
   second (`kAudioHardwarePropertyProcessObjectList`, `kAudioProcessPropertyIsRunningInput`,
   `kAudioProcessPropertyBundleID`; macOS 14.4+, no permission) to see which apps capture a microphone.

@@ -28,6 +28,15 @@ class MarkerTests(unittest.TestCase):
             "⭐ [00:01:39] Отметка",
         ])
 
+    def test_pause_markers_get_their_own_line(self):
+        lines = [(0, "[00:00:00] A: hi"), (30, "[00:00:30] B: yo")]
+        self.assertEqual(transcribe.insert_markers(lines, [(20, "Пауза"), (10, None)]), [
+            "[00:00:00] A: hi",
+            "⭐ [00:00:10] Отметка",
+            "⏸ [00:00:20] Пауза",
+            "[00:00:30] B: yo",
+        ])
+
     def test_no_markers(self):
         self.assertEqual(transcribe.insert_markers([(0, "a")], []), ["a"])
 
@@ -37,7 +46,7 @@ class MarkerTests(unittest.TestCase):
             self.assertEqual(transcribe.load_markers(video), [])
             (Path(folder) / "2026-10-16 14-03-22 Sync.markers.json").write_text(
                 json.dumps([{"time": 40}, {"time": 5.5, "note": None}]), encoding="utf-8")
-            self.assertEqual(transcribe.load_markers(video), [5.5, 40.0])
+            self.assertEqual(transcribe.load_markers(video), [(5.5, None), (40.0, None)])
 
     def test_unreadable_markers_are_ignored(self):
         with tempfile.TemporaryDirectory() as folder:

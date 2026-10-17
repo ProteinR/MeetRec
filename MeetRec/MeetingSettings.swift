@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// "Автозапись встреч": on/off and the calling apps found on this Mac.
+/// "Встречи и звонки": on/off and the calling apps found on this Mac.
 struct MeetingSettings: View {
     @EnvironmentObject private var model: RecorderModel
     @State private var installed: [MeetingApp] = []

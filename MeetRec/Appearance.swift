@@ -33,7 +33,7 @@ enum MenuBarStyle: String, CaseIterable, Identifiable {
     static var hideFromSharing: Bool { UserDefaults.standard.object(forKey: hideFromSharingKey) as? Bool ?? true }
 }
 
-/// "Значок в меню": how a recording looks in the menu bar, and hiding MeetRec from screen sharing.
+/// "Вид во время записи": how a recording looks in the menu bar, and hiding MeetRec from screen sharing.
 struct AppearanceSettings: View {
     @AppStorage(MenuBarStyle.storageKey) private var style = MenuBarStyle.full.rawValue
     @AppStorage(MenuBarStyle.hideFromSharingKey) private var hideFromSharing = true

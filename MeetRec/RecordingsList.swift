@@ -219,7 +219,7 @@ struct RecordingRow: View {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) { showingMarkers.toggle() }
                 } label: {
-                    Text("⭐ \(item.markers.count)").font(.caption).monospacedDigit()
+                    Text(markerCountText).font(.caption).monospacedDigit()
                 }
                 .buttonStyle(.borderless)
                 .help("Отметки: открыть видео на нужном моменте")
@@ -259,7 +259,8 @@ struct RecordingRow: View {
             Divider()
             Button("Переименовать…", action: startRename)
                 .disabled(isLocked)
-            Button("Переместить в Корзину", action: moveToTrash)
+            Button("Удалить", action: moveToTrash)
+                .help("В Корзину вместе с транскриптом и отметками; оттуда можно вернуть")
                 .disabled(isLocked)
         }
     }
@@ -285,7 +286,7 @@ struct RecordingRow: View {
                 Image(systemName: "doc.text.fill").foregroundStyle(.green)
             }
             .buttonStyle(.borderless)
-            .help("Просмотреть транскрипт (правый клик — открыть в редакторе)")
+            .help("Просмотреть транскрипт; открыть в редакторе — в меню записи (правый клик по строке)")
         } else if let failure = transcriber.failures[item.url.path] {
             Button {
                 transcriber.enqueue(item.url)
@@ -335,6 +336,13 @@ struct RecordingRow: View {
         }
     }
 
+    /// "⭐ 3", "⭐ 3 · ⏸ 1", "⏸ 1".
+    private var markerCountText: String {
+        let pauses = item.markers.filter(\.isPause).count
+        let stars = item.markers.count - pauses
+        return [stars > 0 ? "⭐ \(stars)" : nil, pauses > 0 ? "⏸ \(pauses)" : nil].compactMap { $0 }.joined(separator: " · ")
+    }
+
     /// Marked moments as buttons; each opens the video in QuickTime at that time.
     private var markersList: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 6)], alignment: .leading, spacing: 6) {
@@ -342,7 +350,7 @@ struct RecordingRow: View {
                 Button {
                     QuickTimeOpener.open(item.url, at: marker.time)
                 } label: {
-                    Text("⭐ \(marker.timeText)").font(.caption).monospacedDigit()
+                    Text(marker.label).font(.caption).monospacedDigit()
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)

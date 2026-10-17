@@ -37,6 +37,12 @@ enum SpeakerNaming {
         runsDir.appendingPathComponent(recording.deletingPathExtension().lastPathComponent).appendingPathExtension("json")
     }
 
+    /// Some speakers are still "Speaker N": worth naming them.
+    static func hasUnnamed(_ recording: URL) -> Bool {
+        guard let names = loadRun(recording)?["names"] as? [String: String] else { return false }
+        return names.values.contains { $0.hasPrefix("Speaker ") }
+    }
+
     static func hasSpeakers(_ recording: URL) -> Bool {
         FileManager.default.fileExists(atPath: runURL(for: recording).path)
     }

@@ -27,11 +27,6 @@ struct TranscriptionSettings: View {
             if transcriber.diarization {
                 voice
             }
-            if let last = model.lastFile, transcriber.modelsState == .ready {
-                Button("Транскрибировать последнюю запись") { transcriber.enqueue(last) }
-                    .buttonStyle(.link)
-                    .help(last.lastPathComponent)
-            }
         }
         .padding(.top, 4)
     }
