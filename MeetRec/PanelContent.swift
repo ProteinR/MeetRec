@@ -167,6 +167,9 @@ struct ContentView: View {
     private var header: some View {
         HStack {
             Text("MeetRec").font(.headline)
+            Text(RecorderModel.appVersion)
+                .font(.caption).foregroundStyle(.tertiary)
+                .textSelection(.enabled)
             Spacer()
             if let badge = model.autoBadge, model.isRecording {
                 Text("авто · \(badge)")

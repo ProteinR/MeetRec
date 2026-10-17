@@ -622,9 +622,14 @@ final class RecorderModel: ObservableObject {
         NSWorkspace.shared.open(Log.fileURL)
     }
 
+    /// "0.3.1", shown on the main page.
+    static var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+    }
+
     static func logLaunch() {
-        let info = Bundle.main.infoDictionary
-        let version = "\(info?["CFBundleShortVersionString"] ?? "?") (\(info?["CFBundleVersion"] ?? "?"))"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        let version = "\(appVersion) (\(build))"
         var size = 0
         sysctlbyname("hw.model", nil, &size, nil, 0)
         var model = [CChar](repeating: 0, count: max(size, 1))

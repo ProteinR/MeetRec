@@ -366,6 +366,12 @@ then launch, grant again, and relaunch after granting Screen Recording.
 
 ## Rules
 
+- Every fix or feature bumps the version (`project.yml`). The pre-commit hook
+  (`scripts/git-hooks/pre-commit`; enable once per clone: `git config core.hooksPath scripts/git-hooks`)
+  does it when a commit touches the app: `CURRENT_PROJECT_VERSION` +1 and the patch
+  (0.3.1 → 0.3.2). For a new feature bump the minor by hand before committing
+  (`MARKETING_VERSION: "0.4.0"`); the hook keeps a hand-made bump. The version is shown next to
+  the title on the main page; the log's launch line also has the build number.
 - Do not add an App Sandbox, hardened runtime or a team id: the local signing setup depends on it.
 - Never reinstall while a recording is running (`install.sh` kills the app): check the log's last
   "Recording state" line first.
