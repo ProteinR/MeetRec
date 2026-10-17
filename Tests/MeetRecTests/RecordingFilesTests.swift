@@ -162,3 +162,12 @@ final class RecordingFilesTests: XCTestCase {
         XCTAssertNotNil(DiskSpace.available(at: folder.appendingPathComponent("not/yet/created")))
     }
 }
+
+extension RecordingFilesTests {
+    func testBrowserRuleShowsTheFileNameItGives() {
+        let date = ISO8601DateFormatter().date(from: "2026-10-17T10:03:22Z")!
+        let stamp = RecordingFiles.timestamp(date)
+        XCTAssertEqual(BrowserRulesEditor.exampleFileName(title: " Skyeng ", date: date), "\(stamp) Skyeng.mov")
+        XCTAssertEqual(BrowserRulesEditor.exampleFileName(title: "", date: date), "\(stamp).mov")
+    }
+}

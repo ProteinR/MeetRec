@@ -40,7 +40,7 @@ final class ScreenshotEditor: NSObject, NSWindowDelegate {
         window.title = document.url.lastPathComponent
         window.representedURL = document.url
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 760, height: 380)
+        window.minSize = NSSize(width: 840, height: 380)
         window.delegate = self
         let hosting = NSHostingView(rootView: EditorView(document: document) { [weak self] in self?.window.performClose(nil) })
         hosting.sizingOptions = []
@@ -808,11 +808,11 @@ struct EditorView: View {
                 // Done: the result goes to the clipboard and over the file, the window goes away.
                 if document.copyResult() { close() }
             } label: {
-                Label("Копировать", systemImage: "doc.on.doc")
+                Label("Копировать и сохранить", systemImage: "doc.on.doc")
             }
             .keyboardShortcut("c", modifiers: .command)
             .disabled(captionAt != nil)
-            .help("Скопировать картинку с пометками, сохранить и закрыть (⌘C)")
+            .help("Скопировать картинку с пометками в буфер, сохранить её в тот же файл и закрыть (⌘C). Закрытие окна тоже сохраняет")
         }
         .padding(.horizontal, 12)
     }

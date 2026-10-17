@@ -133,6 +133,9 @@ What MeetRec does instead:
   be marked "Собеседник один": its recordings are transcribed with `--one-other`, so everyone not
   taken as the user becomes one speaker (a teacher's voice changes with a bad connection and
   diarization splits it).
+  In settings each rule is a card: "Вкладка называется" (several, comma-separated), "Название
+  записи", the file name it gives ("Файл будет: 2026-10-17 14-03-22 Skyeng.mov"), "Собеседник один",
+  "Удалить правило" (an arrow between the fields read as "rename A to B").
 - Settings live on a separate page behind the gear (general: folder, log, launch at login,
   watchdog; video; transcription incl. copy rules; "Встречи и звонки" incl. browser rules; "Вид во
   время записи" with a preview; "Сочетания клавиш"; "Скриншоты"). They open during a recording too;
@@ -247,7 +250,7 @@ What MeetRec does instead:
   object: click selects it (lines by their stroke, so one can draw inside a frame), drag moves it,
   handles reshape it, a colour recolours it, Delete removes it, Esc deselects or closes the window.
   The keys work by position (Russian layout too) and not while a caption is typed. However the
-  editor is left (⌘C "Копировать", Esc, ⌘W, the close button), the result is copied and written over
+  editor is left (⌘C "Копировать и сохранить", Esc, ⌘W, the close button), the result is copied and written over
   the same file (a caption still being typed is kept); ⌘S saves without closing. Marks stay separate from the original pixels until then.
 
 Planned next: Zoom and other apps once checked for false positives. Later: an own viewer window in
