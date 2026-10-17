@@ -34,9 +34,11 @@ final class ToastController {
         override var canBecomeKey: Bool { true }
     }
 
-    static let width: CGFloat = 360
-    static let height: CGFloat = 170
-    private static let margin: CGFloat = 16
+    /// The card is 328 wide; the rest is a transparent margin wide enough for its shadow (radius 10,
+    /// reaching about 20 plus the offset), so it fades out instead of being cut off.
+    static let margin: CGFloat = 30
+    static let width: CGFloat = 328 + 2 * margin
+    static let height: CGFloat = 200
 
     private let panel: ToastPanel
     private let model: RecorderModel
@@ -191,7 +193,7 @@ struct ToastView: View {
                 }
             }
             .padding(12)
-            .frame(width: ToastController.width - 32)
+            .frame(width: ToastController.width - 2 * ToastController.margin)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5))
             .shadow(color: .black.opacity(0.3), radius: 10, y: 4)
@@ -199,7 +201,7 @@ struct ToastView: View {
             .transition(.move(edge: .top).combined(with: .opacity))
             Spacer(minLength: 0)
         }
-        .padding(.top, 16)
+        .padding(.top, ToastController.margin)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.toast?.id)
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.callPrompt?.id)

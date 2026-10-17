@@ -20,8 +20,9 @@ private final class KeyablePanel: NSPanel {
 @MainActor
 final class MenuPanelController: NSObject, NSWindowDelegate {
     static let cardWidth: CGFloat = 460
-    /// Transparent margin around the card for its shadow.
-    static let margin: CGFloat = 18
+    /// Transparent margin around the card for its shadow. The blur reaches about twice its radius
+    /// (14) plus the offset (6); a narrower margin cut the shadow off with a hard edge.
+    static let margin: CGFloat = 40
     private static let gap: CGFloat = 4
 
     private let panel: KeyablePanel
