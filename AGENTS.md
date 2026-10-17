@@ -59,6 +59,14 @@ What MeetRec does instead:
   (`DisplayHighlight`, click-through) so the choice is visible on the monitor itself. The same frame
   blinks softly three times on the recorded screen when any recording starts or switches screens
   (not in the discreet style).
+  Under the displays: up to 10 normal windows of the chosen display as small thumbnails (app icon,
+  title in the tooltip; `WindowPreview`, a capture each, every 5 s while open; "и ещё N" beyond).
+  Clicking one chooses it (red frame on the tile and around the window on screen, ordered right
+  above that window among normal windows so windows covering it cover the frame too; the section is
+  titled "Окно: …"); the next manual start records only that window from the first frame
+  (`RecordingOptions.windowID`, scaled to fill the frame). The choice is for that one start: it is
+  cleared when the panel closes without starting and after the start. Teams auto-recordings and
+  browser rules always take the whole display.
 - "Как я выгляжу" (person icon next to the gear, or the quick menu): a floating mirrored camera
   window (`CameraMirror.swift`) to check yourself before a meeting; camera picker on hover, Esc or ✕
   closes it and stops the camera. Nothing is recorded.

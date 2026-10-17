@@ -45,6 +45,8 @@ struct RecordingOptions {
     /// `AVCaptureDevice.uniqueID`; nil uses the system default microphone.
     var microphoneID: String?
     var outputURL: URL
+    /// Record only this window from the first frame (chosen in the panel); nil = the whole display.
+    var windowID: CGWindowID? = nil
 }
 
 enum RecorderError: LocalizedError {
@@ -355,6 +357,21 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         if options.microphone, let id = options.microphoneID {
             config.microphoneCaptureDeviceID = id
         }
+        // A window chosen before the start: the stream starts on it, scaled to fill the display's frame,
+        // so not a single frame of the rest of the screen gets into the file.
+        let wholeFrame = config.destinationRect
+        var streamFilter = filter
+        var startWindow: CGWindowID?
+        if let windowID = options.windowID {
+            if let window = content.windows.first(where: { $0.windowID == windowID }) {
+                streamFilter = SCContentFilter(desktopIndependentWindow: window)
+                config.destinationRect = Self.centeredRect(content: window.frame, width: width, height: height)
+                startWindow = windowID
+                Log.info("Starting on window \(windowID) \"\(window.owningApplication?.applicationName ?? "?") — \(window.title ?? "")\"", "recorder")
+            } else {
+                Log.warning("Chosen window \(windowID) is gone; recording the whole display", "recorder")
+            }
+        }
 
         let writer: AVAssetWriter
         do {
@@ -392,7 +409,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             microphone = input
         }
 
-        let stream = SCStream(filter: filter, configuration: config, delegate: self)
+        let stream = SCStream(filter: streamFilter, configuration: config, delegate: self)
         do {
             try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
             if options.systemAudio {
@@ -429,8 +446,8 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         self.stream = stream
         self.displayID = display.displayID
         self.configuration = config
-        self.windowID = nil
-        self.wholeFrameRect = config.destinationRect
+        self.windowID = startWindow
+        self.wholeFrameRect = wholeFrame
 
         do {
             try await stream.startCapture()

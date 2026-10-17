@@ -318,6 +318,7 @@ struct ContentView: View {
     /// Taken or changed shortcuts show up in the panel at once.
     @ObservedObject private var shortcuts = Shortcuts.shared
     @StateObject private var displayPreview = DisplayPreview()
+    @StateObject private var windowPreview = WindowPreview()
     @State private var openSection: String?
     @State private var showingSettings = false
     @State private var closeAfterToggle = false
@@ -605,9 +606,10 @@ struct ContentView: View {
             sourceRow(icon: "speaker.wave.2.fill", isOn: $model.systemAudio) {
                 Text("Звук системы")
             }
-            CollapsibleSection(title: model.effectiveDisplay?.name ?? "Монитор не найден", icon: "display",
+            CollapsibleSection(title: model.chosenWindow.map { "Окно: \($0.label)" } ?? model.effectiveDisplay?.name ?? "Монитор не найден",
+                               icon: model.chosenWindow == nil ? "display" : "macwindow",
                                summary: displaySummary, isExpanded: expanded("display")) {
-                DisplayChooser(preview: displayPreview)
+                DisplayChooser(preview: displayPreview, windows: windowPreview)
             }
         }
         .disabled(model.isRecording)
@@ -619,6 +621,9 @@ struct ContentView: View {
         .onChange(of: openSection) { updateDisplayPreview() }
         .onChange(of: model.displayID) { updateDisplayPreview() }
         .onChange(of: model.displays) { updateDisplayPreview() }
+        .onChange(of: model.chosenWindow) { updateDisplayPreview() }
+        // Every refresh: the window may have moved or been brought forward meanwhile.
+        .onChange(of: windowPreview.tiles.map { "\($0.id) \(NSStringFromRect($0.frame))" }) { updateDisplayPreview() }
         .onDisappear { DisplayHighlight.shared.hide() }
     }
 
@@ -640,6 +645,7 @@ struct ContentView: View {
 
     private var displaySummary: String {
         guard let display = model.effectiveDisplay else { return "" }
+        if model.chosenWindow != nil { return "Только это окно · на «\(display.name)» · на одну запись" }
         let kind = display.isBuiltIn ? "встроенный экран" : "внешний монитор"
         return model.displayID == RecorderModel.autoDisplay ? "Авто · \(kind)" : kind
     }
@@ -654,9 +660,15 @@ struct ContentView: View {
     private func updateDisplayPreview() {
         if model.panelVisible, !model.isRecording, openSection == "display", let display = model.effectiveDisplay {
             displayPreview.start()
-            DisplayHighlight.shared.show(displayID: display.id)
+            windowPreview.start(displayID: display.id)
+            if let chosen = model.chosenWindow, let tile = windowPreview.tiles.first(where: { $0.id == chosen.id }) {
+                DisplayHighlight.shared.show(windowFrame: tile.frame, windowID: tile.id)
+            } else {
+                DisplayHighlight.shared.show(displayID: display.id)
+            }
         } else {
             displayPreview.stop()
+            windowPreview.stop()
             DisplayHighlight.shared.hide()
         }
     }

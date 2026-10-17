@@ -101,7 +101,14 @@ final class RecorderModel: ObservableObject {
     /// Whether the menu panel is on screen; drives the microphone level preview and how often the
     /// recording status refreshes (5×/s for smooth meters while visible, once a second otherwise).
     @Published var panelVisible = false {
-        didSet { if isRecording, panelVisible != oldValue { scheduleTick() } }
+        didSet {
+            if isRecording, panelVisible != oldValue { scheduleTick() }
+            // A window choice is for a start from this opening of the panel only.
+            if !panelVisible, !isRecording, !isBusy, chosenWindow != nil {
+                chosenWindow = nil
+                Log.debug("Window choice cleared (panel closed without starting)")
+            }
+        }
     }
     /// Moments marked in the current recording (⌃⌥⌘M or the button).
     @Published private(set) var markers: [Marker] = []
@@ -118,6 +125,9 @@ final class RecorderModel: ObservableObject {
     static let pauseNote = "Пауза"
     /// The single window being recorded instead of the whole display; nil = whole display.
     @Published private(set) var captureWindow: CaptureWindow?
+    /// A window chosen in the panel for the next manual start only; cleared when the panel closes
+    /// without starting and after that start. Automatic recordings always take the whole display.
+    @Published var chosenWindow: CaptureWindow?
     /// Windows offered in the "what to record" menu while recording.
     @Published private(set) var windows: [CaptureWindow] = []
     /// Free space on the recordings volume, refreshed while recording.
@@ -1053,8 +1063,11 @@ final class RecorderModel: ObservableObject {
                     systemAudio: systemAudio,
                     microphone: microphone,
                     microphoneID: startMicrophone(for: autoApp),
-                    outputURL: nextFileURL()
+                    outputURL: nextFileURL(),
+                    windowID: autoApp == nil && pendingRuleID == nil ? chosenWindow?.id : nil
                 )
+                let startWindow = options.windowID == nil ? nil : chosenWindow
+                chosenWindow = nil
                 Log.info("Starting: display=\(display.id) \"\(display.name)\" (setting=\(displayID == Self.autoDisplay ? "auto" : String(displayID))) mic=\(microphones.first(where: { $0.id == microphoneID })?.name ?? "default: \(AVCaptureDevice.default(for: .audio)?.localizedName ?? "none")")")
                 recordingMicUID = startMicrophone(for: autoApp)
                 micOverridden = false
@@ -1077,6 +1090,13 @@ final class RecorderModel: ObservableObject {
                 autoStartedAppID = autoApp?.id
                 if let autoApp, autoApp.id == "browser" { rememberCallTab(autoApp) }
                 didStart()
+                if let startWindow {
+                    captureWindow = startWindow
+                    healthTracker?.displayName = "окно \(startWindow.appName)"
+                    lastWindowCheck = Date()
+                    updateMeetingTitle(force: true)
+                    Log.info("Recording only window from the start: \(startWindow.label)")
+                }
                 if let free, free < DiskSpace.warnBelow {
                     alert("disk-low", when: true, title: "Мало места на диске",
                           body: "Свободно \(DiskSpace.format(free)). Запись остановится сама, если останется меньше \(DiskSpace.format(DiskSpace.stopBelow)).")
