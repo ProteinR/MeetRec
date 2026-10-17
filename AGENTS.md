@@ -150,9 +150,10 @@ What MeetRec does instead:
   (`SCStream.updateConfiguration`) when the call or the system default changes and stays for two
   checks (~6 s); a microphone chosen by hand (in settings or during the recording) is never changed,
   only suggested once per device. The live status has a microphone menu.
-- Microphone level preview in the panel (`MicrophoneMonitor.swift`) runs while the panel is open, but a
-  Bluetooth microphone is opened only by "Проверить": opening AirPods' mic switches them to the
-  headset profile, and a Bluetooth mouse then stutters (the cursor jumped on every panel open).
+- Microphone level preview in the panel (`MicrophoneMonitor.swift`) runs only after "Проверить", for
+  any microphone, so the panel looks the same with or without headphones: opening a mic lights the
+  orange dot on every panel open, and opening AirPods' mic switches them to the headset profile, so
+  a Bluetooth mouse stutters (the cursor jumped on every panel open).
 
 - Countdown before an automatic recording (Teams, browser rules; not in the discreet style): from
   "the app took the mic" to the start, grey seconds next to the menu bar icon and a panel banner

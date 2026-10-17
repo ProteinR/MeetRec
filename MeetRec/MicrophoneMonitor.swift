@@ -2,28 +2,29 @@ import AVFoundation
 import CoreAudio
 import Foundation
 
-/// Live input level of the selected microphone while the settings are visible, so a dead or wrong
-/// device is noticed before recording. Runs only while the panel is open and nothing is recording
-/// (macOS shows its orange microphone dot during that time).
+/// Live input level of the selected microphone, so a dead or wrong device is noticed before recording.
+/// Runs only on request ("Проверить"), while the panel stays open and nothing is recording.
 ///
-/// Bluetooth microphones are not opened by themselves: opening AirPods' microphone switches them to
-/// the headset profile (HFP), which takes radio time from other Bluetooth devices, so a Bluetooth
-/// mouse stutters and the cursor jumps each time the panel opens. They are checked on request.
+/// No microphone is opened by itself, whatever it is: the same panel with or without headphones.
+/// Opening one lights macOS's orange microphone dot each time the panel opens, and opening AirPods
+/// switches them to the headset profile (HFP), so a Bluetooth mouse stutters and the cursor jumps.
 @MainActor
 final class MicrophoneMonitor: ObservableObject {
     @Published private(set) var levelDB: Float = -60
     @Published private(set) var deviceName: String?
     /// True once the device has delivered audio; false means nothing arrives (wrong/dead device).
     @Published private(set) var receiving = false
-    /// The device is Bluetooth and waits for `check()` instead of being opened by itself.
+    /// The device waits for `check()` instead of being opened by itself.
     @Published private(set) var waitingForCheck = false
+    /// The waiting device is Bluetooth (checking it switches headphones to the headset profile).
+    @Published private(set) var isBluetoothDevice = false
 
     private var session: AVCaptureSession?
     private var output: AVCaptureAudioDataOutput?
     private var timer: Timer?
     private var currentID: String?
     private var startedAt: Date?
-    /// The Bluetooth device the user asked to check while the panel is open.
+    /// The device the user asked to check while the panel is open.
     private var checkedID: String?
 
     /// Starts (or switches) monitoring; `deviceID` empty means the system default input.
@@ -40,9 +41,9 @@ final class MicrophoneMonitor: ObservableObject {
         if session != nil, currentID == device.uniqueID { return }
         stopSession()
         deviceName = device.localizedName
-        if Self.isBluetooth(device), checkedID != device.uniqueID {
+        isBluetoothDevice = Self.isBluetooth(device)
+        if checkedID != device.uniqueID {
             waitingForCheck = true
-            Log.debug("Mic preview not opened by itself (Bluetooth): \(device.localizedName)", "devices")
             return
         }
         waitingForCheck = false
@@ -73,14 +74,14 @@ final class MicrophoneMonitor: ObservableObject {
         Log.debug("Mic preview started: \(device.localizedName)", "devices")
     }
 
-    /// Opens a Bluetooth microphone that `start` left closed.
+    /// Opens the microphone that `start` left closed.
     func check(deviceID: String) {
         let device = deviceID.isEmpty ? AVCaptureDevice.default(for: .audio) : AVCaptureDevice(uniqueID: deviceID)
         checkedID = device?.uniqueID
         start(deviceID: deviceID)
     }
 
-    /// Stops monitoring; a Bluetooth device is not opened again until the next `check()`.
+    /// Stops monitoring; the device is not opened again until the next `check()`.
     func stop() {
         checkedID = nil
         waitingForCheck = false

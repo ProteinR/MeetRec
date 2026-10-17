@@ -607,17 +607,19 @@ struct ContentView: View {
     @ViewBuilder
     private var micPreview: some View {
         if micMonitor.waitingForCheck {
-            // Bluetooth: opening the mic switches AirPods to the headset profile and makes a Bluetooth
-            // mouse stutter, so only on request.
+            // Any microphone only on request: the same with or without headphones, no orange dot
+            // each time the panel opens.
             HStack(spacing: 6) {
-                Text("\(micMonitor.deviceName ?? "Микрофон"): Bluetooth")
+                Text(micMonitor.deviceName ?? "Микрофон")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Button("Проверить") { micMonitor.check(deviceID: model.microphoneID) }
                     .buttonStyle(.link)
                     .font(.caption2)
-                    .help("Включит микрофон, чтобы показать уровень. Наушники переключатся в режим гарнитуры, пока панель открыта")
+                    .help(micMonitor.isBluetoothDevice
+                          ? "Включит микрофон, чтобы показать уровень. Наушники переключатся в режим гарнитуры, пока панель открыта"
+                          : "Включит микрофон, чтобы показать уровень, пока панель открыта")
             }
         } else {
             micLevel
