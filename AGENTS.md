@@ -273,8 +273,27 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
   item or reopening the app shows the panel; clicks outside (including the transparent part, which is
   click-through), Esc or ⌘W close it. If Ice hides the item (it moves hidden items off screen), the
   panel opens at the top right. `NSPopover` was dropped: anchored to a fake view it misplaced its arrow.
+- Code layout (one responsibility per file; extensions of a type are `Type+Part.swift`):
+  - App and panel: `MeetRecApp.swift` (entry, `AppDelegate`: status item, panel, toasts, island),
+    `AppDelegate+QuickMenu.swift`, `QuickMenuItem.swift`, `MenuPanel.swift` (window),
+    `PanelContent.swift` (`ContentView`: main page), `PanelContent+Settings.swift` (settings page),
+    `PanelStatus.swift` (live status while recording), `PanelBanners.swift` (call question,
+    countdowns, last-recording notice), `RecordButton.swift`, `CollapsibleSection.swift`.
+  - Recording state (`RecorderModel`, the one `ObservableObject` the UI watches):
+    `RecorderModel.swift` (settings, device lists, start/stop, lifecycle), `+Meetings` (detector,
+    countdowns, ask-first apps, browser rules, meeting window, file title), `+Microphone` (the
+    mic follows the call), `+Pause` (markers and pause), `+Capture` (display/window switching),
+    `+Health` (tick, alerts, disk, load), `+Recovery` (crash recovery, lost display, permissions),
+    `+Messages` (toasts, notification buttons). Types: `RecordingDevices.swift`, `BrowserRule.swift`.
+  - Capture: `ScreenRecorder.swift` (stream → writer, fades, pause; its state stays confined to one
+    queue, so it is not split further), `ScreenRecorder+Media.swift` (stateless helpers),
+    `RecorderTypes.swift`.
+  - Screenshots: `Screenshots.swift` (`Screenshotter`), `ScreenshotFiles.swift`, `AreaSelector.swift`,
+    `ScreenshotViews.swift`; editor: `ScreenshotEditor.swift` (window), `EditorDocument.swift`,
+    `EditorAnnotations.swift` (tools, marks, geometry, palette), `AnnotationDrawing.swift`,
+    `EditorView.swift`. Shortcuts for everything: `Shortcuts.swift`.
 - `MeetRec/RecorderModel.swift`: settings (`@AppStorage`), device lists, permissions, start/stop,
-  global hotkey ⌃⌥⌘R, system event logging (sleep/wake/lock, device changes).
+  system event logging (sleep/wake/lock, device changes).
 - `MeetRec/ScreenRecorder.swift`: ScreenCaptureKit (`SCStream` with `.screen`, `.audio`,
   `.microphone` outputs) → `AVAssetWriter` writing a **fragmented** `.mov` (5 s fragments: a crash
   loses seconds, not the file). Tracks: H.264/HEVC video, system audio (AAC stereo), microphone (AAC

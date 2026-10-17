@@ -1,69 +1,8 @@
-import Accelerate
 import AppKit
 import AVFoundation
 import CoreImage
 import CoreMedia
 import ScreenCaptureKit
-
-/// Live signal information for the "recording status" panel. Peaks are linear (0…1) and are reset
-/// each time a snapshot is taken, so they hold the loudest moment since the previous UI tick.
-struct LiveStatus {
-    var micPeak: Float = 0
-    var systemPeak: Float = 0
-    var lastMicBuffer: Date?
-    var lastSystemBuffer: Date?
-    /// Any screen sample, including "idle" ones: proves the stream is alive even on a static screen.
-    var lastScreenSample: Date?
-    var videoFrames = 0
-    var width = 0
-    var height = 0
-    var fileURL: URL?
-    /// When the first video frame started the file: marker times are counted from here.
-    var sessionStartedAt: Date?
-    /// Brightest sampled luma (0…255) of the latest checked frame; nil before the first check.
-    var frameMaxLuma: Int?
-}
-
-/// A window that can be recorded instead of the whole display.
-struct CaptureWindow: Identifiable, Hashable {
-    let id: CGWindowID
-    let appName: String
-    let title: String
-    let bundleID: String
-
-    var label: String { title.isEmpty ? appName : "\(appName) — \(title)" }
-}
-
-struct RecordingOptions {
-    var displayID: CGDirectDisplayID
-    var fps: Int
-    /// Output height limit in pixels; nil keeps the display's native resolution.
-    var maxHeight: Int?
-    var codec: AVVideoCodecType
-    var systemAudio: Bool
-    var microphone: Bool
-    /// `AVCaptureDevice.uniqueID`; nil uses the system default microphone.
-    var microphoneID: String?
-    var outputURL: URL
-    /// Record only this window from the first frame (chosen in the panel); nil = the whole display.
-    var windowID: CGWindowID? = nil
-}
-
-enum RecorderError: LocalizedError {
-    case displayNotFound
-    case windowNotFound
-    case notRecording
-    case writer(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .displayNotFound: return "Монитор не найден"
-        case .windowNotFound: return "Окно не найдено — возможно, оно закрыто"
-        case .notRecording: return "Запись не идёт"
-        case .writer(let message): return "Не удалось начать запись: \(message)"
-        }
-    }
-}
 
 /// Per-recording counters, logged every 10 seconds and at the end. They are what tells a healthy
 /// recording from one that silently lost video or a microphone.
@@ -100,7 +39,7 @@ private struct Stats {
 
     /// Difference between the newest audio and video timestamps. With a static screen video has no
     /// new frames, so a growing positive value is normal; a large negative one means audio stalled.
-    private static func drift(_ audio: CMTime, _ video: CMTime) -> String {
+    static func drift(_ audio: CMTime, _ video: CMTime) -> String {
         guard audio.isValid, video.isValid else { return "n/a" }
         return String(format: "%+.2fs", (audio - video).seconds)
     }
@@ -776,17 +715,8 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         return sample
     }
 
-    /// The largest rectangle of the content's proportions centred in a width × height frame.
-    static func centeredRect(content: CGRect, width: Int, height: Int) -> CGRect {
-        guard content.width > 0, content.height > 0 else { return .zero }
-        let frameW = CGFloat(width), frameH = CGFloat(height)
-        let scale = min(frameW / content.width, frameH / content.height)
-        let w = (content.width * scale).rounded(), h = (content.height * scale).rounded()
-        return CGRect(x: ((frameW - w) / 2).rounded(), y: ((frameH - h) / 2).rounded(), width: w, height: h)
-    }
-
     /// The clock ScreenCaptureKit stamps its frames with.
-    private static func hostNow() -> CMTime {
+    static func hostNow() -> CMTime {
         CMClockGetTime(CMClockGetHostTimeClock())
     }
 
@@ -798,125 +728,4 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         writer.add(input)
     }
 
-    private static func audioInput(channels: Int) -> AVAssetWriterInput {
-        let input = AVAssetWriterInput(mediaType: .audio, outputSettings: [
-            AVFormatIDKey: kAudioFormatMPEG4AAC,
-            AVSampleRateKey: 48_000,
-            AVNumberOfChannelsKey: channels,
-            AVEncoderBitRateKey: channels == 1 ? 96_000 : 160_000,
-        ])
-        input.expectsMediaDataInRealTime = true
-        return input
-    }
-
-    /// ScreenCaptureKit also delivers "idle" frames when nothing changed; only complete ones carry pixels.
-    private static func isCompleteFrame(_ sampleBuffer: CMSampleBuffer) -> Bool {
-        guard let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false)
-                as? [[SCStreamFrameInfo: Any]],
-              let rawStatus = attachments.first?[.status] as? Int,
-              let status = SCFrameStatus(rawValue: rawStatus) else { return false }
-        return status == .complete
-    }
-
-    /// Brightest luma in a sparse grid of the frame's Y plane (420v: black is 16). A whole frame at
-    /// black level means the screen is black: locked, asleep, or protected content.
-    private static func maxLuma(_ sampleBuffer: CMSampleBuffer) -> Int? {
-        guard let pixelBuffer = sampleBuffer.imageBuffer, CVPixelBufferGetPlaneCount(pixelBuffer) >= 1 else { return nil }
-        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
-        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
-        guard let base = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0) else { return nil }
-        let width = CVPixelBufferGetWidthOfPlane(pixelBuffer, 0)
-        let height = CVPixelBufferGetHeightOfPlane(pixelBuffer, 0)
-        let stride = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0)
-        let bytes = base.assumingMemoryBound(to: UInt8.self)
-        var maximum: UInt8 = 0
-        for y in Swift.stride(from: 0, to: height, by: 8) {
-            let row = bytes + y * stride
-            for x in Swift.stride(from: 0, to: width, by: 8) where row[x] > maximum {
-                maximum = row[x]
-            }
-        }
-        return Int(maximum)
-    }
-
-    /// Peak absolute sample value of a 32-bit float PCM buffer (what ScreenCaptureKit delivers).
-    private static func peakLevel(_ sampleBuffer: CMSampleBuffer) -> Float? {
-        guard let format = sampleBuffer.formatDescription,
-              let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee,
-              asbd.mFormatID == kAudioFormatLinearPCM,
-              asbd.mFormatFlags & kAudioFormatFlagIsFloat != 0,
-              asbd.mBitsPerChannel == 32 else { return nil }
-        do {
-            return try sampleBuffer.withAudioBufferList { list, _ in
-                var peak: Float = 0
-                for buffer in list {
-                    guard let data = buffer.mData else { continue }
-                    let count = Int(buffer.mDataByteSize) / MemoryLayout<Float>.size
-                    guard count > 0 else { continue }
-                    var bufferPeak: Float = 0
-                    vDSP_maxmgv(data.assumingMemoryBound(to: Float.self), 1, &bufferPeak, vDSP_Length(count))
-                    peak = max(peak, bufferPeak)
-                }
-                return peak
-            }
-        } catch {
-            return nil
-        }
-    }
-
-    private static func describeAudioFormat(_ sampleBuffer: CMSampleBuffer) -> String {
-        guard let format = sampleBuffer.formatDescription,
-              let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee else { return "unknown" }
-        return "\(Int(asbd.mSampleRate)) Hz, \(asbd.mChannelsPerFrame) ch, \(asbd.mBitsPerChannel) bit, formatID=\(asbd.mFormatID), flags=\(asbd.mFormatFlags), frames=\(sampleBuffer.numSamples)"
-    }
-
-    private static func fileSize(_ url: URL?) -> String {
-        guard let url, let bytes = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int64 else { return "?" }
-        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
-    }
-
-    /// Reads the finished file back and logs its tracks, so a broken file shows up in the log right away.
-    private static func logAssetInfo(_ url: URL) {
-        Task {
-            let asset = AVURLAsset(url: url)
-            do {
-                let duration = try await asset.load(.duration)
-                let tracks = try await asset.load(.tracks)
-                var parts: [String] = []
-                for track in tracks {
-                    let range = try await track.load(.timeRange)
-                    let rate = try await track.load(.estimatedDataRate)
-                    var part = "\(track.mediaType.rawValue)#\(track.trackID) start=\(String(format: "%.2f", range.start.seconds)) dur=\(String(format: "%.2f", range.duration.seconds))s \(Int(rate / 1000)) kbps"
-                    if track.mediaType == .video {
-                        let size = try await track.load(.naturalSize)
-                        let fps = try await track.load(.nominalFrameRate)
-                        part += " \(Int(size.width))x\(Int(size.height)) \(String(format: "%.1f", fps)) fps"
-                    }
-                    parts.append(part)
-                }
-                Log.info("Verified file: duration=\(String(format: "%.2f", duration.seconds))s tracks=[\(parts.joined(separator: "; "))]", "recorder")
-            } catch {
-                Log.error("Could not read back finished file: \(Log.describe(error))", "recorder")
-            }
-        }
-    }
-
-    private static func outputSize(filter: SCContentFilter, maxHeight: Int?) -> (Int, Int) {
-        let scale = CGFloat(filter.pointPixelScale)
-        var width = filter.contentRect.width * scale
-        var height = filter.contentRect.height * scale
-        if let maxHeight, height > CGFloat(maxHeight) {
-            width = width * CGFloat(maxHeight) / height
-            height = CGFloat(maxHeight)
-        }
-        // Encoders want even dimensions.
-        return (Int(width) / 2 * 2, Int(height) / 2 * 2)
-    }
-
-    /// Screen content compresses well; this keeps text sharp without huge files.
-    private static func bitrate(width: Int, height: Int, fps: Int, codec: AVVideoCodecType) -> Int {
-        let bitsPerPixel = codec == .hevc ? 0.05 : 0.08
-        let value = Double(width * height * fps) * bitsPerPixel
-        return Int(min(max(value, 1_500_000), 20_000_000))
-    }
 }
