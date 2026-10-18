@@ -167,8 +167,8 @@ struct AreaSelection {
 }
 
 /// The crosshair over frozen screens. Dragging dims everything outside the selection and shows its
-/// size in pixels; a click takes the window under the cursor (highlighted while hovering), or the
-/// whole screen on the desktop. Esc or right click cancels.
+/// size in pixels; a click on a window's title bar takes that window (highlighted while hovering),
+/// a click on the desktop the whole screen. Esc or right click cancels.
 @MainActor
 final class AreaSelector {
     /// What the selection is for: the hint at the top of the screen.
@@ -179,6 +179,18 @@ final class AreaSelector {
     private let purpose: Purpose
     private let completion: (AreaSelection?) -> Void
     private var finished = false
+
+    /// How far down from a window's top edge a click takes the whole window. Only the title bar: most
+    /// shots are a part of a window, and a window lit up under every press got in the way.
+    static let titleBarHeight: CGFloat = 32
+
+    /// The window a click at `point` takes (view coordinates, y up; `windows` front to back): the
+    /// frontmost one under the point, only when the point is in its title bar.
+    static func window(at point: CGPoint, in windows: [CGRect]) -> CGRect? {
+        guard let window = windows.first(where: { $0.contains(point) }),
+              point.y >= window.maxY - min(titleBarHeight, window.height) else { return nil }
+        return window
+    }
 
     init(screens: [FrozenScreen], purpose: Purpose, completion: @escaping (AreaSelection?) -> Void) {
         self.screens = screens
@@ -329,7 +341,7 @@ private final class OverlayView: NSView {
     func updateCursor() { cursor.set() }
 
     func hover(at point: NSPoint?) {
-        let window = point.flatMap { p in windowRects.first { $0.contains(p) } }
+        let window = point.flatMap { AreaSelector.window(at: $0, in: windowRects) }
         if window != hovered {
             hovered = window
             refresh()
@@ -343,7 +355,7 @@ private final class OverlayView: NSView {
                                        owner: self))
     }
 
-    /// A camera over a window (a click takes it), the crosshair elsewhere and while dragging.
+    /// A camera over a window's title bar (a click takes it), the crosshair elsewhere and while dragging.
     private var cursor: NSCursor { hovered != nil && start == nil ? Self.camera : .crosshair }
 
     static let camera: NSCursor = {
@@ -397,12 +409,17 @@ private final class OverlayView: NSView {
         if dragging, let rect = selection, rect.width >= 3, rect.height >= 3 {
             onSelect?(rect.integral, "area")
         } else if !dragging {
-            // A click: the window under the cursor, or the whole screen on the desktop.
+            // A click: the window by its title bar, or the whole screen on the desktop. A click inside
+            // a window does nothing, so a missed drag does not take the window.
             let point = current ?? .zero
-            if let window = windowRects.first(where: { $0.contains(point) }) {
+            if let window = AreaSelector.window(at: point, in: windowRects) {
                 onSelect?(window.integral, "window")
-            } else {
+            } else if !windowRects.contains(where: { $0.contains(point) }) {
                 onSelect?(bounds, "screen")
+            } else {
+                start = nil
+                current = nil
+                refresh()
             }
         } else {
             start = nil

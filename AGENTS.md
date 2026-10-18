@@ -227,8 +227,8 @@ What MeetRec does instead:
   tint and badges are shape/text layers: a self-drawing full-screen view left a 46 MB 16-bit
   backing store cached on XDR screens; crops are copied out so the frozen screens go right away), so the other app's menus, tooltips and hover states
   (closed when MeetRec takes focus) and a meeting's video stay as they were. Drag = area (outside
-  dims, size in pixels); click = the window under the cursor (tinted while hovering, the cursor is
-  a camera there) with its title bar on a 12 pt strip of wallpaper (the desktop picture alone is
+  dims, size in pixels); click on a window's title bar (top 32 pt) = that window (tinted while
+  hovering the title bar, the cursor is a camera there; a click lower inside a window does nothing) with its title bar on a 12 pt strip of wallpaper (the desktop picture alone is
   captured on that click; rounded corners, nothing that was behind the window shows) or the whole screen on the desktop; Esc or right click cancels; focus goes back to the previous app.
   Screenshots are copied (PNG + TIFF at point size) and saved as `<timestamp>.png` with the screen
   scale in its DPI (format "Авто (PNG/JPEG)", the default: JPEG q 0.9 when it is ≤ 40 % of the PNG,

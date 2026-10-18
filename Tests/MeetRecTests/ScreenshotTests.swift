@@ -31,6 +31,19 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertEqual(rect, CGRect(x: 100, y: 300, width: 200, height: 100))
     }
 
+    @MainActor
+    func testOnlyTheTitleBarTakesAWindow() {
+        // View coordinates, y up; the front window overlaps the back one's title bar.
+        let front = CGRect(x: 100, y: 100, width: 400, height: 300)  // title bar y 368…400
+        let back = CGRect(x: 300, y: 200, width: 400, height: 300)   // title bar y 468…500
+        let windows = [front, back]
+        XCTAssertEqual(AreaSelector.window(at: CGPoint(x: 200, y: 390), in: windows), front)
+        XCTAssertNil(AreaSelector.window(at: CGPoint(x: 200, y: 250), in: windows))  // inside, below the bar
+        XCTAssertEqual(AreaSelector.window(at: CGPoint(x: 600, y: 480), in: windows), back)
+        XCTAssertNil(AreaSelector.window(at: CGPoint(x: 450, y: 380), in: [CGRect(x: 0, y: 0, width: 10, height: 10)] + [back]))
+        XCTAssertNil(AreaSelector.window(at: CGPoint(x: 50, y: 50), in: windows))  // desktop
+    }
+
     func testWindowRectsMapOntoEachScreen() {
         // Main screen 1512×982 at the origin; an external 2560×1440 to its right, tops aligned.
         let main = CGRect(x: 0, y: 0, width: 1512, height: 982)
