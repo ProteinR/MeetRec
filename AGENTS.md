@@ -146,7 +146,7 @@ What MeetRec does instead:
 - UX rules: the panel opens only by the user (click on the item / island / a notification, or a
   manual launch; not at login or a watchdog relaunch). Live moments (recording started, call
   question, recording saved) are a small toast under the menu bar item (`Toast.swift`) that never
-  takes keyboard focus; start/saved fold away by themselves, a question waits for an answer or the
+  takes keyboard focus, on the screen with the cursor (e.g. where a screenshot was taken); start/saved fold away by themselves, a question waits for an answer or the
   end of the call. Problems (silent mic, disk, cut recording, permissions) are macOS notifications.
   After Start in the panel the button morphs and the panel fades out. A stop of any kind
   while the panel is open fades the whole panel out at once (`foldPanelNotification`, layout frozen

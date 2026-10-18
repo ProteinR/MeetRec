@@ -162,15 +162,23 @@ final class ToastController {
         }
     }
 
-    /// Under the menu bar item, like the panel; top right when the item is hidden.
+    /// Where the menu bar item sits, counted from the right edge of its screen. Remembered, because
+    /// the item cannot be read while a full-screen window covers it (the screenshot selector).
+    private var itemOffset: CGFloat?
+
+    /// Under the menu bar item on the screen with the cursor (the one the user works on, where a
+    /// screenshot was just taken): every menu bar shows the items at the same distance from the right
+    /// edge. Top right when the item was never seen.
     private func position() {
-        let item = anchor()
-        let screen = item.flatMap { frame in NSScreen.screens.first { $0.frame.intersects(frame) } }
-            ?? NSScreen.screens.first ?? NSScreen.main
+        if let item = anchor(), let itemScreen = NSScreen.screens.first(where: { $0.frame.intersects(item) }) {
+            itemOffset = itemScreen.frame.maxX - item.midX
+        }
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens.first
         guard let screen else { return }
         let visible = screen.visibleFrame
-        let top = (item?.minY ?? visible.maxY) - 4 + Self.margin
-        var x = item.map { $0.midX - Self.width / 2 } ?? (visible.maxX - Self.width + Self.margin - 6)
+        let top = visible.maxY - 4 + Self.margin
+        var x = itemOffset.map { screen.frame.maxX - $0 - Self.width / 2 } ?? (visible.maxX - Self.width + Self.margin - 6)
         x = min(max(x, visible.minX - Self.margin + 6), visible.maxX - Self.width + Self.margin - 6)
         panel.setFrame(NSRect(x: x, y: top - Self.height, width: Self.width, height: Self.height), display: true)
     }
