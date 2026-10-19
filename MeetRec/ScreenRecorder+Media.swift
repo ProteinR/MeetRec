@@ -92,28 +92,27 @@ extension ScreenRecorder {
     }
 
     /// Reads the finished file back and logs its tracks, so a broken file shows up in the log right away.
-    static func logAssetInfo(_ url: URL) {
-        Task {
-            let asset = AVURLAsset(url: url)
-            do {
-                let duration = try await asset.load(.duration)
-                let tracks = try await asset.load(.tracks)
-                var parts: [String] = []
-                for track in tracks {
-                    let range = try await track.load(.timeRange)
-                    let rate = try await track.load(.estimatedDataRate)
-                    var part = "\(track.mediaType.rawValue)#\(track.trackID) start=\(String(format: "%.2f", range.start.seconds)) dur=\(String(format: "%.2f", range.duration.seconds))s \(Int(rate / 1000)) kbps"
-                    if track.mediaType == .video {
-                        let size = try await track.load(.naturalSize)
-                        let fps = try await track.load(.nominalFrameRate)
-                        part += " \(Int(size.width))x\(Int(size.height)) \(String(format: "%.1f", fps)) fps"
-                    }
-                    parts.append(part)
+    /// Awaited before the file is handed on: the model renames it right after the stop.
+    static func logAssetInfo(_ url: URL) async {
+        let asset = AVURLAsset(url: url)
+        do {
+            let duration = try await asset.load(.duration)
+            let tracks = try await asset.load(.tracks)
+            var parts: [String] = []
+            for track in tracks {
+                let range = try await track.load(.timeRange)
+                let rate = try await track.load(.estimatedDataRate)
+                var part = "\(track.mediaType.rawValue)#\(track.trackID) start=\(String(format: "%.2f", range.start.seconds)) dur=\(String(format: "%.2f", range.duration.seconds))s \(Int(rate / 1000)) kbps"
+                if track.mediaType == .video {
+                    let size = try await track.load(.naturalSize)
+                    let fps = try await track.load(.nominalFrameRate)
+                    part += " \(Int(size.width))x\(Int(size.height)) \(String(format: "%.1f", fps)) fps"
                 }
-                Log.info("Verified file: duration=\(String(format: "%.2f", duration.seconds))s tracks=[\(parts.joined(separator: "; "))]", "recorder")
-            } catch {
-                Log.error("Could not read back finished file: \(Log.describe(error))", "recorder")
+                parts.append(part)
             }
+            Log.info("Verified file: duration=\(String(format: "%.2f", duration.seconds))s tracks=[\(parts.joined(separator: "; "))]", "recorder")
+        } catch {
+            Log.error("Could not read back finished file: \(Log.describe(error))", "recorder")
         }
     }
 

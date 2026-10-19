@@ -195,3 +195,25 @@ final class WindowFitTests: XCTestCase {
         XCTAssertEqual(rect.minY, 0)
     }
 }
+
+/// The transcription load monitor reads a process tree and the GPU without administrator rights.
+final class TranscriptionLoadTests: XCTestCase {
+    func testProcessTreeCountsChildren() throws {
+        let child = Process()
+        child.executableURL = URL(fileURLWithPath: "/bin/sh")
+        child.arguments = ["-c", "i=0; while [ $i -lt 300000 ]; do i=$((i+1)); done"]
+        try child.run()
+        defer { child.terminate() }
+        Thread.sleep(forTimeInterval: 0.5)
+        let usage = ProcessTree.usage(of: getpid())
+        XCTAssertGreaterThan(usage.cpuSeconds, 0)
+        XCTAssertGreaterThan(usage.footprint, 0)
+        XCTAssertGreaterThan(ProcessTree.usage(of: child.processIdentifier).cpuSeconds, 0.1)
+    }
+
+    func testGPUUtilizationIsReadable() {
+        let value = GPUUsage.utilization()
+        XCTAssertNotNil(value)
+        XCTAssertTrue((0...100).contains(value ?? -1))
+    }
+}

@@ -261,6 +261,16 @@ enum MeetingTitle {
         return list.contains { ($0[kCGWindowNumber as String] as? Int) == Int(windowID) }
     }
 
+    /// Where the window is (global, origin top left), or nil when it is closed, minimised or hidden.
+    static func frame(ofWindow windowID: CGWindowID) -> CGRect? {
+        guard let list = CGWindowListCopyWindowInfo([.optionIncludingWindow], windowID) as? [[String: Any]],
+              let info = list.first(where: { ($0[kCGWindowNumber as String] as? Int) == Int(windowID) }),
+              info[kCGWindowIsOnscreen as String] as? Bool == true,
+              let boundsDict = info[kCGWindowBounds as String] as? NSDictionary,
+              let bounds = CGRect(dictionaryRepresentation: boundsDict) else { return nil }
+        return bounds
+    }
+
     static func title(ofWindow windowID: CGWindowID) -> String? {
         guard let list = CGWindowListCopyWindowInfo([.optionIncludingWindow], windowID) as? [[String: Any]],
               let title = list.first?[kCGWindowName as String] as? String else { return nil }

@@ -10,12 +10,14 @@ extension RecorderModel {
 
     /// While a Teams meeting is recorded as a whole display, checks that its window is on that display.
     /// A wrong monitor (e.g. built-in instead of external) is otherwise noticed only afterwards.
-    /// Only the first `meetingWindowCheckPeriod` of a recording: is the Teams meeting window on the
-    /// recorded display? Seen there once → fine, checking stops (later the user may move Teams or
-    /// share the screen, which minimises it). Never seen there but on another monitor → one silent
-    /// warning. A minimised or hidden window is not a problem.
+    /// Only the first `meetingWindowCheckPeriod` of a recording decides: seen on the recorded display
+    /// once → fine, checking stops (later the user may move Teams or share the screen, which minimises
+    /// it). Seen on another monitor for `meetingWindowWarnAfter` → ⚠️ in the menu bar and a banner in
+    /// the panel ("Записывать «…»" / "Игнорировать"), no notification and no switching by itself. The
+    /// warning stays until answered, the display is switched, or the window comes onto the recorded
+    /// display. A minimised or hidden window is not a problem.
     func checkMeetingWindow() {
-        guard !meetingWindowSettled, Date().timeIntervalSince(lastMeetingWindowCheck) >= 3 else { return }
+        guard !meetingWindowSettled, Date().timeIntervalSince(lastMeetingWindowCheck) >= 1 else { return }
         lastMeetingWindowCheck = Date()
         let teamsMeeting = autoStartedAppID == "teams" || detector.currentMeeting?.id == "teams"
         guard captureWindow == nil, !meetingWindowIgnored, teamsMeeting, let displayID = recordingDisplayID,
@@ -28,31 +30,38 @@ extension RecorderModel {
             clearMeetingWindowProblem()
             return
         }
-        if let display = displays.first(where: { display in
+        let elsewhere = displays.first { display in
             display.id != displayID && windows.contains { Self.overlap($0.bounds, CGDisplayBounds(display.id)) >= 0.5 }
-        }) {
-            meetingWindowElsewhere = display
         }
-        guard Date().timeIntervalSince(startedAt) >= Self.meetingWindowCheckPeriod else { return }
-        meetingWindowSettled = true
-        guard let elsewhere = meetingWindowElsewhere else {
-            Log.info("Teams meeting window not seen on any monitor in the first \(Int(Self.meetingWindowCheckPeriod)) s; not warning", "health")
-            return
+        if meetingWindowWarning == nil {
+            if let elsewhere {
+                let since = meetingWindowProblemSince ?? Date()
+                meetingWindowProblemSince = since
+                if Date().timeIntervalSince(since) >= Self.meetingWindowWarnAfter {
+                    let text = "Встреча Teams на мониторе «\(elsewhere.name)», а записывается «\(recordingNames.display)»."
+                    meetingWindowWarning = text
+                    meetingWindowDisplay = elsewhere
+                    Log.warning("Alert: Teams meeting window is on display \(elsewhere.id) \(elsewhere.name), recording \(displayID)", "alerts")
+                    return
+                }
+            } else {
+                meetingWindowProblemSince = nil
+            }
+        } else if let elsewhere, elsewhere.id != meetingWindowDisplay?.id {
+            // Moved on to a third monitor: offer that one.
+            meetingWindowDisplay = elsewhere
+            meetingWindowWarning = "Встреча Teams на мониторе «\(elsewhere.name)», а записывается «\(recordingNames.display)»."
         }
-        let text = "Окно встречи Teams на мониторе «\(elsewhere.name)», а записывается «\(recordingNames.display)»."
-        meetingWindowWarning = text
-        meetingWindowDisplay = elsewhere
-        Log.warning("Alert: Teams meeting window is on display \(elsewhere.id) \(elsewhere.name), recording \(displayID)", "alerts")
-        Notifier.shared.send(id: "meetrec-meeting-window", title: "Встреча не попадает в запись?", body: text,
-                             actions: [.init(id: "switch-display:\(elsewhere.id)", title: "Записывать «\(elsewhere.name)»"),
-                                       .init(id: "ignore-window", title: "Оставить как есть")],
-                             silent: true)
+        // A shown warning waits for an answer; otherwise the check ends with the first seconds.
+        if meetingWindowWarning == nil, Date().timeIntervalSince(startedAt) >= Self.meetingWindowCheckPeriod {
+            meetingWindowSettled = true
+            Log.info("Teams meeting window not seen on another monitor in the first \(Int(Self.meetingWindowCheckPeriod)) s; window check done", "health")
+        }
     }
 
     func clearMeetingWindowProblem() {
-        if meetingWindowProblemSince != nil {
-            Log.info("Teams meeting window is on the recorded display again (or check not needed)", "health")
-            Notifier.shared.remove(id: "meetrec-meeting-window")
+        if meetingWindowWarning != nil {
+            Log.info("Teams meeting window warning cleared", "health")
         }
         meetingWindowProblemSince = nil
         meetingWindowWarning = nil

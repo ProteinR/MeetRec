@@ -223,3 +223,27 @@ struct StopCountdownBanner: View {
         .animation(.default, value: countdown.seconds)
     }
 }
+
+/// A warning line: orange icon, normal (dark or light) text. Orange text on the panel's blur was
+/// hard to read.
+struct WarningLabel: View {
+    let text: String
+    var icon = "exclamationmark.triangle.fill"
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: icon).foregroundStyle(.orange)
+            Text(text).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+extension View {
+    /// The box of a warning or of the pause: a clear orange tint with an orange edge, so it stands
+    /// out from the panel while its text stays the normal colour.
+    func warningBox() -> some View {
+        padding(8)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.2)))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.orange.opacity(0.55), lineWidth: 1))
+    }
+}

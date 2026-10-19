@@ -411,8 +411,11 @@ final class Transcriber: ObservableObject {
         }
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: uv)
-        process.arguments = ["run", "--quiet", script.path] + arguments
+        // Darwin background priority (inherited by the helper's worker processes): efficiency cores,
+        // low GPU and disk priority, so the Mac heats up less and other apps stay smooth. Slower, and
+        // nothing waits for a transcript. `taskpolicy` execs uv, so the process (and cancelling) is the same.
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/taskpolicy")
+        process.arguments = ["-b", uv, "run", "--quiet", script.path] + arguments
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
         environment["PYTHONUNBUFFERED"] = "1"
@@ -447,7 +450,8 @@ final class Transcriber: ObservableObject {
             }
         }
 
-        Log.info("Running: \(uv) \(process.arguments!.joined(separator: " "))", "transcribe")
+        Log.info("Running: taskpolicy \(process.arguments!.joined(separator: " "))", "transcribe")
+        var load: TranscriptionLoadMonitor?
         let status: Int32 = await withCheckedContinuation { continuation in
             process.terminationHandler = { finished in
                 continuation.resume(returning: finished.terminationStatus)
@@ -455,11 +459,14 @@ final class Transcriber: ObservableObject {
             do {
                 try process.run()
                 currentProcess = process
+                load = TranscriptionLoadMonitor(pid: process.processIdentifier)
+                load?.start()
             } catch {
                 Log.error("Could not start helper: \(Log.describe(error))", "transcribe")
                 continuation.resume(returning: -1)
             }
         }
+        load?.stop()
         currentProcess = nil
         stdout.fileHandleForReading.readabilityHandler = nil
         stderr.fileHandleForReading.readabilityHandler = nil

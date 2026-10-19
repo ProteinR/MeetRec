@@ -14,10 +14,9 @@ extension RecorderModel {
                 captureWindow = nil
                 recordingNames.display = name
                 healthTracker?.displayName = name
-                meetingWindowWarning = nil
-                meetingWindowDisplay = nil
-                meetingWindowProblemSince = nil
-                Notifier.shared.remove(id: "meetrec-meeting-window")
+                // The user chose the monitor: no more meeting window checks in this recording.
+                meetingWindowSettled = true
+                clearMeetingWindowProblem()
                 Log.info("Recording switched to display \(displayID) \"\(name)\"")
             } catch {
                 errorMessage = "Не удалось переключить монитор: \(error.localizedDescription)"

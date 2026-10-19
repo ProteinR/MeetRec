@@ -39,6 +39,8 @@ final class RecorderModel: ObservableObject {
     /// Timer, level meters and CPU: published separately so the panel does not redraw on every tick.
     let live = LiveRecording()
     var health: RecordingHealth? { live.health }
+    /// ⚠️ in the menu bar: a source stopped delivering, or the meeting is on another monitor.
+    var showsWarning: Bool { health?.hasProblem == true || meetingWindowWarning != nil }
     /// Kept across launches, so "Последняя запись" in the menu and the panel survive a restart.
     @Published var lastFile: URL? = {
         guard let path = UserDefaults.standard.string(forKey: "lastRecording"), FileManager.default.fileExists(atPath: path) else { return nil }
@@ -92,7 +94,9 @@ final class RecorderModel: ObservableObject {
     /// The chapter / transcript line where a pause was cut.
     static let pauseNote = "Пауза"
     /// The single window being recorded instead of the whole display; nil = whole display.
-    @Published var captureWindow: CaptureWindow?
+    @Published var captureWindow: CaptureWindow? {
+        didSet { DisplayHighlight.shared.follow(windowID: captureWindow?.id) }
+    }
     /// A window chosen in the panel for the next manual start only; cleared when the panel closes
     /// without starting and after that start. Automatic recordings always take the whole display.
     @Published var chosenWindow: CaptureWindow?
@@ -154,11 +158,12 @@ final class RecorderModel: ObservableObject {
     /// Keeps the Mac and its displays awake while recording.
     var sleepActivity: NSObjectProtocol?
     var lastMeetingWindowCheck = Date.distantPast
+    /// Since when the meeting window has been seen on another monitor (not the recorded one).
     var meetingWindowProblemSince: Date?
     /// The first seconds of a recording decide whether the meeting window is recorded; then no more checks.
     var meetingWindowSettled = false
-    var meetingWindowElsewhere: DisplayInfo?
     static let meetingWindowCheckPeriod: TimeInterval = 30
+    static let meetingWindowWarnAfter: TimeInterval = 5
     /// The user chose "Игнорировать" for the meeting window warning in this recording.
     var meetingWindowIgnored = false
     /// The meeting for which "встреча идёт, а запись не ведётся" was already shown.
@@ -268,7 +273,16 @@ final class RecorderModel: ObservableObject {
         }
     }
 
-    @Published var countdown: Countdown?
+    @Published var countdown: Countdown? {
+        didSet {
+            // The screen about to be recorded blinks orange while the meeting is connecting.
+            if countdown != nil, oldValue == nil, let display = effectiveDisplay {
+                DisplayHighlight.shared.pulse(displayID: display.id)
+            } else if countdown == nil, oldValue != nil {
+                DisplayHighlight.shared.stopPulse()
+            }
+        }
+    }
     var countdownTimer: Timer?
     var countdownRule: BrowserRule?
     /// "Не записывать эту встречу": no automatic recording until this meeting ends.
@@ -444,6 +458,13 @@ final class RecorderModel: ObservableObject {
             return
         }
         isBusy = true
+        // The stream stops now while the file is still being finished (chapters, mixed audio: tens of
+        // seconds for a long meeting). Silent sources are expected then, not a problem: no health
+        // checks, no ⚠️, no alerts until the next recording.
+        healthTracker = nil
+        live.update(health: nil)
+        clearMeetingWindowProblem()
+        DisplayHighlight.shared.follow(windowID: nil)
         if panelVisible { NotificationCenter.default.post(name: Self.foldPanelNotification, object: nil) }
         Log.info("Stopping after \(elapsedText)\(reason.map { " (\($0))" } ?? "")")
         if let meeting = detector.currentMeeting, reason == nil {
@@ -547,7 +568,6 @@ final class RecorderModel: ObservableObject {
         meetingWindowIgnored = false
         meetingWindowProblemSince = nil
         meetingWindowSettled = false
-        meetingWindowElsewhere = nil
         lastMeetingWindowCheck = Date() // give the meeting window time to open
         Notifier.shared.remove(id: "meetrec-not-recording")
         if callPrompt != nil {

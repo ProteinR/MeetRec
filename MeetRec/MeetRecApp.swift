@@ -78,17 +78,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 DispatchQueue.main.async {
-                    self?.updateStatusItem(recording: model.isRecording, problem: model.health?.hasProblem == true)
+                    self?.updateStatusItem(recording: model.isRecording, problem: model.showsWarning)
                 }
             }
             .store(in: &cancellables)
 
         // Only when something visible changes: the second, recording on/off, problem on/off.
-        Publishers.CombineLatest3(model.$isRecording, model.live.$elapsed,
-                                  model.live.$health.map { $0?.hasProblem == true }.removeDuplicates())
+        Publishers.CombineLatest4(model.$isRecording, model.live.$elapsed,
+                                  model.live.$health.map { $0?.hasProblem == true }.removeDuplicates(),
+                                  model.$meetingWindowWarning.map { $0 != nil }.removeDuplicates())
             .receive(on: RunLoop.main)
-            .sink { [weak self] recording, _, problem in
-                self?.updateStatusItem(recording: recording, problem: problem)
+            .sink { [weak self] recording, _, problem, meetingElsewhere in
+                self?.updateStatusItem(recording: recording, problem: problem || meetingElsewhere)
             }
             .store(in: &cancellables)
         updateStatusItem(recording: false, problem: false)
@@ -99,7 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.updateStatusItem(recording: model.isRecording, problem: model.health?.hasProblem == true)
+                self?.updateStatusItem(recording: model.isRecording, problem: model.showsWarning)
             }
             .store(in: &cancellables)
 
@@ -107,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.updateStatusItem(recording: model.isRecording, problem: model.health?.hasProblem == true)
+                self?.updateStatusItem(recording: model.isRecording, problem: model.showsWarning)
                 self?.island.update()
             }
             .store(in: &cancellables)

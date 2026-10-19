@@ -216,20 +216,19 @@ struct RecordingControls: View {
         VStack(alignment: .leading, spacing: 8) {
             if let warning = model.meetingWindowWarning {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label(warning, systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                        .fixedSize(horizontal: false, vertical: true)
+                    WarningLabel(text: warning)
+                        .font(.callout)
                     HStack {
                         if let display = model.meetingWindowDisplay {
                             Button("Записывать «\(display.name)»") { model.switchDisplay(to: display.id) }
+                                .buttonStyle(.borderedProminent)
                         }
-                        Button("Оставить как есть") { model.ignoreMeetingWindow() }
+                        Button("Игнорировать") { model.ignoreMeetingWindow() }
                     }
                     .controlSize(.small)
                 }
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.12)))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .warningBox()
             }
             if model.isPaused {
                 // Paused: one clear state and one clear way back.
@@ -242,8 +241,7 @@ struct RecordingControls: View {
                     }
                     Spacer(minLength: 4)
                 }
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.12)))
+                .warningBox()
             }
             HStack(spacing: 8) {
                 Button {

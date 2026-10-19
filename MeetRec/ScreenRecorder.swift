@@ -595,7 +595,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             if writer.status == .completed {
                 result = writer.outputURL
                 Log.info("File finished in \(took): \(writer.outputURL.path) size=\(Self.fileSize(writer.outputURL))", "recorder")
-                Self.logAssetInfo(writer.outputURL)
+                await Self.logAssetInfo(writer.outputURL)
             } else {
                 Log.error("finishWriting failed after \(took): status=\(writer.status.rawValue) error=\(Log.describe(writer.error)). Fragmented file may still be playable: \(writer.outputURL.path)", "recorder")
             }

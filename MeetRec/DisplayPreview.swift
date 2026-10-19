@@ -166,7 +166,7 @@ struct DisplayChooser: View {
                     }
                 }))
             if !CGPreflightScreenCaptureAccess() {
-                Text("Нет доступа к записи экрана — превью не показать").font(.caption).foregroundStyle(.orange)
+                WarningLabel(text: "Нет доступа к записи экрана — превью не показать").font(.caption)
             }
         }
         .padding(.top, 6)
@@ -248,7 +248,8 @@ extension DisplayChooser {
 
 /// A red frame around the whole screen that will be recorded: steady while the monitor section is
 /// open, and three soft blinks when a recording starts or moves to another screen, so the choice is
-/// visible on the monitor itself. Click-through and left out of the recording and previews (MeetRec's
+/// visible on the monitor itself; orange and blinking during the countdown before an automatic
+/// start; around the window while only that window is recorded. Click-through and left out of the recording and previews (MeetRec's
 /// own windows are excluded).
 @MainActor
 final class DisplayHighlight {
@@ -257,6 +258,11 @@ final class DisplayHighlight {
     private var window: NSWindow?
     private var flashWindow: NSWindow?
     private var flashTask: Task<Void, Never>?
+    private var pulseWindow: NSWindow?
+    private var pulseTask: Task<Void, Never>?
+    private var followWindow: NSWindow?
+    private var followTimer: Timer?
+    private var followedID: CGWindowID?
 
     func show(displayID: CGDirectDisplayID) {
         guard let screen = Self.screen(displayID) else { hide(); return }
@@ -309,6 +315,78 @@ final class DisplayHighlight {
         }
     }
 
+    /// Orange, softly blinking until stopped: the screen a countdown is about to record, while the
+    /// meeting app is still connecting (camera and microphone check), so a wrong monitor shows before
+    /// the start. The countdown itself is not shown in the discreet style, so neither is this.
+    func pulse(displayID: CGDirectDisplayID) {
+        guard MenuBarStyle.current != .discreet, let screen = Self.screen(displayID) else { return }
+        pulseTask?.cancel()
+        let window = pulseWindow ?? Self.makeWindow(color: .orange)
+        pulseWindow = window
+        window.sharingType = MenuBarStyle.hideFromSharing ? .none : .readOnly
+        window.setFrame(screen.frame, display: true)
+        window.alphaValue = 0
+        window.orderFrontRegardless()
+        Log.debug("Pulsing the frame on display \(displayID) (countdown)")
+        pulseTask = Task { [weak self] in
+            // A countdown lasts seconds; the limit only guards against a pulse left running.
+            for _ in 0..<60 {
+                await Self.fade(window, to: 0.9, duration: 0.45)
+                if Task.isCancelled { return }
+                await Self.fade(window, to: 0.15, duration: 0.55)
+                if Task.isCancelled { return }
+            }
+            window.orderOut(nil)
+            self?.pulseTask = nil
+        }
+    }
+
+    func stopPulse() {
+        guard let pulseWindow else { return }
+        pulseTask?.cancel()
+        pulseTask = nil
+        pulseWindow.orderOut(nil)
+    }
+
+    /// While only one window is recorded: a red frame around that window for the whole time, so it
+    /// is not forgotten that the rest of the screen is not in the video. It follows the window
+    /// (moves, resizes), sits right above it among normal windows, and is gone while the window is
+    /// minimised or hidden. The recording captures that window alone, so the frame is not in it.
+    /// nil stops it.
+    func follow(windowID: CGWindowID?) {
+        guard windowID != followedID else { return }
+        followedID = windowID
+        followTimer?.invalidate()
+        followTimer = nil
+        guard let windowID else {
+            followWindow?.orderOut(nil)
+            return
+        }
+        let window = followWindow ?? Self.makeWindow(lineWidth: MenuBarStyle.current == .discreet ? 3 : 6)
+        followWindow = window
+        window.sharingType = MenuBarStyle.hideFromSharing ? .none : .readOnly
+        let update = { [weak self] in
+            guard let self, self.followedID == windowID else { return }
+            guard let frame = MeetingTitle.frame(ofWindow: windowID) else {
+                window.orderOut(nil)
+                return
+            }
+            let mainHeight = NSScreen.screens.first?.frame.height ?? 0
+            let rect = CGRect(x: frame.minX, y: mainHeight - frame.maxY, width: frame.width, height: frame.height)
+                .insetBy(dx: -4, dy: -4)
+            window.level = .normal
+            if window.frame != rect { window.setFrame(rect, display: true) }
+            window.alphaValue = 1
+            // Every time: the window may have been brought forward meanwhile.
+            window.order(.above, relativeTo: Int(windowID))
+        }
+        update()
+        followTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { _ in
+            Task { @MainActor in update() }
+        }
+        Log.debug("Frame follows recorded window \(windowID)")
+    }
+
     private static func fade(_ window: NSWindow, to alpha: CGFloat, duration: TimeInterval) async {
         await withCheckedContinuation { continuation in
             NSAnimationContext.runAnimationGroup({ context in
@@ -328,7 +406,7 @@ final class DisplayHighlight {
     /// Above the menu bar and the Dock, so a screen's frame runs along its very edge.
     private static let screenLevel = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
 
-    private static func makeWindow() -> NSWindow {
+    private static func makeWindow(color: Color = .red, lineWidth: CGFloat = 6) -> NSWindow {
         let window = NSWindow(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.isOpaque = false
@@ -338,7 +416,7 @@ final class DisplayHighlight {
         window.level = screenLevel
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         window.sharingType = MenuBarStyle.hideFromSharing ? .none : .readOnly
-        let hosting = NSHostingView(rootView: Rectangle().strokeBorder(Color.red, lineWidth: 6).ignoresSafeArea())
+        let hosting = NSHostingView(rootView: Rectangle().strokeBorder(color, lineWidth: lineWidth).ignoresSafeArea())
         hosting.sizingOptions = []
         window.contentView = hosting
         return window

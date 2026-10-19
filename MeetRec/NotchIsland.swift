@@ -199,7 +199,7 @@ struct IslandView: View {
                         .foregroundStyle(.orange)
                 } else {
                     Circle()
-                        .fill(model.health?.hasProblem == true ? Color.yellow : Color.red)
+                        .fill(model.showsWarning ? Color.yellow : Color.red)
                         .frame(width: 9, height: 9)
                         .shadow(color: .red.opacity(0.8), radius: 4)
                 }

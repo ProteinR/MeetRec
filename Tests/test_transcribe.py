@@ -112,6 +112,75 @@ class MicrophoneTests(unittest.TestCase):
         lines, _ = transcribe.build_lines(segments, turns, {"A": "Speaker 1"}, "Dima", (microphone, system))
         self.assertEqual([text for _, text in lines], ["[00:00:00] Dima: test", "[00:00:02] Speaker 1: test"])
 
+    def test_my_word_inside_someone_elses_segment_is_mine(self):
+        # One Whisper segment "Thanks. Bye. Have a nice day." over 0-3 s: the user's "Bye." (1-2 s)
+        # is heard through the microphone, the rest is the other side.
+        microphone = [-80.0] * 20 + [-25.0] * 20 + [-80.0] * 20
+        system = [-20.0] * 20 + [-70.0] * 20 + [-20.0] * 20
+        words = [{"start": 0.0, "end": 1.0, "text": " Thanks."}, {"start": 1.0, "end": 2.0, "text": " Bye."},
+                 {"start": 2.0, "end": 2.5, "text": " Have"}, {"start": 2.5, "end": 2.8, "text": " a"},
+                 {"start": 2.8, "end": 3.0, "text": " nice day."}]
+        segments = [{"start": 0.0, "end": 3.0, "text": "Thanks. Bye. Have a nice day.", "words": words}]
+        turns = [{"start": 0.0, "end": 3.0, "speaker": "A"}]
+        lines, _ = transcribe.build_lines(segments, turns, {"A": "Falk"}, "Dima", (microphone, system))
+        self.assertEqual([text for _, text in lines],
+                         ["[00:00:00] Falk: Thanks.", "[00:00:01] Dima: Bye.", "[00:00:02] Falk: Have a nice day."])
+
+    def test_short_word_with_padded_time_is_mine(self):
+        # Whisper gives "Hi." 0.7 s, the voice lasts 0.2 s; the rest of the time is silence.
+        microphone = [-60.0] * 10 + [-15.0] * 4 + [-60.0] * 10
+        system = [-90.0] * 24
+        word = {"start": 0.1, "end": 0.8, "text": " Hi."}
+        self.assertTrue(transcribe.word_spoken_into_microphone(word, (microphone, system)))
+        self.assertFalse(transcribe.spoken_into_microphone(word, (microphone, system)))
+        # The other side's word: loud in the system audio.
+        self.assertFalse(transcribe.word_spoken_into_microphone(word, ([-60.0] * 24, [-20.0] * 24)))
+
+    def test_words_follow_diarization_turns(self):
+        words = [{"start": 0.0, "end": 0.5, "text": " Hi."}, {"start": 0.6, "end": 1.0, "text": " Hello,"},
+                 {"start": 1.0, "end": 1.4, "text": " Falk."}]
+        segments = [{"start": 0.0, "end": 1.4, "text": "Hi. Hello, Falk.", "words": words}]
+        turns = [{"start": 0.0, "end": 0.55, "speaker": "A"}, {"start": 0.55, "end": 1.5, "speaker": "B"}]
+        lines, _ = transcribe.build_lines(segments, turns, {"A": "Falk", "B": "Julius"})
+        self.assertEqual([text for _, text in lines], ["[00:00:00] Falk: Hi.", "[00:00:00] Julius: Hello, Falk."])
+
+    def test_a_lone_word_stays_with_its_neighbours(self):
+        # Word times are approximate: one word just over a turn edge is not a change of speaker.
+        words = [{"start": 0.0, "end": 0.5, "text": " we"}, {"start": 0.5, "end": 0.9, "text": " can"},
+                 {"start": 0.9, "end": 1.5, "text": " go"}]
+        segments = [{"start": 0.0, "end": 1.5, "text": "we can go", "words": words}]
+        turns = [{"start": 0.0, "end": 0.5, "speaker": "A"}, {"start": 0.5, "end": 0.9, "speaker": "B"},
+                 {"start": 0.9, "end": 1.5, "speaker": "A"}]
+        lines, _ = transcribe.build_lines(segments, turns, {"A": "Falk", "B": "Julius"})
+        self.assertEqual([text for _, text in lines], ["[00:00:00] Falk: we can go"])
+
+    def test_a_slip_mid_sentence_goes_back_but_a_reply_stays(self):
+        def words(*items):
+            return [{"start": float(i), "end": i + 0.9, "text": " " + text} for i, text in enumerate(items)]
+        names = {"A": "Julius", "B": "Dima"}
+        # "ok but are | you finished | in this branch?": the middle went to B by mistake.
+        segments = [{"start": 0.0, "end": 7.0, "text": "", "words": words("ok", "but", "are", "you", "finished", "in", "branch?")}]
+        turns = [{"start": 0.0, "end": 3.0, "speaker": "A"}, {"start": 3.0, "end": 5.0, "speaker": "B"},
+                 {"start": 5.0, "end": 7.0, "speaker": "A"}]
+        lines, _ = transcribe.build_lines(segments, turns, names)
+        self.assertEqual([text for _, text in lines], ["[00:00:00] Julius: ok but are you finished in branch?"])
+        # "Is it done? | Yes. | Good.": a reply of its own stays.
+        segments = [{"start": 0.0, "end": 5.0, "text": "", "words": words("Is", "it", "done?", "Yes.", "Good.")}]
+        turns = [{"start": 0.0, "end": 3.0, "speaker": "A"}, {"start": 3.0, "end": 4.0, "speaker": "B"},
+                 {"start": 4.0, "end": 5.0, "speaker": "A"}]
+        lines, _ = transcribe.build_lines(segments, turns, names)
+        self.assertEqual([text for _, text in lines],
+                         ["[00:00:00] Julius: Is it done?", "[00:00:03] Dima: Yes.", "[00:00:04] Julius: Good."])
+
+    def test_the_next_speakers_first_word_goes_to_them(self):
+        words = [{"start": float(i), "end": i + 0.9, "text": " " + text}
+                 for i, text in enumerate(["Ja.", "Das", "ist", "ja", "praktisch."])]
+        segments = [{"start": 0.0, "end": 5.0, "text": "", "words": words}]
+        turns = [{"start": 0.0, "end": 1.0, "speaker": "B"}, {"start": 1.0, "end": 2.0, "speaker": "A"},
+                 {"start": 2.0, "end": 5.0, "speaker": "B"}]
+        lines, _ = transcribe.build_lines(segments, turns, {"A": "Falk", "B": "Julius"})
+        self.assertEqual([text for _, text in lines], ["[00:00:00] Julius: Ja. Das ist ja praktisch."])
+
     def test_one_other_person_merges_the_other_side(self):
         # Today's lesson: the teacher split in two when her connection got worse.
         names = {"S0": "Speaker 1", "S1": "Speaker 2", "S2": "Dima", "S3": "Dima"}

@@ -182,12 +182,15 @@ def run_asr(wav_path, language):
     result = mlx_whisper.transcribe(
         load_audio(wav_path),
         path_or_hf_repo=ASR_MODEL,
-        word_timestamps=False,
+        # Words with their times: one Whisper segment often holds several people ("Hi. Hi, Dima.
+        # Hi."), so speakers are assigned per word (`build_lines`).
+        word_timestamps=True,
         condition_on_previous_text=False,
         language=language or None,
     )
     segments = [
-        {"start": s["start"], "end": s["end"], "text": s["text"].strip()}
+        {"start": s["start"], "end": s["end"], "text": s["text"].strip(),
+         "words": [{"start": w["start"], "end": w["end"], "text": w["word"]} for w in s.get("words", [])]}
         for s in result["segments"]
         if s["text"].strip()
     ]
@@ -286,6 +289,20 @@ def spoken_into_microphone(segment, levels, min_share=0.6):
     return total > 0 and mic / total >= min_share
 
 
+def word_spoken_into_microphone(word, levels, frame=0.05, margin=6.0, floor=-50.0, min_share=0.6):
+    """A word heard mostly through the user's microphone. Whisper gives a word more time than the
+    sound itself (a short "Hi" gets 0.7 s), so only frames where anything is heard count."""
+    microphone_db, system_db = levels
+    first, last = int(word["start"] / frame), min(int(word["end"] / frame), len(microphone_db), len(system_db))
+    audible = mic = 0
+    for i in range(first, last):
+        if max(microphone_db[i], system_db[i]) > floor:
+            audible += 1
+            if microphone_db[i] > floor and microphone_db[i] > system_db[i] + margin:
+                mic += 1
+    return mic >= 2 and mic / audible >= min_share
+
+
 def name_microphone_speakers(names, shares, me, min_share=0.6, min_seconds=1.0):
     """Speakers heard through the user's microphone are the user, whatever their voice matched.
     Anyone else who matched the user's voice becomes an unnamed speaker. Returns new names and the
@@ -334,23 +351,79 @@ def format_time(seconds):
     return f"{seconds // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
 
 
+def word_names(segment, label, turns, names, me=None, levels=None):
+    """[start, name, text, mine, segment] for each word of a segment. A word heard mostly through the
+    microphone is the user's (mine); otherwise it goes to the diarized speaker it overlaps most, else
+    the segment's."""
+    words = segment.get("words") or [{"start": segment["start"], "end": segment["end"], "text": segment["text"]}]
+    result = []
+    for word in words:
+        mine = bool(me and levels and word_spoken_into_microphone(word, levels))
+        word_label = assign_speaker(word, turns) or label
+        result.append([word["start"], me if mine or word_label is None else names[word_label], word["text"], mine,
+                       id(segment)])
+    return result
+
+
+def speaker_runs(words):
+    """Consecutive words of one speaker."""
+    runs = []
+    for word in words:
+        if runs and runs[-1][0][1] == word[1]:
+            runs[-1].append(word)
+        else:
+            runs.append([word])
+    return runs
+
+
+def smooth_short_runs(words, max_words=2):
+    """Diarization at word level makes slips at the edges of turns; one or two words not from the
+    microphone and not a sentence of their own (a reply "Yes." between two sentences of someone else
+    stays) are moved:
+    - between two runs of the same speaker, back to them ("Julius: ok but are / Dima: you finished /
+      Julius: in this branch?");
+    - after a finished sentence and before someone else's words that go on the sentence (lower
+      case, same Whisper segment), to them: the next speaker's first word left with the previous one
+      ("Julius: …reinfolgen. / Falk: Das / Julius: ist ja praktisch…")."""
+    def ends_sentence(text):
+        return text.strip().endswith((".", "?", "!", "…"))
+
+    def movable(run):
+        return len(run) <= max_words and not any(word[3] for word in run) and not ends_sentence(run[-1][2])
+
+    runs = speaker_runs(words)
+    for i in range(1, len(runs) - 1):
+        run, before, after = runs[i], runs[i - 1], runs[i + 1]
+        if movable(run) and before[-1][1] == after[0][1] != run[0][1] and not ends_sentence(before[-1][2]):
+            for word in run:
+                word[1] = before[-1][1]
+    runs = speaker_runs(words)
+    for i in range(1, len(runs) - 1):
+        run, before, after = runs[i], runs[i - 1], runs[i + 1]
+        if movable(run) and ends_sentence(before[-1][2]) and after[0][2].strip()[:1].islower() \
+                and run[-1][4] == after[0][4]:
+            for word in run:
+                word[1] = after[0][1]
+    return words
+
+
 def build_lines(segments, turns, names, me=None, levels=None):
-    """Transcript lines; with the user's name and the microphone/system levels, phrases spoken into
-    the microphone are the user's."""
-    lines, previous, dropped = [], object(), 0
+    """Transcript lines, a speaker's words joined until someone else speaks; with the user's name and
+    the microphone/system levels, words spoken into the microphone are the user's."""
+    words, dropped = [], 0
     for segment in segments:
         label = assign_speaker(segment, turns)
-        mine = bool(me and levels and spoken_into_microphone(segment, levels))
-        if label is None and not mine:
+        if label is None and not (me and levels and spoken_into_microphone(segment, levels)):
             dropped += 1  # Whisper hallucinations in silence ("Thank you.")
             continue
-        name = me if mine else names[label]
-        if lines and name == previous:
-            lines[-1][2] += " " + segment["text"]
+        words += word_names(segment, label, turns, names, me, levels)
+    lines = []
+    for start, name, text, *_ in smooth_short_runs(words):
+        if lines and lines[-1][1] == name:
+            lines[-1][2] += " " + text
         else:
-            lines.append([segment["start"], name, segment["text"]])
-            previous = name
-    return [(start, f"[{format_time(start)}] {name}: {text}") for start, name, text in lines], dropped
+            lines.append([start, name, text])
+    return [(start, f"[{format_time(start)}] {name}: {' '.join(text.split())}") for start, name, text in lines], dropped
 
 
 PAUSE_NOTE = "Пауза"  # RecorderModel.pauseNote: where a paused recording was joined up
@@ -425,10 +498,12 @@ def transcribe(args):
             diarization = None
         else:
             emit("phase", name="Распознавание речи и разбивка по ролям")
-            with ProcessPoolExecutor(max_workers=2) as pool:
-                asr_future = pool.submit(run_asr, str(wav), args.language)
-                diarization_future = pool.submit(run_diarization, str(wav))
-                asr, diarization = asr_future.result(), diarization_future.result()
+            # One after the other, each in a fresh process: the GPU busy with one model at a time keeps
+            # the Mac cooler (and quieter) at the cost of a longer run; nothing waits for the transcript.
+            with ProcessPoolExecutor(max_workers=1) as pool:
+                asr = pool.submit(run_asr, str(wav), args.language).result()
+            with ProcessPoolExecutor(max_workers=1) as pool:
+                diarization = pool.submit(run_diarization, str(wav)).result()
 
     emit("phase", name="Сохранение")
     speakers_summary = []

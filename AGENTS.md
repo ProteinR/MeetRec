@@ -58,7 +58,9 @@ What MeetRec does instead:
   the one to be recorded framed in red, an "Авто" switch, and a red frame around that whole screen
   (`DisplayHighlight`, click-through) so the choice is visible on the monitor itself. The same frame
   blinks softly three times on the recorded screen when any recording starts or switches screens
-  (not in the discreet style).
+  (not in the discreet style); during the countdown before an automatic start it blinks orange on the
+  screen about to be recorded. While only one window is recorded, a red frame follows that window
+  for the whole time (thinner in the discreet style; not in the video, which has only the window).
   Under the displays: up to 10 normal windows of the chosen display as small thumbnails (app icon,
   title in the tooltip; `WindowPreview`, a capture each, every 5 s while open; "и ещё N" beyond).
   Clicking one chooses it (red frame on the tile and around the window on screen, ordered right
@@ -82,9 +84,12 @@ What MeetRec does instead:
   copied; their transcript stays only next to the video.
 
 - Safety while recording: the Mac and displays are kept awake. In the first 30 s the Teams meeting
-  window must show up on the recorded display once; if it was only seen on another monitor, one
-  silent warning ("Записывать «монитор»" / "Оставить как есть"); later moves and minimising (screen
-  sharing) are ignored. Silent alerts when the file stops growing or the picture is black for 30 s,
+  window must show up on the recorded display once; if it is seen on another monitor for 5 s instead,
+  ⚠️ in the menu bar and a banner in the panel ("Записывать «монитор»" / "Игнорировать"; no
+  notification, MeetRec never switches by itself), gone after an answer, a display switch or the
+  window coming onto the recorded display; later moves and minimising (screen sharing) are ignored.
+  Once Stop is pressed there are no health checks, ⚠️ or alerts while the file is being finished
+  (the stream is stopped then, silence is expected). Silent alerts when the file stops growing or the picture is black for 30 s,
   or the microphone gives dead silence (not even room noise) for a minute (once per recording);
   the other side being silent and high CPU are never alerted (CPU is only logged). The panel shows
   system CPU and MeetRec's own CPU/memory; the log gets a `Load:` line every 30 s (idle: every 10 min).
@@ -320,7 +325,18 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
   older [system, mic]; the player mix is not used). Whoever speaks into the microphone is the user
   (`--me`, "Моё имя"): a phrase heard mostly through the microphone track is theirs, and a diarized
   speaker with ≥60% of speech there gets the name, whatever the voice match says; voice samples name
-  only the other side. The run file records each speaker's microphone share. Transcript: `<recording>.md` next to the video, never overwritten. Models: the shared
+  only the other side. Speakers are assigned per word (Whisper word timestamps), not per Whisper
+  segment: one segment often holds several people ("Hi. Hi, Dima. Hi."), and a short "Bye" of the
+  user inside the other side's segment used to go to them. A word counts as the user's when the
+  microphone dominates its audible frames (Whisper pads short words). One or two words that
+  diarization gives to someone other than both neighbours, mid-sentence, stay with them, and a dangling
+  first word of the next speaker goes to them.
+  Gentle on the Mac: the helper runs at Darwin background priority (`taskpolicy -b`: efficiency
+  cores, low GPU/disk priority), recognition and diarization one after the other, each in its own
+  process (they ran in parallel and kept the GPU at ~98 %, fans on); slower, nothing waits for it.
+  `TranscriptionLoad.swift` logs `Load (transcription):` every 30 s (GPU %, CPU and memory of the
+  helper's whole process tree, thermal state) and a summary when the helper exits; MeetRec's own
+  `Load:` line does not see the helper or the GPU. The run file records each speaker's microphone share. Transcript: `<recording>.md` next to the video, never overwritten. Models: the shared
   Hugging Face cache `~/.cache/huggingface/hub` (pyannote is gated: needs an HF token and accepted
   conditions). Voices: `~/Library/Application Support/MeetRec/speakers.json`, seeded once as a copy of
   `~/.local/share/inventire-meetings/speakers.json`; "record voice sample" enrolls the user's own voice

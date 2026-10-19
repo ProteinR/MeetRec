@@ -144,11 +144,9 @@ struct ContentView: View {
                 showingSettings = true
                 openSection = "shortcuts"
             } label: {
-                Label("Не работает: " + taken.compactMap { Shortcuts.shared.combo($0)?.text }.joined(separator: ", ")
-                      + " — сочетание занято другим приложением. Изменить…", systemImage: "exclamationmark.triangle.fill")
+                WarningLabel(text: "Не работает: " + taken.compactMap { Shortcuts.shared.combo($0)?.text }.joined(separator: ", ")
+                             + " — сочетание занято другим приложением. Изменить…")
                     .font(.caption)
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             .buttonStyle(.plain)
         }
