@@ -16,7 +16,7 @@ Human-readable diagnostics go to stderr, which the app writes to its log.
 
 Commands:
   download                         fetch both models (and build the uv environment)
-  transcribe <recording> --output <md> [--no-diarization] [--language xx] [--speakers file] [--me Name] [--one-other]
+  transcribe <recording> --output <md> [--no-diarization] [--language xx] [--speakers file] [--me Name] [--one-other] [--mixed]
   enroll-sample <wav> --name <Name> --speakers <file>
 """
 import argparse
@@ -77,6 +77,14 @@ class _AsrProgress:
     def update(self, n=1):
         self.done += n
         self.report(self.done / self.total)
+
+
+class _SilentProgress(_AsrProgress):
+    """For the user's short microphone pieces: they take seconds, the progress bar is the rest."""
+
+    def __init__(self, total=None, **_):
+        super().__init__(total)
+        self.report = lambda value: None
 
 
 def _diarization_hook():
@@ -170,6 +178,44 @@ def load_audio(path):
     return audio
 
 
+# ── The user's own track ──────────────────────────────────────────────────────────────────────────
+# With headphones the microphone hears only the user and the system audio only the other side, so
+# the two are transcribed apart: the user's speech (a few minutes of a meeting) in pieces, everyone
+# else with diarization. No guessing who said what, also when people speak at once. Through the
+# Mac's speakers the microphone hears the others too (ScreenCaptureKit gives the raw microphone):
+# then the mixed way with per-word guessing is used.
+
+ECHO_LIMIT = 0.25
+
+
+def echo_ratio(microphone_db, system_db, speech=-40.0, heard=-45.0):
+    """Share of the other side's speech that is also heard in the microphone: near 0 with headphones
+    (only when the user talks at the same time), high through speakers (echo)."""
+    count = min(len(microphone_db), len(system_db))
+    talking = [i for i in range(count) if system_db[i] > speech]
+    if not talking:
+        return 0.0
+    return sum(1 for i in talking if microphone_db[i] > heard) / len(talking)
+
+
+def speech_chunks(microphone_db, frame=0.05, threshold=-45.0, gap=1.5, pad=0.3, min_speech=0.3):
+    """(start, end) seconds of the user's speech in the microphone track: loud frames, joined over
+    pauses shorter than `gap`, `pad` added at both ends so no word is cut; pieces with less than
+    `min_speech` of sound (a cough, a click) are left out."""
+    chunks = []
+    for i, level in enumerate(microphone_db):
+        if level <= threshold:
+            continue
+        start, end = i * frame, (i + 1) * frame
+        if chunks and start - chunks[-1][1] <= gap:
+            chunks[-1][1] = end
+            chunks[-1][2] += frame
+        else:
+            chunks.append([start, end, frame])
+    total = len(microphone_db) * frame
+    return [(max(start - pad, 0.0), min(end + pad, total)) for start, end, voiced in chunks if voiced >= min_speech]
+
+
 # ── Engines ──────────────────────────────────────────────────────────────────────────────────────
 
 def run_asr(wav_path, language):
@@ -195,6 +241,95 @@ def run_asr(wav_path, language):
         if s["text"].strip()
     ]
     return {"language": result.get("language"), "segments": segments, "seconds": time.time() - t0}
+
+
+JOIN_PAUSE = 2.0  # long enough that Whisper's word times (±0.5 s) tell the pieces apart
+
+
+def joined_chunks(chunks, silence=JOIN_PAUSE):
+    """Where each piece goes when the pieces are put one after another with `silence` between them:
+    (start in the recording, start in the joined audio, length)."""
+    places, at = [], 0.0
+    for start, end in chunks:
+        places.append((start, at, end - start))
+        at += end - start + silence
+    return places
+
+
+def piece_of(t, places):
+    """Index of the piece a time in the joined audio belongs to; in a pause, the nearer piece (Whisper
+    lets a word start or end a little inside the pause)."""
+    for index, (_, joined, length) in enumerate(places):
+        if t < joined + length:
+            if index > 0 and t < joined:
+                previous_end = places[index - 1][1] + places[index - 1][2]
+                return index - 1 if t - previous_end < joined - t else index
+            return index
+    return len(places) - 1
+
+
+def recording_time(t, places, index=None):
+    """A time in the joined audio back in the recording (in piece `index`, else the nearest one)."""
+    if not places:
+        return t
+    start, joined, length = places[piece_of(t, places) if index is None else index]
+    return start + min(max(t - joined, 0.0), length)
+
+
+def split_by_piece(segments, places):
+    """Whisper joins neighbouring pieces into one phrase ("Hi." at 0:05 and "Okay, thank you." at
+    0:50): each phrase is cut where its words change piece, and all times go back to the recording."""
+    result = []
+    for s in segments:
+        words = s.get("words") or [{"start": s["start"], "end": s["end"], "word": s["text"]}]
+        groups = []
+        for w in words:
+            index = piece_of((w["start"] + w["end"]) / 2, places)
+            if not groups or groups[-1][0] != index:
+                groups.append((index, []))
+            groups[-1][1].append({"start": recording_time(w["start"], places, index),
+                                  "end": recording_time(w["end"], places, index), "text": w["word"]})
+        for _, group in groups:
+            result.append({"start": group[0]["start"], "end": group[-1]["end"],
+                           "text": " ".join("".join(w["text"] for w in group).split()), "words": group})
+    return result
+
+
+def run_chunks_asr(wav_path, chunks, language):
+    """Recognises the user's pieces of the microphone track, put one after another with short pauses:
+    one pass (Whisper hears the context, the language is found from the user's own speech), times
+    mapped back to the recording."""
+    import mlx_whisper
+    import numpy as np
+
+    sys.modules["mlx_whisper.transcribe"].tqdm.tqdm = _SilentProgress
+    t0 = time.time()
+    audio = load_audio(wav_path)
+    places = joined_chunks(chunks)
+    pause = np.zeros(int(JOIN_PAUSE * SAMPLE_RATE), dtype=audio.dtype)
+    pieces = []
+    for start, end in chunks:
+        pieces += [audio[int(start * SAMPLE_RATE):int(end * SAMPLE_RATE)], pause]
+    if not pieces:
+        return {"segments": [], "language": None, "seconds": 0.0}
+    result = mlx_whisper.transcribe(
+        np.concatenate(pieces),
+        path_or_hf_repo=ASR_MODEL,
+        word_timestamps=True,
+        condition_on_previous_text=False,
+        language=language or None,
+    )
+    # Whisper invents text in noise ("Thank you."); it says so itself.
+    kept = []
+    for s in result["segments"]:
+        if s["text"].strip() and s.get("no_speech_prob", 0.0) <= 0.6:
+            kept.append(s)
+        elif s["text"].strip():
+            log(f"microphone: left out (no speech {s.get('no_speech_prob', 0.0):.0%}): {s['text'].strip()}")
+    segments = split_by_piece(kept, places)
+    for s in segments:
+        log(f"microphone [{format_time(s['start'])}]: {s['text']}")
+    return {"segments": segments, "language": result.get("language"), "seconds": time.time() - t0}
 
 
 def load_pipeline():
@@ -417,13 +552,61 @@ def build_lines(segments, turns, names, me=None, levels=None):
             dropped += 1  # Whisper hallucinations in silence ("Thank you.")
             continue
         words += word_names(segment, label, turns, names, me, levels)
+    return join_lines(smooth_short_runs(words)), dropped
+
+
+def build_split_lines(segments, my_segments, turns, names, me):
+    """Transcript lines when the user's microphone track was transcribed apart (`my_segments`): the
+    other side's words get their diarized speakers, the user's words are the user's, and both are
+    put in order of time."""
+    words, dropped = [], 0
+    for segment in segments:
+        label = assign_speaker(segment, turns)
+        if label is None:
+            dropped += 1  # Whisper hallucinations in silence ("Thank you.")
+            continue
+        words += word_names(segment, label, turns, names)
+    # A phrase of the user stays whole: the other side's words said at the same moment (everyone's
+    # "bye") follow it instead of cutting it in two.
+    spans = [(segment["start"], segment["end"]) for segment in my_segments]
+
+    def key(word):
+        if word[3]:
+            return (word[4], 0, word[0])
+        inside = next((start for start, end in spans if start <= word[0] < end), None)
+        return (inside, 1, word[0]) if inside is not None else (word[0], 1, word[0])
+
+    for segment in my_segments:
+        mine = segment.get("words") or [{"start": segment["start"], "end": segment["end"], "text": segment["text"]}]
+        words += [[word["start"], me, word["text"], True, segment["start"]] for word in mine]
+    words.sort(key=key)
+    return join_lines(smooth_short_runs(words)), dropped
+
+
+def join_lines(words):
+    """A speaker's words joined into one line until someone else speaks."""
     lines = []
-    for start, name, text, *_ in smooth_short_runs(words):
+    for start, name, text, *_ in words:
         if lines and lines[-1][1] == name:
             lines[-1][2] += " " + text
         else:
             lines.append([start, name, text])
-    return [(start, f"[{format_time(start)}] {name}: {' '.join(text.split())}") for start, name, text in lines], dropped
+    return [(start, f"[{format_time(start)}] {name}: {' '.join(text.split())}") for start, name, text in lines]
+
+
+def without_me(names, me):
+    """The other side's speakers: whoever matched the user's voice there (the Teams echo test plays
+    it back) becomes an unnamed speaker."""
+    if not me:
+        return names
+    result, taken, number = dict(names), set(names.values()), 1
+    for label in sorted(names):
+        if names[label] == me:
+            while f"Speaker {number}" in taken:
+                number += 1
+            result[label] = f"Speaker {number}"
+            taken.add(result[label])
+    return result
 
 
 PAUSE_NOTE = "Пауза"  # RecorderModel.pauseNote: where a paused recording was joined up
@@ -492,6 +675,17 @@ def transcribe(args):
         levels = None
         if not args.no_diarization and args.me and len(separate) == 2:
             levels = (frame_levels(separate["microphone"]), frame_levels(separate["system"]))
+        # The user's track apart (headphones), else the mixed way (speakers, one track, no name).
+        chunks = None
+        if levels and not args.mixed:
+            echo = echo_ratio(*levels)
+            if echo <= ECHO_LIMIT:
+                chunks = speech_chunks(levels[0])
+                log(f"Microphone apart: echo {echo:.0%}, {len(chunks)} piece(s), "
+                    f"{sum(end - start for start, end in chunks) / 60:.1f} min of the user's speech")
+            else:
+                log(f"Microphone hears the other side (echo {echo:.0%} > {ECHO_LIMIT:.0%}, speakers?): mixed transcription")
+        my_asr = None
         if args.no_diarization:
             emit("phase", name="Распознавание речи")
             asr = run_asr(str(wav), args.language)
@@ -500,16 +694,22 @@ def transcribe(args):
             emit("phase", name="Распознавание речи и разбивка по ролям")
             # One after the other, each in a fresh process: the GPU busy with one model at a time keeps
             # the Mac cooler (and quieter) at the cost of a longer run; nothing waits for the transcript.
+            others = str(separate["system"]) if chunks is not None else str(wav)
             with ProcessPoolExecutor(max_workers=1) as pool:
-                asr = pool.submit(run_asr, str(wav), args.language).result()
+                asr = pool.submit(run_asr, others, args.language).result()
+            if chunks is not None:
+                with ProcessPoolExecutor(max_workers=1) as pool:
+                    my_asr = pool.submit(run_chunks_asr, str(separate["microphone"]), chunks, args.language).result()
             with ProcessPoolExecutor(max_workers=1) as pool:
-                diarization = pool.submit(run_diarization, str(wav)).result()
+                diarization = pool.submit(run_diarization, others).result()
 
     emit("phase", name="Сохранение")
     speakers_summary = []
     if diarization:
         names, scores = match_speakers(diarization["embeddings"], load_speakers(args.speakers), args.threshold)
-        if levels:
+        if my_asr is not None:
+            names = without_me(names, args.me)
+        elif levels:
             shares = microphone_shares(diarization["turns"], *levels)
             names, mine = name_microphone_speakers(names, shares, args.me)
             for label, (share, seconds) in sorted(shares.items()):
@@ -523,8 +723,17 @@ def transcribe(args):
             if merged != names:
                 log(f"One other person: {', '.join(sorted(l for l in names if merged[l] != names[l]))} → {merged}")
             names = merged
-        lines, dropped = build_lines(asr["segments"], diarization["turns"], names, args.me, levels)
+        if my_asr is not None:
+            lines, dropped = build_split_lines(asr["segments"], my_asr["segments"], diarization["turns"], names, args.me)
+        else:
+            lines, dropped = build_lines(asr["segments"], diarization["turns"], names, args.me, levels)
         engine = f"{ENGINE} + pyannote community-1"
+        if my_asr is not None:
+            mine_seconds = sum(end - start for start, end in chunks)
+            speakers_summary.append({"label": "microphone", "name": args.me, "minutes": round(mine_seconds / 60, 1),
+                                     "best": args.me, "score": 1.0})
+            log(f"microphone: {args.me} ({mine_seconds:.0f}s in {len(chunks)} pieces, "
+                f"{len(my_asr['segments'])} phrase(s), language {my_asr['language']}, {my_asr['seconds']:.0f}s)")
         for label in sorted(speaking, key=speaking.get, reverse=True):
             match = scores[label]
             speakers_summary.append({"label": label, "name": names[label], "minutes": round(speaking[label] / 60, 1),
@@ -534,7 +743,8 @@ def transcribe(args):
             runs = Path(args.runs_dir)
             runs.mkdir(parents=True, exist_ok=True)
             (runs / f"{recording.stem}.json").write_text(
-                json.dumps({"recording": recording.name, "names": names, "scores": scores, **diarization}),
+                json.dumps({"recording": recording.name, "names": names, "scores": scores, **diarization,
+                            "microphoneApart": my_asr is not None}),
                 encoding="utf-8")
     else:
         lines = [(s["start"], f"[{format_time(s['start'])}] {s['text']}") for s in asr["segments"]]
@@ -553,7 +763,8 @@ def transcribe(args):
     ]
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(header) + "\n\n" + "\n\n".join(lines) + "\n", encoding="utf-8")
-    timing = f"ASR {asr['seconds']:.0f}s" + (f", diarization {diarization['seconds']:.0f}s" if diarization else "")
+    timing = f"ASR {asr['seconds']:.0f}s" + (f" + microphone {my_asr['seconds']:.0f}s" if my_asr else "") \
+        + (f", diarization {diarization['seconds']:.0f}s" if diarization else "")
     log(f"Transcript {output}: language {asr['language']}, {len(lines)} lines, dropped {dropped}, {timing}, "
         f"total {time.time() - t0:.0f}s")
     emit("done", output=str(output), language=asr["language"], lines=len(lines) - len(markers), dropped=dropped,
@@ -600,6 +811,8 @@ def main():
     t.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD)
     t.add_argument("--me", default="", help="the user's name: whoever speaks into the microphone track")
     t.add_argument("--one-other", action="store_true", help="a one-on-one call: everyone but the user is one person")
+    t.add_argument("--mixed", action="store_true",
+                   help="transcribe both tracks together even with headphones (the way before the microphone apart)")
     t.set_defaults(handler=transcribe)
 
     e = commands.add_parser("enroll-sample")

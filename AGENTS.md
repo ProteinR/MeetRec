@@ -331,6 +331,15 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
   microphone dominates its audible frames (Whisper pads short words). One or two words that
   diarization gives to someone other than both neighbours, mid-sentence, stay with them, and a dangling
   first word of the next speaker goes to them.
+  Microphone apart (the default when the file has both tracks and a name is set): with headphones
+  the microphone hears only the user, so the user's speech is found by level in the microphone track
+  (pauses < 1.5 s joined, 0.3 s padding, < 0.3 s of sound dropped), the pieces are put one after
+  another with 2 s pauses and recognised in one pass (language from the user's own speech, times
+  mapped back per piece), and only the system track gets recognition and diarization; the two word
+  streams are merged by time, the user's phrase kept whole when others speak at the same moment.
+  If the microphone hears the other side (`echo_ratio` > 25 %: the Mac's speakers, ScreenCaptureKit
+  gives the raw microphone) or `--mixed` is passed, the mixed way above is used. The log lists the
+  user's phrases (`microphone [hh:mm:ss]: …`).
   Gentle on the Mac: the helper runs at Darwin background priority (`taskpolicy -b`: efficiency
   cores, low GPU/disk priority), recognition and diarization one after the other, each in its own
   process (they ran in parallel and kept the GPU at ~98 %, fans on); slower, nothing waits for it.

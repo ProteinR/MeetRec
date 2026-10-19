@@ -181,6 +181,68 @@ class MicrophoneTests(unittest.TestCase):
         lines, _ = transcribe.build_lines(segments, turns, {"A": "Falk", "B": "Julius"})
         self.assertEqual([text for _, text in lines], ["[00:00:00] Julius: Ja. Das ist ja praktisch."])
 
+    def test_my_speech_chunks(self):
+        # 0.05 s frames: speech 1.0-2.0 s and 2.5-3.0 s (one piece over a short pause), a click at
+        # 6.0 s (too short), speech 9.0-10.0 s.
+        mic = [-60.0] * 220
+        for i in list(range(20, 40)) + list(range(50, 60)) + [120] + list(range(180, 200)):
+            mic[i] = -20.0
+        chunks = transcribe.speech_chunks(mic)
+        self.assertEqual([(round(a, 2), round(b, 2)) for a, b in chunks], [(0.7, 3.3), (8.7, 10.3)])
+
+    def test_echo_ratio_tells_headphones_from_speakers(self):
+        system = [-20.0] * 100
+        headphones = [-60.0] * 90 + [-20.0] * 10  # the user talks over the others for a moment
+        speakers = [-35.0] * 100  # the others come back through the microphone
+        self.assertLessEqual(transcribe.echo_ratio(headphones, system), transcribe.ECHO_LIMIT)
+        self.assertGreater(transcribe.echo_ratio(speakers, system), transcribe.ECHO_LIMIT)
+        self.assertEqual(transcribe.echo_ratio(headphones, [-90.0] * 100), 0.0)
+
+    def test_split_lines_put_both_sides_in_time_order(self):
+        others = [{"start": 0.0, "end": 4.0, "text": "", "words": [
+            {"start": 0.0, "end": 0.5, "text": " So"}, {"start": 0.5, "end": 1.0, "text": " the"},
+            {"start": 1.0, "end": 1.5, "text": " scanner"}, {"start": 3.0, "end": 4.0, "text": " works."}]}]
+        mine = [{"start": 1.6, "end": 2.4, "text": "In the web?", "words": [
+            {"start": 1.6, "end": 1.9, "text": " In"}, {"start": 1.9, "end": 2.1, "text": " the"},
+            {"start": 2.1, "end": 2.4, "text": " web?"}]}]
+        turns = [{"start": 0.0, "end": 4.0, "speaker": "A"}]
+        lines, dropped = transcribe.build_split_lines(others, mine, turns, {"A": "Falk"}, "Dima")
+        self.assertEqual([text for _, text in lines],
+                         ["[00:00:00] Falk: So the scanner", "[00:00:01] Dima: In the web?", "[00:00:03] Falk: works."])
+        self.assertEqual(dropped, 0)
+
+    def test_my_phrase_stays_whole_when_someone_speaks_at_once(self):
+        others = [{"start": 0.0, "end": 3.0, "text": "", "words": [
+            {"start": 0.0, "end": 0.8, "text": " Thanks."}, {"start": 1.3, "end": 1.6, "text": " Bye."},
+            {"start": 2.5, "end": 3.0, "text": " Bye."}]}]
+        mine = [{"start": 1.0, "end": 2.2, "text": "Have a good day.", "words": [
+            {"start": 1.0, "end": 1.2, "text": " Have"}, {"start": 1.2, "end": 1.5, "text": " a"},
+            {"start": 1.5, "end": 1.8, "text": " good"}, {"start": 1.8, "end": 2.2, "text": " day."}]}]
+        turns = [{"start": 0.0, "end": 3.0, "speaker": "A"}]
+        lines, _ = transcribe.build_split_lines(others, mine, turns, {"A": "Falk"}, "Dima")
+        self.assertEqual([text for _, text in lines],
+                         ["[00:00:00] Falk: Thanks.", "[00:00:01] Dima: Have a good day.", "[00:00:01] Falk: Bye. Bye."])
+
+    def test_joined_pieces_map_back_to_the_recording(self):
+        places = transcribe.joined_chunks([(10.0, 12.0), (30.0, 31.0)], silence=0.5)
+        self.assertEqual(places, [(10.0, 0.0, 2.0), (30.0, 2.5, 1.0)])
+        self.assertAlmostEqual(transcribe.recording_time(1.5, places), 11.5)
+        self.assertAlmostEqual(transcribe.recording_time(2.1, places), 12.0)  # in the pause, nearer the first piece
+        self.assertAlmostEqual(transcribe.recording_time(2.4, places), 30.0)  # nearer the second
+        self.assertAlmostEqual(transcribe.recording_time(3.0, places), 30.5)
+
+    def test_a_phrase_over_two_pieces_is_cut_back(self):
+        places = transcribe.joined_chunks([(5.0, 6.0), (50.0, 52.0)])  # joined: 0-1, 3-5
+        # "Okay," starts in the pause, nearer the first piece, but most of it is in the second.
+        segments = [{"start": 0.1, "end": 4.0, "text": "Hi. Okay, thank you.", "words": [
+            {"start": 0.1, "end": 0.6, "word": " Hi."}, {"start": 1.9, "end": 3.4, "word": " Okay,"},
+            {"start": 3.4, "end": 3.6, "word": " thank"}, {"start": 3.6, "end": 4.0, "word": " you."}]}]
+        result = transcribe.split_by_piece(segments, places)
+        self.assertEqual([(round(s["start"], 1), s["text"]) for s in result], [(5.1, "Hi."), (50.0, "Okay, thank you.")])
+
+    def test_my_voice_on_the_other_side_is_not_me(self):
+        self.assertEqual(transcribe.without_me({"A": "Dima", "B": "Falk"}, "Dima"), {"A": "Speaker 1", "B": "Falk"})
+
     def test_one_other_person_merges_the_other_side(self):
         # Today's lesson: the teacher split in two when her connection got worse.
         names = {"S0": "Speaker 1", "S1": "Speaker 2", "S2": "Dima", "S3": "Dima"}
