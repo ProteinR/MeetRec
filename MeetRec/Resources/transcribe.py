@@ -277,22 +277,21 @@ def recording_time(t, places, index=None):
 
 
 def split_by_piece(segments, places):
-    """Whisper joins neighbouring pieces into one phrase ("Hi." at 0:05 and "Okay, thank you." at
-    0:50): each phrase is cut where its words change piece, and all times go back to the recording."""
-    result = []
+    """One phrase per piece of the user's speech, times back in the recording. Whisper joins
+    neighbouring pieces into one phrase ("Hi." at 0:05 and "Okay, thank you." at 0:50), so a phrase is
+    cut where its words change piece; and it splits one piece into several ("Okay." "Okay." "Okay."),
+    so those are joined again, and someone else's words said at that moment cannot get between them."""
+    groups = []
     for s in segments:
         words = s.get("words") or [{"start": s["start"], "end": s["end"], "word": s["text"]}]
-        groups = []
         for w in words:
             index = piece_of((w["start"] + w["end"]) / 2, places)
             if not groups or groups[-1][0] != index:
                 groups.append((index, []))
             groups[-1][1].append({"start": recording_time(w["start"], places, index),
                                   "end": recording_time(w["end"], places, index), "text": w["word"]})
-        for _, group in groups:
-            result.append({"start": group[0]["start"], "end": group[-1]["end"],
-                           "text": " ".join("".join(w["text"] for w in group).split()), "words": group})
-    return result
+    return [{"start": group[0]["start"], "end": group[-1]["end"],
+             "text": " ".join("".join(w["text"] for w in group).split()), "words": group} for _, group in groups]
 
 
 def run_chunks_asr(wav_path, chunks, language):
@@ -630,9 +629,10 @@ MUTE_JOIN = 10.0  # mutes closer than this are one ("mute, say a word, mute agai
 MUTE_MIN = 5.0    # shorter mutes (a cough) are left out
 
 
-def load_mutes(recording, total=None):
+def load_mutes(recording, total=None, speech=()):
     """When the microphone was muted (`<name>.mutes.json` next to the video, seconds of the file),
-    joined when close together and without the short ones, as markers (start, ("mute", end))."""
+    joined when close together (not over the user's `speech` times) and without the short ones, as
+    markers (start, ("mute", end))."""
     path = recording.with_name(recording.stem + ".mutes.json")
     if not path.exists():
         return []
@@ -642,15 +642,17 @@ def load_mutes(recording, total=None):
     except (ValueError, KeyError, TypeError) as error:
         log(f"Ignoring unreadable mutes file {path}: {error}")
         return []
-    return [(start, ("mute", end)) for start, end in merge_mutes(spans)]
+    return [(start, ("mute", end)) for start, end in merge_mutes(spans, speech=speech)]
 
 
-def merge_mutes(spans, join=MUTE_JOIN, shortest=MUTE_MIN):
-    """(start, end) spans joined over gaps shorter than `join`, then those shorter than `shortest`
-    dropped; an end of None (still muted when the file ended) is kept as is."""
+def merge_mutes(spans, join=MUTE_JOIN, shortest=MUTE_MIN, speech=()):
+    """(start, end) spans joined over gaps shorter than `join` in which the user did not speak (unmuted
+    for a moment to say "Okay"), then those shorter than `shortest` dropped; an end of None (still
+    muted when the file ended) is kept as is."""
     merged = []
     for start, end in spans:
-        if merged and merged[-1][1] is not None and start - merged[-1][1] < join:
+        if merged and merged[-1][1] is not None and start - merged[-1][1] < join \
+                and not any(merged[-1][1] <= t <= start for t in speech):
             merged[-1][1] = end if end is None else max(end, merged[-1][1])
         else:
             merged.append([start, end])
@@ -787,7 +789,7 @@ def transcribe(args):
         engine = ENGINE
 
     markers = load_markers(recording)
-    mutes = load_mutes(recording)
+    mutes = load_mutes(recording, speech=[s["start"] for s in my_asr["segments"]] if my_asr else ())
     lines = insert_markers(lines, markers + mutes)
     if markers:
         log(f"Inserted {len(markers)} marker(s)")

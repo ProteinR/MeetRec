@@ -52,6 +52,8 @@ class MarkerTests(unittest.TestCase):
         spans = [(10.0, 12.0), (15.0, 30.0), (100.0, 102.0), (200.0, None)]
         # 10-12 and 15-30 are one mute (gap 3 s); 100-102 is too short; the last lasts to the end.
         self.assertEqual(transcribe.merge_mutes(spans), [(10.0, 30.0), (200.0, None)])
+        # Unmuted for 3 s to say "Okay": two mutes, not one over the word.
+        self.assertEqual(transcribe.merge_mutes([(0.0, 20.0), (23.0, 60.0)], speech=[21.0]), [(0.0, 20.0), (23.0, 60.0)])
 
     def test_mutes_in_the_transcript(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -254,6 +256,13 @@ class MicrophoneTests(unittest.TestCase):
             {"start": 3.4, "end": 3.6, "word": " thank"}, {"start": 3.6, "end": 4.0, "word": " you."}]}]
         result = transcribe.split_by_piece(segments, places)
         self.assertEqual([(round(s["start"], 1), s["text"]) for s in result], [(5.1, "Hi."), (50.0, "Okay, thank you.")])
+
+    def test_phrases_of_one_piece_are_joined(self):
+        places = transcribe.joined_chunks([(100.0, 102.0)])
+        segments = [{"start": 0.0, "end": 0.4, "text": "Okay.", "words": [{"start": 0.0, "end": 0.4, "word": " Okay."}]},
+                    {"start": 0.5, "end": 0.9, "text": "Okay.", "words": [{"start": 0.5, "end": 0.9, "word": " Okay."}]}]
+        result = transcribe.split_by_piece(segments, places)
+        self.assertEqual([(s["start"], s["text"]) for s in result], [(100.0, "Okay. Okay.")])
 
     def test_my_voice_on_the_other_side_is_not_me(self):
         self.assertEqual(transcribe.without_me({"A": "Dima", "B": "Falk"}, "Dima"), {"A": "Speaker 1", "B": "Falk"})
