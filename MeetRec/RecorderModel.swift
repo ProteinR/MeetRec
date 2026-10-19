@@ -122,6 +122,8 @@ final class RecorderModel: ObservableObject {
     /// Alerts already sent in the current episode; cleared when the condition recovers.
     var firedAlerts: Set<String> = []
     var micMuted = false
+    /// When the microphone was muted in the current recording, saved next to it (`MuteFile`).
+    var muteSpans: [MuteSpan] = []
     static let micSilenceAlertAfter: TimeInterval = 60
     var recordingNames = (microphone: "", display: "")
     var lastDiskCheck = Date.distantPast
@@ -473,6 +475,7 @@ final class RecorderModel: ObservableObject {
         }
         let duration = elapsedText
         let began = startedAt
+        recordMute(false) // a mute still on ends with the recording
         let title = meetingTitle
         let appID = autoStartedAppID
         Task {
@@ -555,6 +558,8 @@ final class RecorderModel: ObservableObject {
         cancelStopCountdown()
         autoStopDisabled = false
         markers = []
+        micMuted = false
+        muteSpans = []
         captureWindow = nil
         meetingTitle = pendingTitle
         ruleTitle = pendingTitle

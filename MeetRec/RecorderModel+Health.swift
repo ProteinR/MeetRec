@@ -68,6 +68,7 @@ extension RecorderModel {
         if muted != micMuted {
             micMuted = muted
             Log.info("Microphone \(muted ? "muted" : "unmuted") at system level", "health")
+            recordMute(muted)
         }
         checkDiskSpace()
         checkCaptureWindow()
@@ -84,6 +85,24 @@ extension RecorderModel {
         }
         live.update(health: newHealth)
         checkAlerts(newHealth)
+    }
+
+    /// Saves a mute change next to the recording, so the transcript can show when the user was muted.
+    func recordMute(_ muted: Bool) {
+        guard let startedAt, let file = recorder.currentFile().url else { return }
+        let time = recordingTime(origin: startedAt)
+        if muted {
+            guard muteSpans.last.map({ $0.end != nil }) ?? true else { return }
+            muteSpans.append(MuteSpan(start: time))
+        } else {
+            guard let last = muteSpans.indices.last, muteSpans[last].end == nil else { return }
+            muteSpans[last].end = time
+        }
+        do {
+            try MuteFile.save(muteSpans, for: file)
+        } catch {
+            Log.warning("Could not save microphone mutes: \(Log.describe(error))", "health")
+        }
     }
 
     /// Notifies once per episode when a source dies or stays silent too long during a recording.

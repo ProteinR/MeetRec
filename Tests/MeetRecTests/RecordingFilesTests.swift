@@ -72,9 +72,18 @@ final class RecordingFilesTests: XCTestCase {
         _ = touch("rec.md")
         _ = touch("rec (2).md")
         _ = touch("rec.markers.json")
+        _ = touch("rec.mutes.json")
         _ = touch("record.md") // different recording that only shares the prefix
         let names = Set(RecordingFiles.companions(of: video).map(\.lastPathComponent))
-        XCTAssertEqual(names, ["rec.md", "rec (2).md", "rec.markers.json"])
+        XCTAssertEqual(names, ["rec.md", "rec (2).md", "rec.markers.json", "rec.mutes.json"])
+    }
+
+    func testMuteFileRoundTrip() throws {
+        let video = touch("rec.mov")
+        let spans = [MuteSpan(start: 12.5, end: 40), MuteSpan(start: 61, end: nil)]
+        try MuteFile.save(spans, for: video)
+        XCTAssertEqual(MuteFile.load(for: video), spans)
+        XCTAssertEqual(MuteFile.url(for: video).lastPathComponent, "rec.mutes.json")
     }
 
     func testCompanionsSkipTranscriptOfSeparateRecording() {

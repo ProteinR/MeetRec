@@ -626,9 +626,44 @@ def load_markers(recording):
         return []
 
 
+MUTE_JOIN = 10.0  # mutes closer than this are one ("mute, say a word, mute again")
+MUTE_MIN = 5.0    # shorter mutes (a cough) are left out
+
+
+def load_mutes(recording, total=None):
+    """When the microphone was muted (`<name>.mutes.json` next to the video, seconds of the file),
+    joined when close together and without the short ones, as markers (start, ("mute", end))."""
+    path = recording.with_name(recording.stem + ".mutes.json")
+    if not path.exists():
+        return []
+    try:
+        spans = sorted((float(m["start"]), float(m["end"]) if m.get("end") is not None else total)
+                       for m in json.loads(path.read_text(encoding="utf-8")))
+    except (ValueError, KeyError, TypeError) as error:
+        log(f"Ignoring unreadable mutes file {path}: {error}")
+        return []
+    return [(start, ("mute", end)) for start, end in merge_mutes(spans)]
+
+
+def merge_mutes(spans, join=MUTE_JOIN, shortest=MUTE_MIN):
+    """(start, end) spans joined over gaps shorter than `join`, then those shorter than `shortest`
+    dropped; an end of None (still muted when the file ended) is kept as is."""
+    merged = []
+    for start, end in spans:
+        if merged and merged[-1][1] is not None and start - merged[-1][1] < join:
+            merged[-1][1] = end if end is None else max(end, merged[-1][1])
+        else:
+            merged.append([start, end])
+    return [(start, end) for start, end in merged if end is None or end - start >= shortest]
+
+
 def marker_line(marker):
-    """ "⭐ [00:12:34] Отметка" or "⏸ [00:12:34] Пауза"; a marker is seconds or (seconds, note)."""
+    """ "⭐ [00:12:34] Отметка", "⏸ [00:12:34] Пауза" or "🔇 [00:12:34–00:13:10] Микрофон выключен";
+    a marker is seconds or (seconds, note)."""
     time, note = marker if isinstance(marker, tuple) else (marker, None)
+    if isinstance(note, tuple) and note[0] == "mute":
+        until = f"–{format_time(note[1])}" if note[1] is not None else ""
+        return f"🔇 [{format_time(time)}{until}] Микрофон выключен"
     return f"⏸ [{format_time(time)}] {PAUSE_NOTE}" if note == PAUSE_NOTE else f"⭐ [{format_time(time)}] Отметка"
 
 
@@ -752,9 +787,12 @@ def transcribe(args):
         engine = ENGINE
 
     markers = load_markers(recording)
-    lines = insert_markers(lines, markers)
+    mutes = load_mutes(recording)
+    lines = insert_markers(lines, markers + mutes)
     if markers:
         log(f"Inserted {len(markers)} marker(s)")
+    if mutes:
+        log(f"Inserted {len(mutes)} microphone mute(s)")
     header = [
         f"# Transcription: {recording.name}",
         f"- Date: {datetime.now().strftime('%d %b %Y at %H:%M:%S')}",
@@ -767,7 +805,7 @@ def transcribe(args):
         + (f", diarization {diarization['seconds']:.0f}s" if diarization else "")
     log(f"Transcript {output}: language {asr['language']}, {len(lines)} lines, dropped {dropped}, {timing}, "
         f"total {time.time() - t0:.0f}s")
-    emit("done", output=str(output), language=asr["language"], lines=len(lines) - len(markers), dropped=dropped,
+    emit("done", output=str(output), language=asr["language"], lines=len(lines) - len(markers) - len(mutes), dropped=dropped,
          seconds=round(time.time() - t0), speakers=speakers_summary)
 
 

@@ -63,6 +63,29 @@ enum MarkerFile {
     }
 }
 
+/// When the microphone was muted during a recording (`<name>.mutes.json`, seconds of the file, `end`
+/// nil while still muted), written on every change like the markers. `transcribe.py` writes the longer
+/// ones into the transcript.
+struct MuteSpan: Codable, Equatable {
+    var start: TimeInterval
+    var end: TimeInterval?
+}
+
+enum MuteFile {
+    static func url(for recording: URL) -> URL {
+        recording.deletingPathExtension().appendingPathExtension("mutes.json")
+    }
+
+    static func save(_ spans: [MuteSpan], for recording: URL) throws {
+        try JSONEncoder().encode(spans).write(to: url(for: recording), options: .atomic)
+    }
+
+    static func load(for recording: URL) -> [MuteSpan] {
+        guard let data = try? Data(contentsOf: url(for: recording)) else { return [] }
+        return (try? JSONDecoder().decode([MuteSpan].self, from: data)) ?? []
+    }
+}
+
 /// Naming, renaming and deleting recordings together with their transcripts and markers.
 enum RecordingFiles {
     /// Timestamp MeetRec (and OBS) put into file names. It always comes first, so Finder sorts
@@ -106,7 +129,7 @@ enum RecordingFiles {
         return text
     }
 
-    /// Files that belong to a recording: transcripts (`name.md`, `name (2).md`…) and markers.
+    /// Files that belong to a recording: transcripts (`name.md`, `name (2).md`…), markers and mutes.
     static func companions(of recording: URL) -> [URL] {
         let folder = recording.deletingLastPathComponent()
         let stem = recording.deletingPathExtension().lastPathComponent
@@ -115,7 +138,7 @@ enum RecordingFiles {
         return names.filter { name in
             guard name.hasPrefix(stem) else { return false }
             let rest = String(name.dropFirst(stem.count))
-            if rest == ".md" || rest == ".markers.json" { return true }
+            if rest == ".md" || rest == ".markers.json" || rest == ".mutes.json" { return true }
             // "name (2).md" is a second transcript, unless "name (2)" is a separate recording.
             guard rest.range(of: #"^ \(\d+\)\.md$"#, options: .regularExpression) != nil else { return false }
             let otherStem = String(name.dropLast(3))

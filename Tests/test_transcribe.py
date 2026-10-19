@@ -48,6 +48,21 @@ class MarkerTests(unittest.TestCase):
                 json.dumps([{"time": 40}, {"time": 5.5, "note": None}]), encoding="utf-8")
             self.assertEqual(transcribe.load_markers(video), [(5.5, None), (40.0, None)])
 
+    def test_mutes_are_joined_and_short_ones_left_out(self):
+        spans = [(10.0, 12.0), (15.0, 30.0), (100.0, 102.0), (200.0, None)]
+        # 10-12 and 15-30 are one mute (gap 3 s); 100-102 is too short; the last lasts to the end.
+        self.assertEqual(transcribe.merge_mutes(spans), [(10.0, 30.0), (200.0, None)])
+
+    def test_mutes_in_the_transcript(self):
+        with tempfile.TemporaryDirectory() as folder:
+            video = Path(folder) / "rec.mov"
+            (Path(folder) / "rec.mutes.json").write_text(
+                json.dumps([{"start": 61, "end": 88}, {"start": 300}]), encoding="utf-8")
+            mutes = transcribe.load_mutes(video)
+            lines = transcribe.insert_markers([(0.0, "[00:00:00] Dima: Hi"), (90.0, "[00:01:30] Falk: So")], mutes)
+            self.assertEqual(lines, ["[00:00:00] Dima: Hi", "🔇 [00:01:01–00:01:28] Микрофон выключен",
+                                     "[00:01:30] Falk: So", "🔇 [00:05:00] Микрофон выключен"])
+
     def test_unreadable_markers_are_ignored(self):
         with tempfile.TemporaryDirectory() as folder:
             video = Path(folder) / "rec.mov"

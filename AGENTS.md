@@ -43,7 +43,10 @@ What MeetRec does instead:
   panel so it is visible, and stops 15 s after Teams releases the mic (never stops manual recordings).
 
 - During a recording: ⭐ markers (⌃⌥⌘M or the panel button) saved to `<recording>.markers.json` and
-  inserted into the transcript; switching to a single window (others and notifications left out; the window alone is scaled to
+  inserted into the transcript; microphone mutes (system level: AirPods button, Teams' mute) saved
+  to `<recording>.mutes.json` (seconds of the file, written on every change) and written into the
+  transcript as "🔇 [00:01:01–00:01:28] Микрофон выключен" (mutes less than 10 s apart joined,
+  shorter than 5 s left out; not chapters); switching to a single window (others and notifications left out; the window alone is scaled to
   fill the frame, `desktopIndependentWindow` + `scalesToFit`),
   falling back to the whole screen if that window closes.
 - Disk space guard: no start below 1 GB free, warning below 3 GB, automatic clean stop below 500 MB.
@@ -52,7 +55,7 @@ What MeetRec does instead:
   Teams windows at launch and with each title) after the timestamp,
   which always comes first so Finder sorts by time: `2026-10-16 14-03-22 Weekly sync.mov`. The
   recordings list can rename (keeping the timestamp first), move to Trash, re-transcribe (new `name (2).md`, old kept) and search
-  names and transcript text. Renames and deletes take the `.md` and `.markers.json` files along.
+  names and transcript text. Renames and deletes take the `.md`, `.markers.json` and `.mutes.json` files along.
 - Monitor choice is an accordion section on the main page titled with the display to be recorded;
   opened, it shows live thumbnails of all displays (refreshed every 2 s, `DisplayPreview.swift`),
   the one to be recorded framed in red, an "Авто" switch, and a red frame around that whole screen
