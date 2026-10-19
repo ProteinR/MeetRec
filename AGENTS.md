@@ -343,6 +343,10 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
   If the microphone hears the other side (`echo_ratio` > 25 %: the Mac's speakers, ScreenCaptureKit
   gives the raw microphone) or `--mixed` is passed, the mixed way above is used. The log lists the
   user's phrases (`microphone [hh:mm:ss]: …`).
+  Whisper sometimes loops at random on clear audio ("dot dot dot…" ×200, "1,1,1…"): a segment with
+  the same word more than 5 times in a row, or a word that is one short piece repeated, is recognised
+  again on its own stretch with some temperature (usually fine then); if it still loops, the loop is
+  left out. Both are logged.
   Gentle on the Mac: the helper runs at Darwin background priority (`taskpolicy -b`: efficiency
   cores, low GPU/disk priority), recognition and diarization one after the other, each in its own
   process (they ran in parallel and kept the GPU at ~98 %, fans on); slower, nothing waits for it.

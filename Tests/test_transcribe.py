@@ -264,6 +264,19 @@ class MicrophoneTests(unittest.TestCase):
         result = transcribe.split_by_piece(segments, places)
         self.assertEqual([(s["start"], s["text"]) for s in result], [(100.0, "Okay. Okay.")])
 
+    def test_whisper_loops_are_left_out(self):
+        def words(*items):
+            return [{"start": float(i), "end": i + 0.5, "text": " " + text} for i, text in enumerate(items)]
+        looping = words("tabs", "star", *["dot"] * 50, "STLV", "The")
+        okay = words("Okay.", "Okay.", "Okay.")
+        number = words("the", "1,1,1,1,1,1,1,1,1,1,1,1,1,1", "in")
+        segments = [{"start": 0.0, "end": 60.0, "text": "", "words": looping},
+                    {"start": 0.0, "end": 3.0, "text": "", "words": okay},
+                    {"start": 0.0, "end": 3.0, "text": "", "words": number}]
+        result = transcribe.without_loops(segments)
+        self.assertEqual([s["text"] for s in result], ["tabs star STLV The", "Okay. Okay. Okay.", "the in"])
+        self.assertEqual([transcribe.has_loop(s) for s in segments], [True, False, True])
+
     def test_my_voice_on_the_other_side_is_not_me(self):
         self.assertEqual(transcribe.without_me({"A": "Dima", "B": "Falk"}, "Dima"), {"A": "Speaker 1", "B": "Falk"})
 

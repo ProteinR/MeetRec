@@ -22,6 +22,7 @@ Commands:
 import argparse
 import json
 import math
+import re
 import subprocess
 import sys
 import tempfile
@@ -225,8 +226,9 @@ def run_asr(wav_path, language):
     # so decoding reports progress events instead of drawing a terminal bar.
     sys.modules["mlx_whisper.transcribe"].tqdm.tqdm = _AsrProgress
     t0 = time.time()
+    audio = load_audio(wav_path)
     result = mlx_whisper.transcribe(
-        load_audio(wav_path),
+        audio,
         path_or_hf_repo=ASR_MODEL,
         # Words with their times: one Whisper segment often holds several people ("Hi. Hi, Dima.
         # Hi."), so speakers are assigned per word (`build_lines`).
@@ -234,12 +236,12 @@ def run_asr(wav_path, language):
         condition_on_previous_text=False,
         language=language or None,
     )
-    segments = [
+    segments = without_loops(retry_loops([
         {"start": s["start"], "end": s["end"], "text": s["text"].strip(),
          "words": [{"start": w["start"], "end": w["end"], "text": w["word"]} for w in s.get("words", [])]}
         for s in result["segments"]
         if s["text"].strip()
-    ]
+    ], audio, language or result.get("language")))
     return {"language": result.get("language"), "segments": segments, "seconds": time.time() - t0}
 
 
@@ -325,10 +327,99 @@ def run_chunks_asr(wav_path, chunks, language):
             kept.append(s)
         elif s["text"].strip():
             log(f"microphone: left out (no speech {s.get('no_speech_prob', 0.0):.0%}): {s['text'].strip()}")
-    segments = split_by_piece(kept, places)
+    segments = without_loops(split_by_piece(kept, places))
     for s in segments:
         log(f"microphone [{format_time(s['start'])}]: {s['text']}")
     return {"segments": segments, "language": result.get("language"), "seconds": time.time() - t0}
+
+
+MAX_REPEAT = 5  # "Okay. Okay. Okay." is speech; the same word more times in a row is Whisper looping
+
+
+def _word_key(text):
+    return re.sub(r"[\W_]+", "", text.lower())
+
+
+def _looping_word(text):
+    return re.search(r"(.{1,4}?)\1{8,}", text.strip()) is not None
+
+
+def has_loop(segment):
+    """The same word more than `MAX_REPEAT` times in a row, or a word that is one short piece repeated."""
+    words = segment.get("words") or []
+    run = 1
+    for previous, word in zip(words, words[1:]):
+        same = _word_key(word["text"]) and _word_key(word["text"]) == _word_key(previous["text"])
+        run = run + 1 if same else 1
+        if run > MAX_REPEAT:
+            return True
+    return any(_looping_word(word["text"]) for word in words)
+
+
+def retry_loops(segments, audio, language):
+    """Whisper loops at random (the same audio recognised again is usually fine): a segment that loops
+    is recognised once more, its own stretch of audio with some randomness (temperature), and replaced
+    when the new text does not loop. Otherwise `without_loops` leaves the loop out."""
+    import mlx_whisper
+
+    sys.modules["mlx_whisper.transcribe"].tqdm.tqdm = _SilentProgress
+    result = []
+    for s in segments:
+        if not has_loop(s):
+            result.append(s)
+            continue
+        start = max(s["start"] - 0.5, 0.0)
+        end = min(s["end"] + 0.5, len(audio) / SAMPLE_RATE)
+        again = mlx_whisper.transcribe(
+            audio[int(start * SAMPLE_RATE):int(end * SAMPLE_RATE)],
+            path_or_hf_repo=ASR_MODEL,
+            word_timestamps=True,
+            condition_on_previous_text=False,
+            temperature=(0.2, 0.4, 0.6, 0.8),
+            language=language or None,
+        )
+        new = [{"start": start + n["start"], "end": start + n["end"], "text": n["text"].strip(),
+                "words": [{"start": start + w["start"], "end": start + w["end"], "text": w["word"]} for w in n.get("words", [])]}
+               for n in again["segments"] if n["text"].strip()]
+        if new and not any(has_loop(n) for n in new):
+            log(f"Whisper looped at {format_time(s['start'])}; recognised again: {' '.join(n['text'] for n in new)[:120]}")
+            result += new
+        else:
+            log(f"Whisper looped at {format_time(s['start'])} and again on a retry; the loop is left out")
+            result.append(s)
+    return result
+
+
+def without_loops(segments):
+    """Whisper sometimes loops on unclear audio and writes one word hundreds of times ("dot dot dot…",
+    "1,1,1,1…"). Runs of the same word longer than `MAX_REPEAT`, and words that are one short piece
+    repeated, are left out (and logged); the rest of the segment stays."""
+    key = _word_key
+    result = []
+    for s in segments:
+        words = s.get("words") or []
+        if not words:
+            result.append(s)
+            continue
+        kept, i = [], 0
+        while i < len(words):
+            j = i
+            while j + 1 < len(words) and key(words[j + 1]["text"]) == key(words[i]["text"]) and key(words[i]["text"]):
+                j += 1
+            run = words[i:j + 1]
+            if len(run) > MAX_REPEAT:
+                log(f"Left out a Whisper loop at {format_time(run[0]['start'])}: {run[0]['text'].strip()!r} × {len(run)}")
+            else:
+                for w in run:
+                    if _looping_word(w["text"]):
+                        log(f"Left out a looping word at {format_time(w['start'])}: {w['text'].strip()[:30]!r}…")
+                    else:
+                        kept.append(w)
+            i = j + 1
+        if kept:
+            result.append({**s, "start": kept[0]["start"], "end": kept[-1]["end"],
+                           "text": " ".join("".join(w["text"] for w in kept).split()), "words": kept})
+    return result
 
 
 def load_pipeline():
