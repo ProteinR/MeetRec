@@ -49,7 +49,7 @@ enum Profiling {
         Task { @MainActor in
             let began = Date()
             while Date().timeIntervalSince(began) < seconds {
-                try? await Task.sleep(for: .seconds(60))
+                try? await Task.sleep(for: .seconds(min(60, seconds - Date().timeIntervalSince(began))))
                 log("Profile recording at \(Int(Date().timeIntervalSince(began))) s")
             }
             model.stop(reason: "профилирование")

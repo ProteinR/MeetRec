@@ -8,8 +8,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.4.5"
-    CURRENT_PROJECT_VERSION: "12"
+    MARKETING_VERSION: "0.4.6"
+    CURRENT_PROJECT_VERSION: "13"
     # No Apple Developer account: ad-hoc signing, no hardened runtime.
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Manual
@@ -22,6 +22,12 @@ targets:
     platform: macOS
     sources:
       - MeetRec
+    dependencies:
+      # "Как я выгляжу" runs in its own process: Contents/MacOS/MeetRecMirror.
+      - target: MeetRecMirror
+        embed: true
+        copy:
+          destination: executables
     info:
       path: MeetRec/Info.plist
       properties:
@@ -44,6 +50,16 @@ targets:
     scheme:
       testTargets:
         - MeetRecTests
+  # The camera mirror ("Как я выгляжу"), started by MeetRec and ended with its window.
+  MeetRecMirror:
+    type: tool
+    platform: macOS
+    sources:
+      - MeetRecMirror
+    settings:
+      base:
+        PRODUCT_NAME: MeetRecMirror
+        PRODUCT_BUNDLE_IDENTIFIER: com.dmemruk.MeetRec.mirror
   # Unit tests of the logic that is easy to break (file names, transcripts, rules, health). The app is
   # the test host but starts empty under XCTest (see AppDelegate.isRunningTests).
   MeetRecTests:

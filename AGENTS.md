@@ -73,7 +73,9 @@ What MeetRec does instead:
   cleared when the panel closes without starting and after the start. Teams auto-recordings and
   browser rules always take the whole display.
 - "Как я выгляжу" (person icon next to the gear, or the quick menu): a floating mirrored camera
-  window (`CameraMirror.swift`) to check yourself before a meeting; camera picker on hover, Esc or ✕
+  window to check yourself before a meeting, in its own process `MeetRecMirror` (target of the same
+  name, embedded in `Contents/MacOS`; `CameraMirror.swift` starts and ends it, its output goes to the
+  log), so the camera's 200–350 MB leave with it; camera picker on hover, Esc or ✕
   closes it and stops the camera. Unless one was picked, the built-in camera is used, else a real
   one: never a virtual camera on its own (with the lid closed macOS's default was OBS's). Nothing is recorded.
 - Launch at login (`SMAppService`) toggle; Teams' "Microsoft Teams Audio" loopback is hidden from
@@ -383,7 +385,9 @@ screenshot selection, editor; footprint per round: growing every round = a leak)
 `--camera-test`; add `--background` so the panel does not open at launch. `scripts/profile.py`
 measures memory/CPU/wake-ups from outside. Results and lessons: `PROFILING.md`. Lessons: AppKit
 keeps the last key window after it closes (drop a closed window's content); an animation in the
-panel redraws the whole card with its shadows every display frame; keep the 1 Hz tick cheap.
+panel redraws the whole card with its shadows every display frame; keep the 1 Hz tick cheap; the
+system switch (`.toggleStyle(.switch)`) costs ~100 MB for a moment on first draw (use
+`LightSwitchStyle`); give a `ProgressView` inside a button a fixed size.
 
 `Tests/MeetRecTests` covers file names and companions, tags, transcript speaker renaming, meeting
 apps and rules, the health tracker, and screenshot coordinates and files. The app is the test host but starts empty under XCTest

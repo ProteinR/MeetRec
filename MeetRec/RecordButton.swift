@@ -24,7 +24,10 @@ struct RecordButton: View {
             HStack(spacing: 10) {
                 ZStack {
                     if isBusy {
+                        // A fixed size: on its own the spinner took the panel window's whole height
+                        // for a frame (a red column down the screen at every stop).
                         ProgressView().controlSize(.small).tint(.white)
+                            .frame(width: 16, height: 16)
                             .transition(.scale.combined(with: .opacity))
                     } else {
                         Image(systemName: isRecording ? "stop.fill" : "record.circle")

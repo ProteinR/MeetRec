@@ -256,8 +256,7 @@ struct ContentView: View {
             content()
                 .frame(maxWidth: .infinity, alignment: .leading)
             Toggle("", isOn: isOn)
-                .toggleStyle(.switch)
-                .controlSize(.small)
+                .toggleStyle(LightSwitchStyle())
                 .labelsHidden()
         }
         .padding(.horizontal, 10)
