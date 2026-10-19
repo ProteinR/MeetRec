@@ -85,7 +85,17 @@ final class CameraMirror: NSObject, ObservableObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         let session = session
-        sessionQueue.async { session.stopRunning() }
+        sessionQueue.async {
+            session.stopRunning()
+            // The input holds the camera's buffers (tens of MB); the next opening adds it again.
+            session.beginConfiguration()
+            session.inputs.forEach { session.removeInput($0) }
+            session.commitConfiguration()
+        }
+        // AppKit keeps the last key window after it closes: let it keep only the shell, not the
+        // camera preview.
+        let closed = window
+        DispatchQueue.main.async { closed?.contentView = nil }
         window = nil
         Log.info("Camera mirror closed")
     }
@@ -114,7 +124,7 @@ final class CameraMirror: NSObject, ObservableObject, NSWindowDelegate {
             deviceTypes: [.builtInWideAngleCamera, .external, .continuityCamera], mediaType: .video, position: .unspecified
         ).devices
         let saved = UserDefaults.standard.string(forKey: Self.cameraKey)
-        guard let device = cameras.first(where: { $0.uniqueID == saved }) ?? AVCaptureDevice.default(for: .video) ?? cameras.first else {
+        guard let device = cameras.first(where: { $0.uniqueID == saved }) ?? Self.preferred(cameras) else {
             currentID = nil
             noCamera = true
             Log.warning("Camera mirror: no camera found")
@@ -137,6 +147,22 @@ final class CameraMirror: NSObject, ObservableObject, NSWindowDelegate {
             session.commitConfiguration()
             if !session.isRunning { session.startRunning() }
         }
+    }
+}
+
+extension CameraMirror {
+    /// The camera to use when none was chosen: the built-in one, else a real external one. A virtual
+    /// camera (OBS Virtual Camera) shows another app's output, not the user: it is only taken when
+    /// chosen in the menu. With the lid closed the built-in camera is gone and macOS's default was
+    /// OBS's.
+    static func preferred(_ cameras: [AVCaptureDevice]) -> AVCaptureDevice? {
+        cameras.first { $0.deviceType == .builtInWideAngleCamera }
+            ?? cameras.first { !isVirtual($0) }
+    }
+
+    static func isVirtual(_ camera: AVCaptureDevice) -> Bool {
+        let text = "\(camera.localizedName) \(camera.manufacturer) \(camera.modelID)".lowercased()
+        return text.contains("virtual") || text.contains("obs")
     }
 }
 

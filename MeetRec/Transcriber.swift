@@ -104,7 +104,7 @@ final class Transcriber: ObservableObject {
 
     /// Called when a recording finishes.
     func recordingFinished(_ file: URL) {
-        guard transcribeAfterRecording else { return }
+        guard transcribeAfterRecording, !Profiling.isActive else { return }
         guard modelsState == .ready else {
             Log.warning("Auto-transcription skipped for \(file.lastPathComponent): models not downloaded", "transcribe")
             job = .failed("Модели не скачаны — транскрибация пропущена")

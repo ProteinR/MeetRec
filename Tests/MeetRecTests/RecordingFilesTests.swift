@@ -180,3 +180,30 @@ extension RecordingFilesTests {
         XCTAssertEqual(BrowserRulesEditor.exampleFileName(title: "", date: date), "\(stamp).mov")
     }
 }
+
+/// The free space during a recording: the slow exact value once a minute, the cheap one in between.
+final class FreeSpaceEstimateTests: XCTestCase {
+    func testMovesTheExactValueByThePlainChange() {
+        var estimate = FreeSpaceEstimate()
+        let start = Date(timeIntervalSince1970: 1_000_000)
+        var exactCalls = 0
+        // macOS could purge 5 GB more than the plain free space shows.
+        var plain: Int64 = 10_000_000_000
+        func check(_ seconds: TimeInterval) -> Int64? {
+            estimate.check(exact: { exactCalls += 1; return plain + 5_000_000_000 }, plain: { plain },
+                           now: start.addingTimeInterval(seconds))
+        }
+        XCTAssertEqual(check(0), 15_000_000_000)
+        plain -= 300_000_000 // the recording wrote 300 MB
+        XCTAssertEqual(check(10), 14_700_000_000)
+        XCTAssertEqual(exactCalls, 1)
+        plain -= 100_000_000
+        XCTAssertEqual(check(61), 14_600_000_000)
+        XCTAssertEqual(exactCalls, 2)
+    }
+
+    func testPlainFreeSpaceIsReadable() throws {
+        let free = try XCTUnwrap(DiskSpace.plain(at: FileManager.default.temporaryDirectory.appendingPathComponent("missing/deeper")))
+        XCTAssertGreaterThan(free, 0)
+    }
+}

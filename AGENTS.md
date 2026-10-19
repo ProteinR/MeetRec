@@ -74,7 +74,8 @@ What MeetRec does instead:
   browser rules always take the whole display.
 - "Как я выгляжу" (person icon next to the gear, or the quick menu): a floating mirrored camera
   window (`CameraMirror.swift`) to check yourself before a meeting; camera picker on hover, Esc or ✕
-  closes it and stops the camera. Nothing is recorded.
+  closes it and stops the camera. Unless one was picked, the built-in camera is used, else a real
+  one: never a virtual camera on its own (with the lid closed macOS's default was OBS's). Nothing is recorded.
 - Launch at login (`SMAppService`) toggle; Teams' "Microsoft Teams Audio" loopback is hidden from
   the microphone list.
 
@@ -374,6 +375,15 @@ xcodebuild test -project MeetRec.xcodeproj -scheme MeetRec -destination 'platfor
 rm -rf build/dd-test/Build/Products/Debug/MeetRec.app   # else it shows up as a second MeetRec in Launchpad
 python3 -m unittest discover -s Tests   # transcribe.py helpers, no models needed
 ```
+
+Profiling (as in Genius Switcher and MXCtl): `PROFILE=1 scripts/install.sh` signs with
+get-task-allow so `leaks`/`heap`/`xctrace` can attach; `Profiling.swift` adds launch arguments
+`--profile-recording <s>` (a recording, then Trash, no transcription), `--stress-test` (panel,
+screenshot selection, editor; footprint per round: growing every round = a leak) and
+`--camera-test`; add `--background` so the panel does not open at launch. `scripts/profile.py`
+measures memory/CPU/wake-ups from outside. Results and lessons: `PROFILING.md`. Lessons: AppKit
+keeps the last key window after it closes (drop a closed window's content); an animation in the
+panel redraws the whole card with its shadows every display frame; keep the 1 Hz tick cheap.
 
 `Tests/MeetRecTests` covers file names and companions, tags, transcript speaker renaming, meeting
 apps and rules, the health tracker, and screenshot coordinates and files. The app is the test host but starts empty under XCTest

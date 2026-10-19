@@ -129,6 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !launchedInBackground {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.showPanel() }
         }
+        Profiling.start(delegate: self)
     }
 
     /// Quitting while recording (logout, shutdown, `install.sh`) first closes the file properly.

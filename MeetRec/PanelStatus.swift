@@ -204,7 +204,8 @@ struct LevelMeter: View {
             }
         }
         .frame(height: 5)
-        .animation(.linear(duration: 0.15), value: levelDB)
+        // Not animated: a tween redrew the whole panel (card and shadows) on every display frame,
+        // ~40 frames a second for two meters at 3 updates a second, +5% of a core while recording.
     }
 }
 

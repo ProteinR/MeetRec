@@ -244,6 +244,9 @@ final class AreaSelector {
         }
     }
 
+    /// As Esc does.
+    func cancel() { finish(nil) }
+
     private func finish(_ selection: AreaSelection?) {
         guard !finished else { return }
         finished = true
@@ -251,6 +254,9 @@ final class AreaSelector {
         NSCursor.arrow.set()
         // Released only after the event that ended the selection is handled.
         DispatchQueue.main.async { [self] in
+            // AppKit keeps the last key window after it is gone; without its content it does not
+            // keep the frozen screen picture too.
+            for window in windows { window.contentView = nil }
             windows.removeAll()
             completion(selection)
         }

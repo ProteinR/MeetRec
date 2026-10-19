@@ -27,9 +27,10 @@ extension ScreenRecorder {
 
     /// ScreenCaptureKit also delivers "idle" frames when nothing changed; only complete ones carry pixels.
     static func isCompleteFrame(_ sampleBuffer: CMSampleBuffer) -> Bool {
-        guard let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false)
-                as? [[SCStreamFrameInfo: Any]],
-              let rawStatus = attachments.first?[.status] as? Int,
+        // Read through NSArray/NSDictionary: bridging to Swift collections copied them for every frame.
+        guard let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false) as NSArray?,
+              let first = attachments.firstObject as? NSDictionary,
+              let rawStatus = first[SCStreamFrameInfo.status.rawValue] as? Int,
               let status = SCFrameStatus(rawValue: rawStatus) else { return false }
         return status == .complete
     }

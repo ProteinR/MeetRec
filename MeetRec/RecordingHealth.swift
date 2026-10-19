@@ -101,6 +101,9 @@ struct HealthTracker {
     private var lastFrameCountAt: Date
     private var fps: Double = 0
     private var lastFileSize: Int64 = -1
+    private var fileBytes: Int64?
+    private var lastFileStat = Date.distantPast
+    static let fileStatInterval: TimeInterval = 5
     private var lastFileGrowth: Date
     private var blackSince: Date?
 
@@ -177,7 +180,12 @@ struct HealthTracker {
             screenDetail = "\(displayName) — кадры не приходят"
         }
 
-        let bytes = status.fileURL.flatMap { try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? Int64 }
+        // The file grows once per 5 s fragment; a stat of the file being written took ~2 ms.
+        if fileBytes == nil || now.timeIntervalSince(lastFileStat) >= Self.fileStatInterval {
+            lastFileStat = now
+            fileBytes = status.fileURL.flatMap { try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? Int64 }
+        }
+        let bytes = fileBytes
         let fileSize = bytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "—"
         if let bytes, bytes != lastFileSize {
             lastFileSize = bytes

@@ -110,8 +110,15 @@ final class ScreenshotEditor: NSObject, NSWindowDelegate {
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         keyMonitor = nil
         Self.editors.removeAll { $0 === self }
-        // After this run loop pass the document and its picture are gone.
-        DispatchQueue.main.async { ScreenshotFiles.releaseFreedMemory() }
+        // AppKit keeps the last key window (`NSApp`'s previous key window) after it closes, and the
+        // window held the view, the document and its picture (~30 MB for a 5K shot with the window's
+        // buffers). Without its content the window is only a shell. After this run loop pass the
+        // document and its picture are gone.
+        let window = window
+        DispatchQueue.main.async {
+            window.contentView = nil
+            ScreenshotFiles.releaseFreedMemory()
+        }
         Log.info("Screenshot editor closed: \(document.url.lastPathComponent)", "screenshots")
     }
 }

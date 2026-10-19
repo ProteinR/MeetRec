@@ -127,6 +127,7 @@ final class RecorderModel: ObservableObject {
     static let micSilenceAlertAfter: TimeInterval = 60
     var recordingNames = (microphone: "", display: "")
     var lastDiskCheck = Date.distantPast
+    var freeSpaceEstimate = FreeSpaceEstimate()
     var lastTitleCheck = Date.distantPast
     var lastWindowCheck = Date.distantPast
     /// Best title for the file name, found while recording (Teams meeting, or a browser rule).
@@ -603,6 +604,7 @@ final class RecorderModel: ObservableObject {
             reason: "MeetRec is recording")
         Log.info("Sleep prevention on (system and display idle sleep disabled while recording)")
         lastDiskCheck = .distantPast
+        freeSpaceEstimate = FreeSpaceEstimate()
         lastTitleCheck = Date() // first look after 15 s, once a meeting window has its title
         freeSpace = DiskSpace.available(at: folderURL)
         scheduleTick()

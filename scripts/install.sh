@@ -9,7 +9,13 @@ xcodebuild -project MeetRec.xcodeproj -scheme MeetRec -configuration Release \
 # certificate, not the build hash, so Screen Recording / Microphone permissions survive rebuilds.
 IDENTITY="dmemruk Local Code Signing"
 if security find-certificate -c "$IDENTITY" >/dev/null 2>&1; then
-  codesign --force --deep -s "$IDENTITY" build/dd/Build/Products/Release/MeetRec.app
+  # PROFILE=1: also allow attaching tools (leaks, heap, Instruments); same certificate, so the
+  # permissions stay.
+  if [ "${PROFILE:-0}" = "1" ]; then
+    codesign --force --deep -s "$IDENTITY" --entitlements scripts/profile.entitlements build/dd/Build/Products/Release/MeetRec.app
+  else
+    codesign --force --deep -s "$IDENTITY" build/dd/Build/Products/Release/MeetRec.app
+  fi
 else
   echo "warning: certificate '$IDENTITY' not found; app stays ad-hoc signed and permissions reset on every rebuild" >&2
 fi

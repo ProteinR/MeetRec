@@ -70,6 +70,8 @@ final class Screenshotter: ObservableObject {
     // MARK: - Capture
 
     func captureArea() { capture(.screenshot) }
+    /// Closes an open selection as Esc does (profiling).
+    func cancelSelection() { selector?.cancel() }
     func captureText() { capture(.text) }
 
     /// Freezes all screens first (menus and tooltips of the app in front stay in the picture), then

@@ -14,17 +14,50 @@ enum DiskSpace {
     /// Bytes available for new files on the volume of `url` (what Finder shows, including space macOS
     /// can free by purging caches); nil if unknown.
     static func available(at url: URL) -> Int64? {
-        var probe = url
-        while !FileManager.default.fileExists(atPath: probe.path), probe.pathComponents.count > 1 {
-            probe.deleteLastPathComponent()
-        }
-        let values = try? probe.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey])
+        let values = try? existing(url).resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey])
         if let important = values?.volumeAvailableCapacityForImportantUsage, important > 0 { return important }
         return values?.volumeAvailableCapacity.map(Int64.init)
     }
 
+    /// Plain free space (`statfs`, microseconds), without what macOS could purge.
+    static func plain(at url: URL) -> Int64? {
+        var info = statfs()
+        guard statfs(existing(url).path, &info) == 0 else { return nil }
+        return Int64(info.f_bavail) * Int64(info.f_bsize)
+    }
+
+    private static func existing(_ url: URL) -> URL {
+        var probe = url
+        while !FileManager.default.fileExists(atPath: probe.path), probe.pathComponents.count > 1 {
+            probe.deleteLastPathComponent()
+        }
+        return probe
+    }
+
     static func format(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+}
+
+/// Free space checked every few seconds during a recording. `DiskSpace.available` takes ~25 ms
+/// (macOS works out what it could purge), so it runs once a minute; in between its last value is
+/// moved by how much the plain free space changed since.
+struct FreeSpaceEstimate {
+    static let exactInterval: TimeInterval = 60
+    private var exact: Int64?
+    private var plainAtExact: Int64?
+    private var exactAt = Date.distantPast
+
+    mutating func check(exact measureExact: () -> Int64?, plain measurePlain: () -> Int64?,
+                        now: Date = Date()) -> Int64? {
+        if let exact, let plainAtExact, now.timeIntervalSince(exactAt) < Self.exactInterval,
+           let plain = measurePlain() {
+            return exact + plain - plainAtExact
+        }
+        exact = measureExact()
+        plainAtExact = measurePlain()
+        exactAt = now
+        return exact
     }
 }
 

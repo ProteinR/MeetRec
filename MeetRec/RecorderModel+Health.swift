@@ -32,7 +32,9 @@ extension RecorderModel {
     func checkDiskSpace() {
         guard Date().timeIntervalSince(lastDiskCheck) >= 10 else { return }
         lastDiskCheck = Date()
-        guard let free = DiskSpace.available(at: folderURL) else { return }
+        let folder = folderURL
+        guard let free = freeSpaceEstimate.check(exact: { DiskSpace.available(at: folder) },
+                                                 plain: { DiskSpace.plain(at: folder) }) else { return }
         freeSpace = free
         alert("disk-low", when: free < DiskSpace.warnBelow, title: "Мало места на диске",
               body: "Свободно \(DiskSpace.format(free)). Запись остановится сама, если останется меньше \(DiskSpace.format(DiskSpace.stopBelow)).")
