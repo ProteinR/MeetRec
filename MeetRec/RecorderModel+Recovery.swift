@@ -89,6 +89,12 @@ extension RecorderModel {
         let ruleID = currentRuleID
         let wasAuto = autoStartedBy != nil && !autoStopDisabled
         didStop(file: file)
+        // A meeting recording whose meeting is over or ending (the app released the mic) is not
+        // continued: it would only be stopped again a few seconds later.
+        if wasAuto, let app, detector.currentMeeting?.id != app.id || detector.isEnding {
+            Log.info("\(app.name) meeting is ending: not continuing the recording", "recorder")
+            return
+        }
         let restart = Date().timeIntervalSince(lastAutomaticRestart) > 120 && effectiveDisplay != nil
         if restart {
             lastAutomaticRestart = Date()

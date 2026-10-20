@@ -54,6 +54,8 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     /// Called on the main queue when capture stops on its own (display unplugged, permission revoked…).
     /// Called with the error and the file (closed and playable up to that moment, if anything was recorded).
     var onUnexpectedStop: ((Error, URL?) -> Void)?
+    /// The recorded window went away and the recording went on with the whole display (its name).
+    var onWindowLost: ((String) -> Void)?
 
     private let queue = DispatchQueue(label: "com.dmemruk.MeetRec.capture")
     private var stream: SCStream?
@@ -192,9 +194,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
         }
         self.windowID = windowID
         if fading { queue.sync { waitingForNewDisplay = true } }
-        return NSScreen.screens.first {
-            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == display.displayID
-        }?.localizedName ?? "монитор \(display.displayID)"
+        return Self.screenName(display.displayID)
     }
 
     /// Stops writing anything until `resume()`; the stream keeps running, so resuming is instant.
@@ -516,9 +516,58 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     func stream(_ stream: SCStream, didStopWithError error: Error) {
         Log.error("Stream stopped with error: \(Log.describe(error))", "recorder")
         Task {
+            if windowID != nil, let name = await continueOnDisplay(after: stream) {
+                await MainActor.run { onWindowLost?(name) }
+                return
+            }
             let file = await finish()
             await MainActor.run { onUnexpectedStop?(error, file) }
         }
+    }
+
+    /// The recorded window closed (a call's own window when the call ends): ScreenCaptureKit stops the
+    /// stream ("no capture source") before the 3 s window check notices. The same file goes on with the
+    /// whole display through a new stream, fading through black like any switch. Returns the display's
+    /// name, or nil when that failed too (then the part is saved as an interruption).
+    private func continueOnDisplay(after old: SCStream) async -> String? {
+        guard old === stream, let displayID, let configuration,
+              queue.sync(execute: { writer != nil && !finishing }) else { return nil }
+        let fading = queue.sync { startFadeOut() }
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            guard let display = content.displays.first(where: { $0.displayID == displayID }) ?? content.displays.first else {
+                throw RecorderError.displayNotFound
+            }
+            let ownApp = content.applications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier }
+            let filter = SCContentFilter(display: display, excludingApplications: ownApp, exceptingWindows: [])
+            configuration.destinationRect = wholeFrameRect
+            let newStream = SCStream(filter: filter, configuration: configuration, delegate: self)
+            try newStream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
+            if configuration.capturesAudio {
+                try newStream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
+            }
+            if configuration.captureMicrophone {
+                try newStream.addStreamOutput(self, type: .microphone, sampleHandlerQueue: queue)
+            }
+            try await newStream.startCapture()
+            stream = newStream
+            self.displayID = display.displayID
+            windowID = nil
+            if fading { queue.sync { waitingForNewDisplay = true } }
+            Log.warning("Recorded window is gone: continuing with the whole display \(display.displayID) in the same file", "recorder")
+            return Self.screenName(display.displayID)
+        } catch {
+            Log.error("Could not continue with the whole display: \(Log.describe(error))", "recorder")
+            if fading { queue.sync { endFade() } }
+            return nil
+        }
+    }
+
+    /// The display's name as macOS shows it.
+    static func screenName(_ id: CGDirectDisplayID) -> String {
+        NSScreen.screens.first {
+            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == id
+        }?.localizedName ?? "монитор \(id)"
     }
 
     func outputVideoEffectDidStart(for stream: SCStream) {

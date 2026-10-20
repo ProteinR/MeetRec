@@ -48,7 +48,10 @@ What MeetRec does instead:
   transcript as "🔇 [00:01:01–00:01:28] Микрофон выключен" (mutes less than 10 s apart joined,
   shorter than 5 s left out; not chapters); switching to a single window (others and notifications left out; the window alone is scaled to
   fill the frame, `desktopIndependentWindow` + `scalesToFit`),
-  falling back to the whole screen if that window closes.
+  falling back to the whole screen in the same file if that window closes (ScreenCaptureKit stops the
+  stream at once, e.g. Telegram's call window at the end of a call; `ScreenRecorder.continueOnDisplay`
+  starts a new stream on the display into the same writer). An interrupted meeting recording is not
+  continued in a new file when its meeting is over or ending.
 - Disk space guard: no start below 1 GB free, warning below 3 GB, automatic clean stop below 500 MB.
 - File names get the Teams meeting window's title (only that; browser tabs and other windows are
   ignored, and so are Teams' tiny/hidden helper windows like the 1×1 "Teams NRC"; the log lists the

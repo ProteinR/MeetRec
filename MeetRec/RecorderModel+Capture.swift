@@ -60,6 +60,16 @@ extension RecorderModel {
         }
     }
 
+    /// ScreenCaptureKit lost the recorded window and the recorder went on with the whole display.
+    func captureWindowLost(displayName: String) {
+        guard let window = captureWindow else { return }
+        Log.warning("Recorded window \(window.id) (\(window.label)) closed; recording the whole display \(displayName)")
+        captureWindow = nil
+        healthTracker?.displayName = displayName
+        Notifier.shared.send(id: "meetrec-window-gone", title: "Окно закрыто",
+                             body: "«\(window.label)» больше нет — записывается весь экран.", silent: true)
+    }
+
     /// If the recorded window was closed, falls back to the whole display so nothing is lost.
     func checkCaptureWindow() {
         guard let window = captureWindow, Date().timeIntervalSince(lastWindowCheck) >= 3 else { return }

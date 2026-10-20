@@ -208,6 +208,7 @@ final class RecorderModel: ObservableObject {
         recorder.onUnexpectedStop = { [weak self] error, file in
             self?.recordingInterrupted(error, file: file)
         }
+        recorder.onWindowLost = { [weak self] name in self?.captureWindowLost(displayName: name) }
         let center = NotificationCenter.default
         observers.append(center.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                              object: nil, queue: .main) { [weak self] _ in

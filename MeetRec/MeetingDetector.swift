@@ -112,6 +112,8 @@ final class MeetingDetector {
     var isRunning: Bool { timer != nil }
     /// The app whose meeting is going on now (held the microphone long enough), if any.
     var currentMeeting: MeetingApp? { meetingApp }
+    /// The meeting app released the microphone and the meeting is about to end.
+    var isEnding: Bool { meetingApp != nil && inactiveSince != nil }
 
     func start(apps: [MeetingApp]) {
         enabledApps = apps
