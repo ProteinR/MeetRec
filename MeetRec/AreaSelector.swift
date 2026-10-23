@@ -16,8 +16,6 @@ struct FrozenScreen {
     /// window is clicked (the wallpaper does not change meanwhile). nil when it was not found.
     let wallpaper: (filter: SCContentFilter, configuration: SCStreamConfiguration)?
 
-    /// Wallpaper around a window shot, like Shottr (points).
-    static let windowMargin: CGFloat = 12
     /// macOS window corners (points); outside them the wallpaper shows, not what was behind.
     static let windowCornerRadius: CGFloat = 12
 
@@ -116,10 +114,16 @@ struct FrozenScreen {
 
     /// A window with its title bar on a strip of wallpaper, corners rounded like on screen. What was
     /// behind the window (other windows) does not show in the margin or the corners.
-    func windowShot(_ window: CGRect) async -> CGImage? {
-        let padded = window.insetBy(dx: -Self.windowMargin, dy: -Self.windowMargin)
+    /// Taken with the most wallpaper the margin can have (`WindowShot.maxMargin`); the shot itself is
+    /// cut from it with the margin set.
+    func windowShot(_ window: CGRect) async -> WindowShot? {
+        let padded = window.insetBy(dx: -WindowShot.maxMargin, dy: -WindowShot.maxMargin)
             .intersection(CGRect(origin: .zero, size: screen.frame.size)).integral
         guard let frozen = crop(padded, of: image) else { return nil }
+        // The window in the picture: pixels, top-left origin (the view's origin is at the bottom left).
+        let windowPixels = CGRect(x: (window.minX - padded.minX) * scale, y: (padded.maxY - window.maxY) * scale,
+                                  width: window.width * scale, height: window.height * scale)
+        let shot = { (full: CGImage) in WindowShot(full: full, window: windowPixels, scale: scale) }
         var picture: CGImage?
         if let wallpaper {
             do {
@@ -131,7 +135,7 @@ struct FrozenScreen {
         guard let picture, let wall = crop(padded, of: picture),
               let context = CGContext(data: nil, width: frozen.width, height: frozen.height, bitsPerComponent: 8, bytesPerRow: 0,
                                       space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return Self.copied(frozen) }
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return Self.copied(frozen).map(shot) }
         let canvas = CGRect(x: 0, y: 0, width: frozen.width, height: frozen.height)
         context.draw(wall, in: canvas)
         // Both the view and a CGContext have the origin at the bottom left.
@@ -141,7 +145,7 @@ struct FrozenScreen {
         context.addPath(CGPath(roundedRect: inside, cornerWidth: radius, cornerHeight: radius, transform: nil))
         context.clip()
         context.draw(frozen, in: canvas)
-        return context.makeImage() ?? Self.copied(frozen)
+        return (context.makeImage() ?? Self.copied(frozen)).map(shot)
     }
 }
 
@@ -158,6 +162,8 @@ struct AreaSelection {
     let scale: CGFloat
     /// "area", "window", "screen", for the log.
     let kind: String
+    /// A clicked window with spare wallpaper, so the editor can change the margin.
+    var windowShot: WindowShot?
 
     /// A rect in a full-screen view (bottom-left origin) → display-local, top-left origin.
     static func displayRect(_ viewRect: CGRect, viewHeight: CGFloat) -> CGRect {
@@ -179,6 +185,10 @@ final class AreaSelector {
     private let purpose: Purpose
     private let completion: (AreaSelection?) -> Void
     private var finished = false
+    /// Mouse moves seen by the app as a whole: the guides follow the real pointer even if an overlay
+    /// stops getting its own events (once they stayed behind while the crosshair moved on).
+    private var moveMonitors: [Any] = []
+    private var monitoredMoves = 0
 
     /// How far down from a window's top edge a click takes the whole window. Only the title bar: most
     /// shots are a part of a window, and a window lit up under every press got in the way.
@@ -231,6 +241,22 @@ final class AreaSelector {
         key?.overlay.hover(at: key.map { NSPoint(x: mouse.x - $0.frame.minX, y: mouse.y - $0.frame.minY) })
         key?.overlay.updateCursor()
         Log.info("Screen selection started on \(windows.count) frozen screen(s)", "screenshots")
+        let follow: (NSEvent) -> Void = { [weak self] _ in self?.followPointer() }
+        moveMonitors = [
+            NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { follow($0); return $0 },
+            NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved, handler: follow),
+        ].compactMap { $0 }
+    }
+
+    /// Guides through the pointer on its screen, none on the others. Drags are the overlay's own.
+    private func followPointer() {
+        guard !finished else { return }
+        monitoredMoves += 1
+        let mouse = NSEvent.mouseLocation
+        for window in windows {
+            let frame = window.frame
+            window.overlay.hover(at: frame.contains(mouse) ? NSPoint(x: mouse.x - frame.minX, y: mouse.y - frame.minY) : nil)
+        }
     }
 
     private func select(_ viewRect: CGRect, kind: String, on frozen: FrozenScreen) {
@@ -239,8 +265,12 @@ final class AreaSelector {
             return
         }
         Task {
-            let image = await frozen.windowShot(viewRect)
-            finish(image.map { AreaSelection(image: $0, scale: frozen.scale, kind: kind) })
+            let shot = await frozen.windowShot(viewRect)
+            let margin = CGFloat(Screenshotter.shared.windowMargin)
+            finish(shot.flatMap { shot in
+                shot.image(margin: margin)
+                    .map { AreaSelection(image: $0, scale: frozen.scale, kind: kind, windowShot: shot) }
+            })
         }
     }
 
@@ -251,6 +281,10 @@ final class AreaSelector {
         guard !finished else { return }
         finished = true
         for window in windows { window.orderOut(nil) }
+        moveMonitors.forEach(NSEvent.removeMonitor)
+        moveMonitors = []
+        // If the overlays got far fewer moves than the app, their own events stopped coming.
+        Log.debug("Selection pointer moves: overlays \(windows.map(\.overlay.ownMoves)), app \(monitoredMoves)", "screenshots")
         NSCursor.arrow.set()
         // Released only after the event that ended the selection is handled.
         DispatchQueue.main.async { [self] in
@@ -294,6 +328,10 @@ private final class OverlayView: NSView {
     private var current: NSPoint?
     /// The window a click would take.
     private var hovered: CGRect?
+    /// Where the pointer is on this screen; the guides go through it.
+    private var pointer: NSPoint?
+    /// Mouse moves this view got itself (logged at the end, to compare with the app's).
+    private(set) var ownMoves = 0
 
     private var selection: CGRect? {
         guard let start, let current else { return nil }
@@ -311,6 +349,10 @@ private final class OverlayView: NSView {
     private let dim = CAShapeLayer()
     private let border = CAShapeLayer()
     private let highlight = CAShapeLayer()
+    /// Thin lines from the crosshair to the screen's edges, so it is plain what the frame will take:
+    /// white with a dark line beside it, visible on any background.
+    private let guides = CAShapeLayer()
+    private let guidesShade = CAShapeLayer()
     private let sizeBadge = Badge()
     private let hintBadge = Badge()
 
@@ -325,7 +367,9 @@ private final class OverlayView: NSView {
         highlight.fillColor = NSColor.systemBlue.withAlphaComponent(0.18).cgColor
         highlight.strokeColor = NSColor.systemBlue.withAlphaComponent(0.6).cgColor
         highlight.lineWidth = 2
-        for sublayer in [highlight, dim, border, sizeBadge.layer, hintBadge.layer] {
+        guides.strokeColor = NSColor.white.withAlphaComponent(0.85).cgColor
+        guidesShade.strokeColor = NSColor.black.withAlphaComponent(0.4).cgColor
+        for sublayer in [highlight, dim, border, guidesShade, guides, sizeBadge.layer, hintBadge.layer] {
             layer?.addSublayer(sublayer)
         }
         refresh()
@@ -337,20 +381,26 @@ private final class OverlayView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     func reset() {
-        guard start != nil || hovered != nil else { return }
+        guard start != nil || hovered != nil || pointer != nil else { return }
         start = nil
         current = nil
         hovered = nil
+        pointer = nil
         refresh()
     }
 
     func updateCursor() { cursor.set() }
 
     func hover(at point: NSPoint?) {
+        // A drag moves the guides itself (with the corner, kept on this screen).
+        guard start == nil else { return }
+        pointer = point
         let window = point.flatMap { AreaSelector.window(at: $0, in: windowRects) }
         if window != hovered {
             hovered = window
             refresh()
+        } else {
+            updateGuides()
         }
     }
 
@@ -388,6 +438,7 @@ private final class OverlayView: NSView {
     override func cursorUpdate(with event: NSEvent) { cursor.set() }
 
     override func mouseMoved(with event: NSEvent) {
+        ownMoves += 1
         onActivity?()
         hover(at: convert(event.locationInWindow, from: nil))
         cursor.set()
@@ -405,6 +456,7 @@ private final class OverlayView: NSView {
 
     override func mouseDragged(with event: NSEvent) {
         current = clamped(convert(event.locationInWindow, from: nil))
+        pointer = current
         // A drag means an area, not the window under it.
         if dragging { NSCursor.crosshair.set() }
         refresh()
@@ -451,7 +503,7 @@ private final class OverlayView: NSView {
         guard let layer else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        for sublayer in [dim, border, highlight] { sublayer.frame = layer.bounds }
+        for sublayer in [dim, border, highlight, guides, guidesShade] { sublayer.frame = layer.bounds }
         let scale = window?.backingScaleFactor ?? self.scale
         if dragging, let rect = selection {
             let path = CGMutablePath()
@@ -483,6 +535,37 @@ private final class OverlayView: NSView {
             hintBadge.layer.isHidden = false
         } else {
             hintBadge.layer.isHidden = true
+        }
+        updateGuides()
+        CATransaction.commit()
+    }
+
+    /// Moves only the guides: called on every mouse move, so nothing else is redrawn then.
+    private func updateGuides() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        // Not over a title bar: a click there takes the whole window, not what the lines show.
+        if let pointer, hovered == nil || start != nil {
+            let scale = window?.backingScaleFactor ?? self.scale
+            // On the middle of a device pixel, one pixel wide: sharp, not a blurred 2-pixel line.
+            let x = ((pointer.x * scale).rounded(.down) + 0.5) / scale
+            let y = ((pointer.y * scale).rounded(.down) + 0.5) / scale
+            let bounds = bounds
+            let lines = { (offset: CGFloat) -> CGPath in
+                let path = CGMutablePath()
+                path.move(to: CGPoint(x: bounds.minX, y: y - offset))
+                path.addLine(to: CGPoint(x: bounds.maxX, y: y - offset))
+                path.move(to: CGPoint(x: x + offset, y: bounds.minY))
+                path.addLine(to: CGPoint(x: x + offset, y: bounds.maxY))
+                return path
+            }
+            guides.lineWidth = 1 / scale
+            guidesShade.lineWidth = 1 / scale
+            guides.path = lines(0)
+            guidesShade.path = lines(1 / scale)
+        } else {
+            guides.path = nil
+            guidesShade.path = nil
         }
         CATransaction.commit()
     }

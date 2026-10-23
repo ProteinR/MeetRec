@@ -20,6 +20,8 @@ final class Screenshotter: ObservableObject {
     @AppStorage("screenshotCopy") var copyToClipboard = true
     @AppStorage("screenshotSave") var saveToFolder = true
     @AppStorage("screenshotToast") var showToast = true
+    /// Wallpaper around a clicked window, points; the editor can change it per shot.
+    @AppStorage("screenshotWindowMargin") var windowMargin = Double(WindowShot.defaultMargin)
     /// Empty: `defaultFolder`, where Shottr kept them, so the history stays in one place.
     @AppStorage("screenshotFolder") var folderPath = ""
     static let defaultFolder = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask)[0]
@@ -109,7 +111,7 @@ final class Screenshotter: ObservableObject {
                         Self.copyRecognized(text, from: "screen")
                     }
                 } else {
-                    self.deliver(selection.image, scale: selection.scale)
+                    self.deliver(selection.image, scale: selection.scale, windowShot: selection.windowShot)
                 }
             }
             self.selector = selector
@@ -124,13 +126,15 @@ final class Screenshotter: ObservableObject {
     }
 
     /// Clipboard and/or folder as set; with both off it is still copied, so the shot is never lost.
-    private func deliver(_ image: CGImage, scale: CGFloat) {
+    private func deliver(_ image: CGImage, scale: CGFloat, windowShot: WindowShot? = nil) {
         let copy = copyToClipboard || !saveToFolder
         var saved: URL?
         if saveToFolder {
             do {
-                saved = try ScreenshotFiles.save(image, scale: scale, in: folderURL, auto: format == "auto")
+                // A window shot has transparent rounded corners: JPEG has no transparency.
+                saved = try ScreenshotFiles.save(image, scale: scale, in: folderURL, auto: format == "auto" && windowShot == nil)
                 version += 1
+                if let windowShot, let saved { WindowShotCache.store(windowShot, margin: CGFloat(windowMargin), for: saved) }
             } catch {
                 Log.error("Screenshot not saved to \(folderURL.path): \(Log.describe(error))", "screenshots")
             }

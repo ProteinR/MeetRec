@@ -64,7 +64,7 @@ final class IslandController {
 
     /// Shows or hides the island for the current recording state and settings.
     func update() {
-        let show = model.isRecording && Self.enabled && MenuBarStyle.current != .discreet && geometry().notch != nil
+        let show = model.isCapturing && Self.enabled && MenuBarStyle.current != .discreet && geometry().notch != nil
         let sharing: NSWindow.SharingType = MenuBarStyle.hideFromSharing ? .none : .readOnly
         if panel.sharingType != sharing { panel.sharingType = sharing }
         if show {

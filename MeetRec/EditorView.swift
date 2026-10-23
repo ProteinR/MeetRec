@@ -14,12 +14,22 @@ struct EditorView: View {
         case draw, area, place
         case move(Annotation, from: CGPoint)
         case reshape(Annotation, AnnotationGeometry.Handle)
+        /// The crop frame: a new one, moved by its inside, or one of its edges/corners dragged.
+        case cropNew
+        case cropMove(CGRect, from: CGPoint)
+        case cropResize(CGRect, CropEdges)
+    }
+
+    /// Which sides of the crop frame a drag moves (two for a corner).
+    private struct CropEdges: Equatable {
+        var left = false, right = false, top = false, bottom = false
+        var isEmpty: Bool { !(left || right || top || bottom) }
     }
 
     @State private var dragMode: DragMode?
     @State private var dragRecorded = false
     @State private var draft: Annotation?
-    /// Crop or text-recognition area being dragged, image pixels.
+    /// Text-recognition area being dragged, image pixels.
     @State private var area: CGRect?
     @State private var captionAt: CGPoint?
     @State private var captionText = ""
@@ -50,7 +60,11 @@ struct EditorView: View {
             .keyboardShortcut("s", modifiers: .command)
             .hidden()
         }
-        .onChange(of: document.tool) { commitCaption() }
+        .onChange(of: document.tool) { old, _ in
+            commitCaption()
+            // Leaving the crop tool keeps what the frame shows, as Copy and closing do.
+            if old == .crop { document.applyPendingCrop() }
+        }
         .onAppear { document.finishEditing = { commitCaption() } }
     }
 
@@ -92,6 +106,15 @@ struct EditorView: View {
                 .buttonStyle(.plain)
                 .help("\(EditorPalette.names[index]) (\(index + 1))")
             }
+            Divider().frame(height: 20).padding(.horizontal, 6)
+            // What is searched is what would be copied: marks, blur and crop included.
+            ImageSearchButtons(iconSize: 16) { provider in
+                commitCaption()
+                document.applyPendingCrop()
+                guard let result = document.render() else { return }
+                ImageSearch.search(result, scale: document.scale, name: document.url.lastPathComponent, with: provider)
+            }
+            .buttonStyle(.borderless)
             Spacer(minLength: 8)
             if document.tool == .blur || document.selected?.kind == .blur {
                 blurSlider
@@ -99,6 +122,22 @@ struct EditorView: View {
             if document.tool == .ocr {
                 Button("Весь текст") { document.recognize(region: nil) }
                     .disabled(document.recognizing)
+            }
+            if document.tool == .crop {
+                if document.pendingCrop != nil {
+                    Button("Отмена") { document.pendingCrop = nil }
+                        .help("Убрать рамку (Esc)")
+                    Button {
+                        document.applyPendingCrop()
+                    } label: {
+                        Label("Обрезать", systemImage: "checkmark")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .help("Оставить только то, что в рамке (Enter)")
+                } else if document.crop != nil {
+                    Button("Вернуть всё") { document.resetCrop() }
+                        .help("Снять обрезку: снова вся картинка")
+                }
             }
             Button {
                 cancelCaption()
@@ -142,6 +181,7 @@ struct EditorView: View {
     private var footer: some View {
         HStack {
             Text(sizeText)
+            if document.windowShot != nil { marginControl }
             Spacer(minLength: 8)
             Text(document.status ?? (document.selectedID != nil
                 ? "Тяните — передвинуть, точки — изменить, Delete — удалить, Esc — снять выбор"
@@ -154,17 +194,43 @@ struct EditorView: View {
         .padding(.horizontal, 12)
     }
 
+    /// Wallpaper around a window shot: a slider, or the number typed in.
+    private var marginControl: some View {
+        HStack(spacing: 6) {
+            Divider().frame(height: 14)
+            Text("Обои вокруг окна")
+            Slider(value: Binding(get: { Double(document.margin) },
+                                  set: { document.setMargin(CGFloat($0), record: false) }),
+                   in: 0...Double(WindowShot.maxMargin), step: 1) { editing in
+                if editing { document.recordUndo() }
+            }
+            .frame(width: 120)
+            TextField("", value: Binding(get: { Int(document.margin) },
+                                         set: { document.setMargin(CGFloat($0), record: true) }),
+                      format: .number)
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 40)
+            Text("px")
+        }
+        .controlSize(.mini)
+        .help("Сколько обоев видно вокруг окна, 0–\(Int(WindowShot.maxMargin)); по умолчанию — из настроек «Скриншоты»")
+    }
+
     private var sizeText: String {
         var text = "\(document.image.width) × \(document.image.height) px"
         if document.scale > 1 { text += " · \(Int(document.scale))×" }
-        if let crop = document.crop { text += " → \(Int(crop.width)) × \(Int(crop.height))" }
+        // The frame being adjusted, else the applied crop.
+        if let crop = document.pendingCrop ?? document.crop {
+            text += " → \(Int(crop.width.rounded())) × \(Int(crop.height.rounded()))"
+        }
         return text
     }
 
     // MARK: - Canvas
 
     private func canvas(in available: CGSize) -> some View {
-        let size = document.imageSize
+        let size = document.visibleRect.size
         // Never larger than the screenshot's own point size.
         let zoom = min(available.width / size.width, available.height / size.height, 1 / document.scale)
         let shown = CGSize(width: size.width * zoom, height: size.height * zoom)
@@ -191,7 +257,8 @@ struct EditorView: View {
                     .padding(.vertical, 3)
                     .frame(width: 240, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: 5).fill(EditorPalette.color(document.colorIndex)))
-                    .offset(x: captionAt.x * zoom, y: captionAt.y * zoom)
+                    .offset(x: (captionAt.x - document.visibleRect.minX) * zoom,
+                            y: (captionAt.y - document.visibleRect.minY) * zoom)
                     .focused($captionFocused)
                     .onSubmit(commitCaption)
                     .onExitCommand(perform: cancelCaption)
@@ -201,10 +268,14 @@ struct EditorView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func draw(_ marks: [Annotation], in context: GraphicsContext, zoom: CGFloat) {
+    private func draw(_ marks: [Annotation], in canvas: GraphicsContext, zoom: CGFloat) {
+        // Only the applied crop is shown: the image is drawn shifted by its origin and clipped.
+        let visible = document.visibleRect
+        var context = canvas
+        context.clip(to: Path(CGRect(x: 0, y: 0, width: visible.width * zoom, height: visible.height * zoom)))
+        context.translateBy(x: -visible.minX * zoom, y: -visible.minY * zoom)
         let size = document.imageSize
-        let shown = CGRect(x: 0, y: 0, width: size.width * zoom, height: size.height * zoom)
-        context.draw(Image(decorative: document.image, scale: 1), in: shown)
+        context.draw(Image(decorative: document.image, scale: 1), in: CGRect(x: 0, y: 0, width: size.width * zoom, height: size.height * zoom))
         for annotation in marks {
             AnnotationDrawing.draw(annotation, in: context, zoom: zoom, scale: document.scale, source: document.image)
         }
@@ -214,13 +285,29 @@ struct EditorView: View {
         let scaled = { (rect: CGRect) in
             CGRect(x: rect.minX * zoom, y: rect.minY * zoom, width: rect.width * zoom, height: rect.height * zoom)
         }
-        // What the crop leaves out is dimmed; it is cut only in the saved or copied result.
-        let cropShown = document.tool == .crop && area != nil ? area : document.crop
-        if let crop = cropShown {
-            var outside = Path(shown)
-            outside.addRect(scaled(crop))
-            context.fill(outside, with: .color(.black.opacity(0.5)), style: FillStyle(eoFill: true))
-            context.stroke(Path(scaled(crop)), with: .color(.white), style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+        // The crop frame: what it leaves out is dimmed, thirds and handles as in Photoshop.
+        if let pending = document.pendingCrop {
+            let frame = scaled(pending)
+            var outside = Path(scaled(visible))
+            outside.addRect(frame)
+            context.fill(outside, with: .color(.black.opacity(0.55)), style: FillStyle(eoFill: true))
+            var thirds = Path()
+            for i in 1...2 {
+                let x = frame.minX + frame.width * CGFloat(i) / 3, y = frame.minY + frame.height * CGFloat(i) / 3
+                thirds.move(to: CGPoint(x: x, y: frame.minY))
+                thirds.addLine(to: CGPoint(x: x, y: frame.maxY))
+                thirds.move(to: CGPoint(x: frame.minX, y: y))
+                thirds.addLine(to: CGPoint(x: frame.maxX, y: y))
+            }
+            context.stroke(thirds, with: .color(.white.opacity(0.35)), lineWidth: 0.5)
+            context.stroke(Path(frame), with: .color(.white), lineWidth: 1)
+            for x in [frame.minX, frame.midX, frame.maxX] {
+                for y in [frame.minY, frame.midY, frame.maxY] where !(x == frame.midX && y == frame.midY) {
+                    let handle = Path(CGRect(x: x - 4, y: y - 4, width: 8, height: 8))
+                    context.fill(handle, with: .color(.white))
+                    context.stroke(handle, with: .color(.black.opacity(0.5)), lineWidth: 0.5)
+                }
+            }
         }
         if document.tool == .ocr, let area {
             let rect = Path(scaled(area))
@@ -250,11 +337,25 @@ struct EditorView: View {
     }
 
     private func cursor(at p: CGPoint, zoom: CGFloat) -> NSCursor {
+        if document.tool == .crop, let pending = document.pendingCrop {
+            let edges = cropEdges(at: p, of: pending, zoom: zoom)
+            if !edges.isEmpty { return Self.resizeCursor(edges) }
+            if pending.contains(p) { return .openHand }
+            return .crosshair
+        }
         guard !document.tool.selectsArea, let (_, handle) = target(at: p, zoom: zoom) else { return .crosshair }
         return handle != nil ? .pointingHand : .openHand
     }
 
     private func beginDrag(at p: CGPoint, zoom: CGFloat) -> DragMode {
+        if document.tool == .crop {
+            if let pending = document.pendingCrop {
+                let edges = cropEdges(at: p, of: pending, zoom: zoom)
+                if !edges.isEmpty { return .cropResize(pending, edges) }
+                if pending.contains(p) { return .cropMove(pending, from: p) }
+            }
+            return .cropNew
+        }
         if document.tool.selectsArea { return .area }
         if let (annotation, handle) = target(at: p, zoom: zoom) {
             commitCaption()
@@ -280,6 +381,24 @@ struct EditorView: View {
                 case .area:
                     area = CGRect(x: min(start.x, end.x), y: min(start.y, end.y),
                                   width: abs(end.x - start.x), height: abs(end.y - start.y))
+                case .cropNew:
+                    guard moved else { return }
+                    document.pendingCrop = CGRect(x: min(start.x, end.x), y: min(start.y, end.y),
+                                                  width: abs(end.x - start.x), height: abs(end.y - start.y))
+                case .cropMove(let original, let from):
+                    let visible = document.visibleRect
+                    var moved = original.offsetBy(dx: end.x - from.x, dy: end.y - from.y)
+                    moved.origin.x = min(max(moved.minX, visible.minX), visible.maxX - moved.width)
+                    moved.origin.y = min(max(moved.minY, visible.minY), visible.maxY - moved.height)
+                    document.pendingCrop = moved
+                case .cropResize(let original, let edges):
+                    var minX = original.minX, maxX = original.maxX, minY = original.minY, maxY = original.maxY
+                    if edges.left { minX = end.x }
+                    if edges.right { maxX = end.x }
+                    if edges.top { minY = end.y }
+                    if edges.bottom { maxY = end.y }
+                    document.pendingCrop = CGRect(x: min(minX, maxX), y: min(minY, maxY),
+                                                  width: abs(maxX - minX), height: abs(maxY - minY))
                 case .move(let original, let from):
                     guard moved else { return }
                     recordOnce()
@@ -299,9 +418,12 @@ struct EditorView: View {
                 case .draw:
                     if moved, let draft { document.add(draft) }
                 case .area:
-                    if moved, let area {
-                        if document.tool == .crop { document.setCrop(area) } else { document.recognize(region: area) }
-                    }
+                    if moved, let area { document.recognize(region: area) }
+                case .cropNew:
+                    // A click without a drag drops the frame, as in Photoshop.
+                    if !moved { document.pendingCrop = nil }
+                case .cropMove, .cropResize:
+                    break
                 case .place:
                     if document.tool == .step {
                         document.add(Annotation(kind: .step(document.nextStep), start: start, end: start, color: document.colorIndex))
@@ -338,9 +460,35 @@ struct EditorView: View {
         document.recordUndo()
     }
 
+    /// View point → image pixels, kept inside the part shown.
     private func imagePoint(_ point: CGPoint, zoom: CGFloat) -> CGPoint {
-        let size = document.imageSize
-        return CGPoint(x: min(max(point.x / zoom, 0), size.width), y: min(max(point.y / zoom, 0), size.height))
+        let visible = document.visibleRect
+        return CGPoint(x: min(max(point.x / zoom + visible.minX, visible.minX), visible.maxX),
+                       y: min(max(point.y / zoom + visible.minY, visible.minY), visible.maxY))
+    }
+
+    /// The sides of the crop frame within reach of `p` (image pixels).
+    private func cropEdges(at p: CGPoint, of frame: CGRect, zoom: CGFloat) -> CropEdges {
+        let reach = Self.reach / zoom
+        guard p.x >= frame.minX - reach, p.x <= frame.maxX + reach,
+              p.y >= frame.minY - reach, p.y <= frame.maxY + reach else { return CropEdges() }
+        return CropEdges(left: abs(p.x - frame.minX) <= reach, right: abs(p.x - frame.maxX) <= reach,
+                         top: abs(p.y - frame.minY) <= reach, bottom: abs(p.y - frame.maxY) <= reach)
+    }
+
+    private static func resizeCursor(_ edges: CropEdges) -> NSCursor {
+        let position: NSCursor.FrameResizePosition
+        switch (edges.left, edges.right, edges.top, edges.bottom) {
+        case (true, _, true, _): position = .topLeft
+        case (_, true, true, _): position = .topRight
+        case (true, _, _, true): position = .bottomLeft
+        case (_, true, _, true): position = .bottomRight
+        case (true, _, _, _): position = .left
+        case (_, true, _, _): position = .right
+        case (_, _, true, _): position = .top
+        default: position = .bottom
+        }
+        return .frameResize(position: position, directions: .all)
     }
 
     private func commitCaption() {

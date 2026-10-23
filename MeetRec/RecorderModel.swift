@@ -36,6 +36,9 @@ final class RecorderModel: ObservableObject {
     @Published private(set) var isBusy = false
     /// Stop pressed, the file (and its chapters) is being finished: nothing recording-related works now.
     var isStopping: Bool { isRecording && isBusy }
+    /// What the menu bar icon and the island show: from Stop on the recording is over for the user,
+    /// even while the file is still being finished (the panel's button says "Сохраняю запись…").
+    var isCapturing: Bool { isRecording && !isBusy }
     /// Timer, level meters and CPU: published separately so the panel does not redraw on every tick.
     let live = LiveRecording()
     var health: RecordingHealth? { live.health }

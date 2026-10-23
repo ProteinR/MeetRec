@@ -120,6 +120,10 @@ private struct ScreenshotThumbnail: View {
                 Screenshotter.shared.recognizeText(item.url)
             }
             Button("Показать в Finder") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
+            ImageSearchMenuRow { provider in
+                close()
+                ImageSearch.search(item.url, with: provider)
+            }
             Divider()
             Button("Удалить") { Screenshotter.shared.trash(item.url) }
         }
@@ -139,6 +143,7 @@ private struct ScreenshotThumbnail: View {
 
 /// Settings page card: hotkey, clipboard, folder, toast.
 struct ScreenshotSettings: View {
+    @AppStorage(ImageSearch.enabledKey) private var searchProviders = ImageSearch.enabledByDefault
     @ObservedObject private var shots = Screenshotter.shared
 
     var body: some View {
@@ -181,8 +186,42 @@ struct ScreenshotSettings: View {
                     .foregroundStyle(.secondary)
                     .help("Авто выбирает по содержимому: фото, градиенты и шум сохраняются в JPEG (он тогда намного меньше), текст и плоские цвета — в PNG, чтобы оставались чёткими. В буфер обмена всегда идёт PNG.")
             }
+            HStack(spacing: 8) {
+                Text("Обои вокруг окна")
+                Slider(value: $shots.windowMargin, in: 0...Double(WindowShot.maxMargin), step: 1)
+                    .frame(width: 120)
+                TextField("", value: Binding(get: { Int(shots.windowMargin) },
+                                             set: { shots.windowMargin = Double(min(max($0, 0), Int(WindowShot.maxMargin))) }),
+                          format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 44)
+                Text("px")
+            }
+            .help("Снимок окна (клик по заголовку): сколько обоев оставить вокруг него. В редакторе можно поменять для каждого снимка")
             Toggle("Сообщение с превью после снимка", isOn: $shots.showToast)
                 .help("Под значком в меню: превью можно перетащить в чат или в поле браузера, клик по нему — редактировать")
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Поиск по картинке")
+                LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)],
+                          alignment: .leading, spacing: 6) {
+                    ForEach(ImageSearch.all, id: \.id) { provider in
+                        Toggle(isOn: Binding(get: { searchProviders.split(separator: ",").contains(Substring(provider.id)) },
+                                             set: { ImageSearch.setEnabled(provider, $0) })) {
+                            HStack(spacing: 4) {
+                                Image(nsImage: provider.icon).resizable().frame(width: 14, height: 14)
+                                Text(provider.name)
+                                if case .pasteOnPage = provider.method {
+                                    Image(systemName: "doc.on.clipboard").font(.caption).foregroundStyle(.secondary)
+                                        .help("Снимок кладётся в буфер обмена и открывается сайт: вставьте его там (⌘V)")
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.leading, 20)
+            }
+            .help("Кнопки в сообщении после снимка, в меню снимков и в редакторе; снимок уходит в сервис только по клику")
         }
     }
 

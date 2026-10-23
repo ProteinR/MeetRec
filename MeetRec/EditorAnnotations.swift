@@ -49,7 +49,7 @@ enum EditorTool: String, CaseIterable, Identifiable {
         case .caption: return "Кликните, где поставить надпись; Enter — готово"
         case .step: return "Кликай по порядку: 1, 2, 3…"
         case .blur: return "Выделите, что скрыть"
-        case .crop: return "Выделите, что оставить"
+        case .crop: return "Выделите, что оставить: рамку можно двигать и тянуть за края · Enter — обрезать, Esc — отмена"
         case .ocr: return "Выделите область с текстом — он скопируется. Или «Весь текст»"
         }
     }

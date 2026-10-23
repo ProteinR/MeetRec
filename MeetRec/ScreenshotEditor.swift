@@ -27,7 +27,8 @@ final class ScreenshotEditor: NSObject, NSWindowDelegate {
             RecorderModel.shared.showToast(Toast(kind: .screenshot, title: "Скриншот не открылся", detail: url.lastPathComponent))
             return
         }
-        let editor = ScreenshotEditor(document: EditorDocument(url: url, image: loaded.image, scale: loaded.scale))
+        let editor = ScreenshotEditor(document: EditorDocument(url: url, image: loaded.image, scale: loaded.scale,
+                                                               windowShot: WindowShotCache.load(for: url)))
         editors.append(editor)
         editor.show()
     }
@@ -55,7 +56,8 @@ final class ScreenshotEditor: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Letters pick tools, 1–4 colours, Delete removes the selected mark, Esc deselects or closes,
+    /// Letters pick tools, 1–4 colours, Delete removes the selected mark, Enter applies the crop frame,
+    /// Esc drops the crop frame, deselects or closes,
     /// ⇧⌘Z redoes. Not while a caption is being typed: then the keys belong to the text field.
     private func handleKey(_ event: NSEvent) -> Bool {
         if window.firstResponder is NSTextView { return false }
@@ -68,7 +70,17 @@ final class ScreenshotEditor: NSObject, NSWindowDelegate {
         guard flags.isEmpty else { return false }
         switch code {
         case kVK_Escape:
-            if document.selectedID != nil { document.selectedID = nil } else { window.performClose(nil) }
+            if document.pendingCrop != nil {
+                document.pendingCrop = nil
+            } else if document.selectedID != nil {
+                document.selectedID = nil
+            } else {
+                window.performClose(nil)
+            }
+            return true
+        case kVK_Return, kVK_ANSI_KeypadEnter:
+            guard document.pendingCrop != nil else { return false }
+            document.applyPendingCrop()
             return true
         case kVK_Delete, kVK_ForwardDelete:
             document.deleteSelected()

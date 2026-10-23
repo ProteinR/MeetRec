@@ -97,7 +97,7 @@ What MeetRec does instead:
   ⚠️ in the menu bar and a banner in the panel ("Записывать «монитор»" / "Игнорировать"; no
   notification, MeetRec never switches by itself), gone after an answer, a display switch or the
   window coming onto the recorded display; later moves and minimising (screen sharing) are ignored.
-  Once Stop is pressed there are no health checks, ⚠️ or alerts while the file is being finished
+  Once Stop is pressed the menu bar icon, timer and island show "not recording" at once (`isCapturing`; the panel button says "Сохраняю запись…" until the file is finished), and there are no health checks, ⚠️ or alerts while the file is being finished
   (the stream is stopped then, silence is expected). Silent alerts when the file stops growing or the picture is black for 30 s,
   or the microphone gives dead silence (not even room noise) for a minute (once per recording);
   the other side being silent and high CPU are never alerted (CPU is only logged). The panel shows
@@ -240,9 +240,9 @@ What MeetRec does instead:
   list; ~0.1 s), then the crosshair goes over the frozen pictures (a layer's contents; selection,
   tint and badges are shape/text layers: a self-drawing full-screen view left a 46 MB 16-bit
   backing store cached on XDR screens; crops are copied out so the frozen screens go right away), so the other app's menus, tooltips and hover states
-  (closed when MeetRec takes focus) and a meeting's video stay as they were. Drag = area (outside
+  (closed when MeetRec takes focus) and a meeting's video stay as they were. Thin guide lines go from the crosshair to the screen's edges (1 device pixel, white with a dark line beside it; they follow the corner while dragging, hidden over a title bar; moved by app-wide mouse monitors too, since once they stayed behind while the crosshair moved, and the log's `Selection pointer moves` compares the overlay's own events with the app's). Drag = area (outside
   dims, size in pixels); click on a window's title bar (top 32 pt) = that window (tinted while
-  hovering the title bar, the cursor is a camera there; a click lower inside a window does nothing) with its title bar on a 12 pt strip of wallpaper (the desktop picture alone is
+  hovering the title bar, the cursor is a camera there; a click lower inside a window does nothing) with its title bar on a strip of wallpaper, outer corners rounded and transparent (concentric with the window's, up to 24 px; window shots are always PNG) ("Обои вокруг окна" in "Скриншоты", 12 px by default; the shot is taken with 80 px to spare and kept in `~/Library/Caches/MeetRec/WindowShots`, last 30, so the editor's footer has a slider and a number field for that shot: marks and the crop move with the window, ⌘Z undoes; once saved with marks or a crop the cache entry goes, since the marks are in the file; `WindowShot.swift`) (the desktop picture alone is
   captured on that click; rounded corners, nothing that was behind the window shows) or the whole screen on the desktop; Esc or right click cancels; focus goes back to the previous app.
   Screenshots are copied (PNG + TIFF at point size) and saved as `<timestamp>.png` with the screen
   scale in its DPI (format "Авто (PNG/JPEG)", the default: JPEG q 0.9 when it is ≤ 40 % of the PNG,
@@ -252,7 +252,18 @@ What MeetRec does instead:
   "Скопирован и сохранён" (the owner used to press "copy" in Shottr anyway) and shows a preview:
   drag it into a chat or a browser's upload field (the file itself; unsaved shots get a temporary
   copy in `$TMPDIR/MeetRec Screenshots`, cleared at launch); it stays while dragging and goes after
-  a drop; a click or "Редактировать" edits, "OCR" copies the text of the whole shot. OCR runs
+  a drop; a click or "Редактировать" edits, "OCR" copies the text of the whole shot. In a row under them ("Найти:", the hovered service named after the icons: the toast is never key, so `.help` tooltips do not show there), image search buttons (Google
+  Lens, Яндекс; `ImageSearch.swift`): the app only knows the `ImageSearchProvider` protocol (picture
+  in, results page out), each service is its own provider in `ImageSearch.all`, switchable in
+  "Скриншоты" (setting `imageSearchProviders`). Every place with search uses the same views
+  (`ImageSearchViews.swift`): the toast, the recent screenshots' right-click menu (one row of icons,
+  `ControlGroup` palette) and the editor toolbar after the colours (the editor searches its result:
+  marks, blur and crop applied), so a provider added or switched off changes all of them. Two kinds (`ImageSearchMethod`): `.upload` (Google,
+  Яндекс, TinEye: MeetRec uploads and opens the results) and `.pasteOnPage` (Bing, PimEyes, FaceCheck.ID,
+  Search4faces: bot protection and their rules forbid automatic uploads, so the shot goes to the
+  clipboard and the site's page opens for a ⌘V by hand). All are on until the setting is changed. Only on a click, the shot scaled to ≤ 2048 px is
+  uploaded and the page opens in the browser. Both use the sites' own upload forms (no official
+  API), so they may break when a site changes: the log has "Image search in …". OCR runs
   without language correction (it broke code and e-mails). The main page has "Скриншоты" under
   "Записи": "Скриншот" and "OCR" buttons, the last five as thumbnails by creation date (Shottr's
   `SCR-…` files mix in; an edit keeps the creation date; click edits, drag into a chat, right
@@ -260,7 +271,7 @@ What MeetRec does instead:
   centre the bend moves towards that end, back onto the line it snaps straight), rectangle (R),
   ellipse (O), caption (T), steps (N: numbered circles 1, 2, 3…, renumbered after a delete), blur
   (B: pixelate only that area, averaged squares 6–16 pt, default 8 so text cannot be depixelated;
-  slider), crop (C), OCR (X: an area or "Весь текст"), colours 1–4, ⌘Z / ⇧⌘Z. Every mark stays an
+  slider), crop (C: as in Photoshop, a frame with handles and thirds, movable and resizable; Enter or "Обрезать" cuts to it and the editor shows only that part, Esc or "Отмена" drops the frame, ⌘Z or "Вернуть всё" brings the picture back; a frame left unapplied is applied on copy, close, search or another tool), OCR (X: an area or "Весь текст"), colours 1–4, ⌘Z / ⇧⌘Z. Every mark stays an
   object: click selects it (lines by their stroke, so one can draw inside a frame), drag moves it,
   handles reshape it, a colour recolours it, Delete removes it, Esc deselects or closes the window.
   The keys work by position (Russian layout too) and not while a caption is typed. However the

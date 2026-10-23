@@ -220,4 +220,84 @@ final class AnnotationGeometryTests: XCTestCase {
         }
         XCTAssertEqual(numbers, [1, 2])
     }
+
+    /// Crop works as in Photoshop: a frame, Enter cuts to it, a second crop cuts the shown part,
+    /// undo and "Вернуть всё" bring the picture back.
+    @MainActor
+    func testCropFrameAppliesAndUndoes() throws {
+        let context = try XCTUnwrap(CGContext(data: nil, width: 400, height: 300, bitsPerComponent: 8, bytesPerRow: 0,
+                                              space: CGColorSpaceCreateDeviceRGB(),
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        let image = try XCTUnwrap(context.makeImage())
+        let document = EditorDocument(url: URL(fileURLWithPath: "/tmp/crop-test.png"), image: image, scale: 2)
+        XCTAssertEqual(document.visibleRect, CGRect(x: 0, y: 0, width: 400, height: 300))
+
+        document.pendingCrop = CGRect(x: 10.4, y: 20, width: 200, height: 100)
+        document.applyPendingCrop()
+        XCTAssertNil(document.pendingCrop)
+        XCTAssertEqual(document.visibleRect, CGRect(x: 10, y: 20, width: 201, height: 100))
+
+        // Only inside what is shown.
+        document.pendingCrop = CGRect(x: 0, y: 0, width: 100, height: 60)
+        document.applyPendingCrop()
+        XCTAssertEqual(document.visibleRect, CGRect(x: 10, y: 20, width: 90, height: 40))
+
+        // A tiny frame (a click) changes nothing.
+        document.pendingCrop = CGRect(x: 30, y: 30, width: 2, height: 2)
+        document.applyPendingCrop()
+        XCTAssertEqual(document.visibleRect, CGRect(x: 10, y: 20, width: 90, height: 40))
+
+        document.undo()
+        XCTAssertEqual(document.visibleRect, CGRect(x: 10, y: 20, width: 201, height: 100))
+        document.resetCrop()
+        XCTAssertEqual(document.visibleRect, CGRect(x: 0, y: 0, width: 400, height: 300))
+        document.undo()
+        XCTAssertEqual(document.crop, CGRect(x: 10, y: 20, width: 201, height: 100))
+    }
+
+    /// A window shot's margin can be changed in the editor: the picture is cut again, marks stay on
+    /// the window, undo brings the margin back, and the screen's edge limits the wallpaper.
+    @MainActor
+    func testWindowShotMarginMovesMarks() throws {
+        let context = try XCTUnwrap(CGContext(data: nil, width: 400, height: 300, bitsPerComponent: 8, bytesPerRow: 0,
+                                              space: CGColorSpaceCreateDeviceRGB(),
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.setFillColor(CGColor(red: 0.2, green: 0.4, blue: 0.8, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 400, height: 300))
+        let full = try XCTUnwrap(context.makeImage())
+        let shot = WindowShot(full: full, window: CGRect(x: 100, y: 80, width: 200, height: 140), scale: 2)
+        XCTAssertEqual(shot.rect(margin: 12), CGRect(x: 76, y: 56, width: 248, height: 188))
+        XCTAssertEqual(shot.rect(margin: 80), CGRect(x: 0, y: 0, width: 400, height: 300))
+
+        let image = try XCTUnwrap(shot.image(margin: 12))
+        // Rounded outer corners: transparent in the corner, opaque inside.
+        XCTAssertEqual(try alpha(of: image, x: 0, y: 0), 0)
+        XCTAssertEqual(try alpha(of: image, x: image.width / 2, y: image.height / 2), 255)
+        let document = EditorDocument(url: URL(fileURLWithPath: "/tmp/window.png"), image: image, scale: 2,
+                                      windowShot: (shot, 12))
+        XCTAssertNotNil(document.windowShot)
+        document.add(Annotation(kind: .rectangle, start: CGPoint(x: 10, y: 10), end: CGPoint(x: 20, y: 20), color: 0))
+
+        document.setMargin(20, record: true)
+        XCTAssertEqual(document.imageSize, CGSize(width: 280, height: 220))
+        XCTAssertEqual(document.annotations.first?.start, CGPoint(x: 26, y: 26))
+
+        document.undo()
+        XCTAssertEqual(document.margin, 12)
+        XCTAssertEqual(document.imageSize, CGSize(width: 248, height: 188))
+        XCTAssertEqual(document.annotations.first?.start, CGPoint(x: 10, y: 10))
+
+        // A file that no longer matches the shot (cropped, edited) gets no slider.
+        let other = EditorDocument(url: URL(fileURLWithPath: "/tmp/window.png"), image: full, scale: 2, windowShot: (shot, 12))
+        XCTAssertNil(other.windowShot)
+    }
+
+    private func alpha(of image: CGImage, x: Int, y: Int) throws -> UInt8 {
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = try XCTUnwrap(CGContext(data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                              space: CGColorSpaceCreateDeviceRGB(),
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(image, in: CGRect(x: -x, y: -(image.height - 1 - y), width: image.width, height: image.height))
+        return pixel[3]
+    }
 }

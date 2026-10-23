@@ -190,6 +190,8 @@ struct ToastView: View {
     let onHover: (Bool) -> Void
     let onDrag: (DragState) -> Void
     @EnvironmentObject private var model: RecorderModel
+    /// The image search service under the pointer, named next to the icons.
+    @State private var searchHover: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -216,6 +218,29 @@ struct ToastView: View {
     }
 
     private func message(_ toast: Toast) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            messageRow(toast)
+            // A row of its own: in the button column each new provider made the column wider and
+            // squeezed the title into a narrow, many-line strip.
+            if toast.kind == .screenshot, let file = toast.file, toast.preview != nil {
+                HStack(spacing: 6) {
+                    Text("Найти:").font(.caption).foregroundStyle(.secondary)
+                    ImageSearchButtons(iconSize: 16, onHover: { searchHover = $0?.name }) { ImageSearch.search(file, with: $0) }
+                        .buttonStyle(.borderless)
+                    // After the icons, so they do not move when it appears.
+                    if let searchHover {
+                        Text(searchHover).font(.caption.weight(.medium)).lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .contentShape(Rectangle())
+        // A click just puts it away (the panel is one click on the menu bar icon).
+        .onTapGesture { model.dismissToast() }
+    }
+
+    private func messageRow(_ toast: Toast) -> some View {
         HStack(spacing: 10) {
             if let preview = toast.preview, let file = toast.file {
                 screenshotPreview(preview, file: file)
@@ -261,9 +286,6 @@ struct ToastView: View {
                 .controlSize(.small)
             }
         }
-        .contentShape(Rectangle())
-        // A click just puts it away (the panel is one click on the menu bar icon).
-        .onTapGesture { model.dismissToast() }
     }
 
     /// Drag it into a chat or a browser's upload field; a click edits it.

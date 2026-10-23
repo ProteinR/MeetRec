@@ -69,22 +69,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let window = self?.statusItem.button?.window, Self.isOnScreen(window) else { return nil }
             return window.frame
         }
-        model.$isRecording
+        // Recording on/off, and Stop pressed: the island goes at once, not after the file is finished.
+        Publishers.CombineLatest(model.$isRecording, model.$isBusy)
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.island.update() }
+            .sink { [weak self] _, _ in DispatchQueue.main.async { self?.island.update() } }
             .store(in: &cancellables)
         model.$isPaused
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 DispatchQueue.main.async {
-                    self?.updateStatusItem(recording: model.isRecording, problem: model.showsWarning)
+                    self?.updateStatusItem(recording: model.isCapturing, problem: model.showsWarning)
                 }
             }
             .store(in: &cancellables)
 
         // Only when something visible changes: the second, recording on/off, problem on/off.
-        Publishers.CombineLatest4(model.$isRecording, model.live.$elapsed,
+        Publishers.CombineLatest4(Publishers.CombineLatest(model.$isRecording, model.$isBusy).map { $0 && !$1 },
+                                  model.live.$elapsed,
                                   model.live.$health.map { $0?.hasProblem == true }.removeDuplicates(),
                                   model.$meetingWindowWarning.map { $0 != nil }.removeDuplicates())
             .receive(on: RunLoop.main)
@@ -100,7 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.updateStatusItem(recording: model.isRecording, problem: model.showsWarning)
+                self?.updateStatusItem(recording: model.isCapturing, problem: model.showsWarning)
             }
             .store(in: &cancellables)
 
@@ -108,7 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                self?.updateStatusItem(recording: model.isRecording, problem: model.showsWarning)
+                self?.updateStatusItem(recording: model.isCapturing, problem: model.showsWarning)
                 self?.island.update()
             }
             .store(in: &cancellables)

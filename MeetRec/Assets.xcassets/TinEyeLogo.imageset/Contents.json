@@ -1,0 +1,7 @@
+{
+  "images" : [
+    { "filename" : "tineye.png", "idiom" : "universal", "scale" : "1x" },
+    { "filename" : "tineye@2x.png", "idiom" : "universal", "scale" : "2x" }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}
