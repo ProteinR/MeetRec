@@ -39,7 +39,8 @@ struct ContentView: View {
     var body: some View {
         Group {
             if showingSettings {
-                settingsPage
+                // Taller than the screen with a big section open (the built-in display): scrolls.
+                HuggingScrollView { settingsPage }
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             } else {
                 mainPage

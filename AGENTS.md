@@ -154,7 +154,7 @@ What MeetRec does instead:
   SwiftUI, not the glass segmented control; the last tab is remembered): "Запись" (general: folder,
   log, launch at login, watchdog; then an accordion: video; "Встречи и звонки" incl. browser rules;
   transcription incl. copy rules; "Вид во время записи" with a preview), "Скриншоты" (only the
-  screenshot settings) and "Клавиши" (every shortcut, grouped "Запись" / "Скриншоты"). They open during a recording too;
+  screenshot settings) and "Клавиши" (every shortcut, grouped "Запись" / "Скриншоты"). The page scrolls only when it is taller than the screen (`HuggingScrollView`: as tall as the content, so the card still hugs it; a big section open on the built-in display). They open during a recording too;
   only "Видео" and the recordings folder are locked then. The main page keeps the daily things: no transcription block (progress is per recording in
   the list, cancel in its right-click menu) no Quit button (it is in the item's right-click menu) and no folder row (the folder
   button is next to the search field in "Записи").

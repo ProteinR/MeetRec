@@ -153,3 +153,26 @@ extension View {
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.08)))
     }
 }
+
+/// Scrolls only when the content does not fit: as tall as the content (so the card still hugs it),
+/// at most what the panel window leaves. A plain `ScrollView` would always take the whole height.
+struct HuggingScrollView<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+    @State private var height: CGFloat?
+
+    var body: some View {
+        ScrollView(.vertical) {
+            content()
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { newHeight in
+                    // Sections open with an animation: the card follows it instead of jumping.
+                    if height == nil {
+                        height = newHeight
+                    } else {
+                        withAnimation(.smooth(duration: 0.28)) { height = newHeight }
+                    }
+                }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(maxHeight: height ?? 0)
+    }
+}
