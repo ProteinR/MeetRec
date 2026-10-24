@@ -1,5 +1,7 @@
 # MeetRec — meeting recorder for Mac with local transcription
 
+**English** | [Русский](README.ru.md)
+
 **MeetRec** is a free, open-source macOS menu bar app that **records meetings and calls** — the
 screen, your microphone and the other side's audio — and **transcribes them on your Mac** with
 Whisper and speaker diarization. No bot joins your call and nothing is uploaded. It also takes
@@ -11,8 +13,6 @@ Google Meet, Zoom (in a browser) or Telegram calls, without scenes, sources and 
 **English and Russian.** MeetRec follows the system language; to pick one for MeetRec only, use
 System Settings → General → Language & Region → Applications. Translations to other languages are
 welcome (`MeetRec/Localizable.xcstrings`).
-
-[Русская версия ниже](#по-русски)
 
 <p align="center">
   <img src="docs/images/recordings.png" width="420" alt="MeetRec menu bar panel: start button, microphone and system audio, recordings with transcripts and markers">
@@ -164,22 +164,3 @@ Apple Silicon only.
 
 [MIT](LICENSE)
 
----
-
-## По-русски
-
-MeetRec — бесплатная программа для записи встреч и звонков на Mac (Microsoft Teams, Google Meet и
-другие звонки в браузере, Telegram): записывает экран, микрофон и звук собеседников, сама
-начинает и заканчивает запись вместе со встречей и локально, без облака и ботов, делает транскрипт
-с именами спикеров (Whisper + pyannote). Ещё снимает скриншоты с пометками и распознаванием текста,
-как Shottr. Сделано как лёгкая замена OBS, в котором нужна была только кнопка «Начать запись».
-Интерфейс на русском и английском.
-
-- Сборка и установка: `./scripts/install.sh` (нужны Xcode и XcodeGen, macOS 15+, Apple Silicon).
-- Чтобы разрешения на запись экрана и микрофон не сбрасывались после каждой пересборки, создайте
-  один раз самоподписанный сертификат для подписи кода «MeetRec Local Code Signing» (Связка
-  ключей → Ассистент сертификации → Создать сертификат…, тип «Подпись кода»).
-- Транскрибация: `uv`, аккаунт Hugging Face с принятыми условиями модели pyannote,
-  `uvx --from huggingface_hub hf auth login`, затем «Скачать модели» в настройках.
-- Все настройки можно менять из терминала или агентом: [SETTINGS.md](SETTINGS.md).
-- Лицензия MIT.
