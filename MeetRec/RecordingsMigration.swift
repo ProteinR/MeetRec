@@ -24,7 +24,7 @@ enum RecordingsMigration {
             guard ["mov", "mp4"].contains(video.pathExtension.lowercased()) else { continue }
             let stem = video.deletingPathExtension().lastPathComponent
             guard stem.range(of: "^" + RecordingFiles.timestampPattern, options: .regularExpression) != nil else {
-                Log.info("Migration: left \(name) flat (no timestamp first)", "files")
+                Log.debug("Migration: left \(name) flat (no timestamp first)", "files")
                 skipped += 1
                 continue
             }
@@ -34,7 +34,7 @@ enum RecordingsMigration {
                 skipped += 1
             }
         }
-        if !moves.isEmpty || skipped > 0 {
+        if !moves.isEmpty {
             Log.info("Migration: \(moves.count) recording(s) moved into their own folders, \(skipped) left as they were", "files")
         }
         return moves
