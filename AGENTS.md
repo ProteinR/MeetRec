@@ -13,8 +13,8 @@ voices. For that job OBS was the wrong tool:
   the microphone went silent or the wrong device is recording.
 - **Large files.** 143 recordings took 12 GB; a mostly static screen at a few frames per second needs
   far less.
-- **Not connected to transcription.** Recordings were transcribed afterwards by hand with the
-  `transcribe-meeting` skill in inventire-workspace (and `transcribe-lesson` in the English project).
+- **Not connected to transcription.** Recordings were transcribed afterwards by hand with a
+  separate transcription script.
 
 Typical recordings: Microsoft Teams work meetings, English lessons in Chrome, Telegram calls and other
 calls in the browser. Video is always needed. The external monitor is usually the one to record.
@@ -87,7 +87,7 @@ What MeetRec does instead:
 - Teams auto-recordings are tagged on the video file (extended attribute
   `com.dmemruk.MeetRec.meetingApp = teams`, set at start; survives renames and Trash). After
   transcription their transcript is also copied by the copy rules ("app → folder", any number,
-  setting `transcriptCopyRules`; here Teams → inventire-workspace `docs/meetings`) as `<video name>.md`: only
+  setting `transcriptCopyRules`; e.g. Teams → a notes repository's `docs/meetings`) as `<video name>.md`: only
   recordings of 2+ minutes, never overwriting an existing file (it may hold a Meeting Summary), and a
   failed copy only warns. Log line `Transcript copied: <src> → <dst>`. Manual recordings are never
   copied; their transcript stays only next to the video.
@@ -267,7 +267,7 @@ What MeetRec does instead:
   it to Lens' upload form at once and opens it in the default browser; pages older than a minute
   are removed) and `.pasteOnPage` (Bing, PimEyes, FaceCheck.ID,
   Search4faces: bot protection and their rules forbid automatic uploads, so the shot goes to the
-  clipboard and the site's page opens for a ⌘V by hand). All are on until the setting is changed. Only on a click, the shot scaled to ≤ 2048 px is
+  clipboard and the site's page opens for a ⌘V by hand). Until the setting is changed only Google Lens is on. Only on a click, the shot scaled to ≤ 2048 px is
   uploaded and the page opens in the browser. Both use the sites' own upload forms (no official
   API), so they may break when a site changes: the log has "Image search in …". OCR runs
   without language correction (it broke code and e-mails). The main page has "Скриншоты" under
@@ -346,7 +346,7 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
 - Transcription (`Transcriber.swift`, `TranscriptionViews.swift`, `VoiceSampleRecorder.swift`,
   `Resources/transcribe.py`): after a recording, optionally runs the bundled helper with `uv run`
   (mlx-whisper large-v3-turbo + pyannote speaker-diarization-community-1, adapted from
-  inventire-workspace `.agents/skills/transcribe-meeting`). Both audio tracks are mixed before
+  the owner's earlier transcription script). Both audio tracks are mixed before
   recognition. The helper finds them by the default flag ([mix, mic, system] or
   older [system, mic]; the player mix is not used). Whoever speaks into the microphone is the user
   (`--me`, "Моё имя"): a phrase heard mostly through the microphone track is theirs, and a diarized
@@ -377,9 +377,13 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
   helper's whole process tree, thermal state) and a summary when the helper exits; MeetRec's own
   `Load:` line does not see the helper or the GPU. The run file records each speaker's microphone share. Transcript: `<recording>.md` next to the video, never overwritten. Models: the shared
   Hugging Face cache `~/.cache/huggingface/hub` (pyannote is gated: needs an HF token and accepted
-  conditions). Voices: `~/Library/Application Support/MeetRec/speakers.json`, seeded once as a copy of
-  `~/.local/share/inventire-meetings/speakers.json`; "record voice sample" enrolls the user's own voice
+  conditions). Voices: `~/Library/Application Support/MeetRec/speakers.json` (starts empty; names are added with
+  "Подписать спикеров…"); "record voice sample" enrolls the user's own voice
   under "Моё имя". The helper talks JSON lines on stdout; its stderr goes to the MeetRec log.
+
+Public repository (MIT, `README.md`): keep personal names, paths and employer details out of the
+code and docs; the owner's own setup lives in user defaults, which are listed in `SETTINGS.md`.
+A new or renamed setting is added to `SETTINGS.md` in the same change.
 
 ## Build and install
 
@@ -416,7 +420,8 @@ apps and rules, the health tracker, and screenshot coordinates and files. The ap
 ## Signing and permissions (important)
 
 There is no Apple Developer account. Xcode builds ad-hoc; `install.sh` then re-signs with the local
-self-signed certificate **"dmemruk Local Code Signing"** from the login keychain. macOS ties Screen
+self-signed certificate from the login keychain (`MEETREC_SIGN_IDENTITY`, else "MeetRec Local Code
+Signing", else the owner's "dmemruk Local Code Signing"; README says how to make one). macOS ties Screen
 Recording and Microphone permissions to the signature's designated requirement; with this
 certificate it is the certificate itself, so permissions survive rebuilds. With plain ad-hoc
 signing every rebuild looks like a new app and permissions are lost.

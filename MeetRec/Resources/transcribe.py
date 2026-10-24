@@ -8,7 +8,7 @@
 # ///
 """MeetRec transcription helper: mlx-whisper large-v3-turbo + pyannote speaker diarization.
 
-Adapted from inventire-workspace .agents/skills/transcribe-meeting. Runs locally on Apple Silicon;
+Adapted from the author's earlier meeting transcription script. Runs locally on Apple Silicon;
 the only network access is the model download from Hugging Face.
 
 Talks to the app through JSON lines on stdout: {"event": "phase"|"progress"|"done"|"error", ...}.

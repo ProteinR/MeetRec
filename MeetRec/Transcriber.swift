@@ -60,10 +60,10 @@ final class Transcriber: ObservableObject {
         stateDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("MeetRec", isDirectory: true)
         try? FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
-        seedSpeakersIfNeeded()
+        loadKnownSpeakers()
         migrateCopyRules()
         if myName.isEmpty {
-            myName = speakerSamples["Dima"] != nil ? "Dima" : (NSFullUserName().split(separator: " ").first.map(String.init) ?? "Я")
+            myName = NSFullUserName().split(separator: " ").first.map(String.init) ?? "Я"
         }
         refreshModels()
     }
@@ -359,21 +359,7 @@ final class Transcriber: ObservableObject {
         speakerSamples = json.mapValues(\.count)
     }
 
-    /// First run: start from the voices already confirmed in the transcribe-meeting skill (a copy;
-    /// the original file is never written).
-    private func seedSpeakersIfNeeded() {
-        let manager = FileManager.default
-        if !manager.fileExists(atPath: speakersFile.path) {
-            let source = manager.homeDirectoryForCurrentUser.appendingPathComponent(".local/share/inventire-meetings/speakers.json")
-            if manager.fileExists(atPath: source.path) {
-                do {
-                    try manager.copyItem(at: source, to: speakersFile)
-                    Log.info("Seeded speaker voices from \(source.path)", "transcribe")
-                } catch {
-                    Log.warning("Could not seed speakers: \(Log.describe(error))", "transcribe")
-                }
-            }
-        }
+    private func loadKnownSpeakers() {
         loadSpeakers()
         Log.info("Known voices: \(speakerSamples.map { "\($0.key)×\($0.value)" }.sorted().joined(separator: ", "))", "transcribe")
     }

@@ -37,7 +37,7 @@ enum ImageSearchError: LocalizedError {
 
 @MainActor
 enum ImageSearch {
-    /// The setting lists the enabled ones; until it is changed, all are on.
+    /// The setting lists the enabled ones; until it is changed, only Google Lens is on.
     static let all: [any ImageSearchProvider] = [
         GoogleLensSearch(), YandexImageSearch(), TinEyeSearch(),
         // Bing's upload needs a token signed for its own page.
@@ -51,7 +51,7 @@ enum ImageSearch {
 
     /// Comma-separated ids of the providers shown in the screenshot toast.
     static let enabledKey = "imageSearchProviders"
-    static let enabledByDefault = all.map(\.id).joined(separator: ",")
+    static let enabledByDefault = "google"
     static var enabledRaw: String {
         get { UserDefaults.standard.string(forKey: enabledKey) ?? enabledByDefault }
         set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
