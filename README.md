@@ -7,7 +7,7 @@ screen, your microphone and the other side's audio — and **transcribes them on
 Whisper and speaker diarization. No bot joins your call and nothing is uploaded. It also takes
 **screenshots with annotations and OCR**, Shottr-style.
 
-It started as a lightweight **OBS alternative** for one job: pressing "record" in Microsoft Teams,
+It started as a lightweight **OBS alternative** (13 MB, ~40 MB of memory) for one job: pressing "record" in Microsoft Teams,
 Google Meet, Zoom (in a browser) or Telegram calls, without scenes, sources and encoder settings.
 
 **English and Russian.** MeetRec follows the system language; to pick one for MeetRec only, use
@@ -41,6 +41,28 @@ welcome (`MeetRec/Localizable.xcstrings`).
   (arrows, boxes, steps, blur, crop), OCR (⇧⌘2) and reverse image search.
 - Window recording, display picker with live thumbnails, a recording island at the notch, a camera
   mirror to check yourself before a call.
+
+## Lightweight by design
+
+Measured on the same Mac (Apple Silicon, macOS 26), same job: the built-in display at 2216×1440,
+HEVC, 15 fps, microphone and system audio; OBS with the window minimized to the tray. Memory is the
+footprint Activity Monitor shows, CPU is % of one core averaged over 60 s
+(`scripts/profile.py`, details in [PROFILING.md](PROFILING.md)).
+
+| | MeetRec 0.7.0 | OBS Studio 32.2.2 |
+|---|---|---|
+| App size | **13 MB** | 438 MB + a virtual camera system extension |
+| Idle: memory | **41 MB** | 193 MB |
+| Idle: CPU | **0.1%** | 7.3% |
+| Recording: memory | **36–50 MB** | 339 MB |
+| Recording: CPU | **12%** | 21% |
+| Idle wake-ups | 0.1/s | 1/s (+124/s in the camera extension) |
+
+MeetRec does nothing between meetings: no preview, no scene rendering. While recording, unchanged
+frames are skipped and video is encoded in hardware; most of the remaining CPU is AAC encoding of
+the two audio tracks and receiving frames from ScreenCaptureKit. The camera mirror runs in its own
+process, so its 200–350 MB leave with its window. Transcription runs after the recording at
+background priority, one model at a time.
 
 ## How it compares
 
