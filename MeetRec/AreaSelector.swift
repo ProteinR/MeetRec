@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import ScreenCaptureKit
 
 /// A screen as it was when the shortcut was pressed: its picture and where the windows were. The
@@ -189,6 +190,9 @@ final class AreaSelector {
     /// stops getting its own events (once they stayed behind while the crosshair moved on).
     private var moveMonitors: [Any] = []
     private var monitoredMoves = 0
+    /// Esc as a system-wide key while selecting: activation is only a request macOS may turn down,
+    /// and then the overlays never get the key (it seemed impossible to cancel).
+    private var escapeKey: HotKey?
 
     /// How far down from a window's top edge a click takes the whole window. Only the title bar: most
     /// shots are a part of a window, and a window lit up under every press got in the way.
@@ -238,9 +242,11 @@ final class AreaSelector {
         for window in windows { window.orderFrontRegardless() }
         let key = windows.first { $0.frame.contains(mouse) } ?? windows.first
         key?.makeKey()
+        for window in windows { window.makeFirstResponder(window.overlay) }
+        escapeKey = HotKey(keyCode: kVK_Escape, modifiers: 0) { [weak self] in self?.cancel() }
         key?.overlay.hover(at: key.map { NSPoint(x: mouse.x - $0.frame.minX, y: mouse.y - $0.frame.minY) })
         key?.overlay.updateCursor()
-        Log.info("Screen selection started on \(windows.count) frozen screen(s)", "screenshots")
+        Log.info("Screen selection started on \(windows.count) frozen screen(s), active: \(NSApp.isActive), Esc key: \(escapeKey?.isRegistered == true)", "screenshots")
         let follow: (NSEvent) -> Void = { [weak self] _ in self?.followPointer() }
         moveMonitors = [
             NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { follow($0); return $0 },
@@ -283,6 +289,7 @@ final class AreaSelector {
         for window in windows { window.orderOut(nil) }
         moveMonitors.forEach(NSEvent.removeMonitor)
         moveMonitors = []
+        escapeKey = nil
         // If the overlays got far fewer moves than the app, their own events stopped coming.
         Log.debug("Selection pointer moves: overlays \(windows.map(\.overlay.ownMoves)), app \(monitoredMoves)", "screenshots")
         NSCursor.arrow.set()
