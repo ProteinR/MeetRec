@@ -25,18 +25,19 @@ extension RecorderModel {
         let crashLoop = Date().timeIntervalSince1970 - lastRecovery < 180
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "lastCrashRecovery")
 
-        var body = exists ? "Запись «\(file.lastPathComponent)» сохранена до \(time)." : "Файл записи не найден."
+        var body = exists ? String(localized: "Запись «\(file.lastPathComponent)» сохранена до \(time).") : String(localized: "Файл записи не найден.")
         if crashLoop {
-            body += " Сбой повторился — запись не возобновлена, начните её вручную."
+            body += " " + String(localized: "Сбой повторился — запись не возобновлена, начните её вручную.")
             Log.error("Second crash within 3 minutes: not resuming the recording")
         } else if state.autoAppID == nil {
-            body += " Запись продолжается в новом файле."
+            body += " " + String(localized: "Запись продолжается в новом файле.")
             start()
         } else if meetingDetection {
-            body += " Если встреча ещё идёт, запись продолжится в новом файле."
+            body += " " + String(localized: "Если встреча ещё идёт, запись продолжится в новом файле.")
         }
-        Notifier.shared.send(id: "meetrec-crash", title: "MeetRec перезапущен после сбоя", body: body)
-        stopNotice = "Запись прервалась из-за сбоя MeetRec · сохранено до \(time)"
+        Notifier.shared.send(id: "meetrec-crash", title: String(localized: "MeetRec перезапущен после сбоя"), body: body)
+        stopNotice = String(localized: "Запись прервалась из-за сбоя MeetRec · сохранено до \(time)")
+        stopNoticeInterrupted = true
         if exists {
             lastFile = file
             Transcriber.shared.recordingFinished(file)
@@ -57,11 +58,14 @@ extension RecorderModel {
             Log.info("Permissions OK again", "permissions")
             return
         }
-        let names = missing.sorted().map { $0 == "screen" ? "запись экрана" : "микрофон" }.joined(separator: " и ")
-        Log.warning("Missing permissions: \(missing.sorted().joined(separator: ", "))", "permissions")
-        Notifier.shared.send(id: "meetrec-permissions", title: "MeetRec не сможет записывать",
-                             body: "Нет разрешения: \(names). Без него встреча не запишется.",
-                             actions: [.init(id: "open-privacy:\(missing.contains("screen") ? "screen" : "microphone")", title: "Открыть настройки")])
+                Log.warning("Missing permissions: \(missing.sorted().joined(separator: ", "))", "permissions")
+        Notifier.shared.send(id: "meetrec-permissions", title: String(localized: "MeetRec не сможет записывать"),
+                             body: missing.count > 1
+                                ? String(localized: "Нет разрешения: микрофон и запись экрана. Без него встреча не запишется.")
+                                : missing.contains("screen")
+                                    ? String(localized: "Нет разрешения: запись экрана. Без него встреча не запишется.")
+                                    : String(localized: "Нет разрешения: микрофон. Без него встреча не запишется."),
+                             actions: [.init(id: "open-privacy:\(missing.contains("screen") ? "screen" : "microphone")", title: String(localized: "Открыть настройки"))])
     }
 
     // MARK: - Monitor unplugged, capture stopped
@@ -75,7 +79,7 @@ extension RecorderModel {
         }
         Log.warning("Switching the recording to display \(fallback.id) \(fallback.name)", "devices")
         switchDisplay(to: fallback.id)
-        showToast(Toast(kind: .info, title: "Монитор отключён", detail: "Запись продолжается: «\(fallback.name)»"))
+        showToast(Toast(kind: .info, title: String(localized: "Монитор отключён"), detail: String(localized: "Запись продолжается: «\(fallback.name)»")))
     }
 
     /// Capture stopped on its own (e.g. the monitor vanished before the switch). The part recorded so
@@ -103,14 +107,15 @@ extension RecorderModel {
             pendingRuleID = ruleID
             start(autoApp: wasAuto ? app : nil)
             stopNotice = nil
-            Notifier.shared.send(id: "meetrec-stopped-unexpectedly", title: "Запись прервалась и продолжена",
-                                 body: "\(error.localizedDescription). Записанное сохранено, запись продолжается в новом файле.",
+            Notifier.shared.send(id: "meetrec-stopped-unexpectedly", title: String(localized: "Запись прервалась и продолжена"),
+                                 body: String(localized: "\(error.localizedDescription). Записанное сохранено, запись продолжается в новом файле."),
                                  silent: true)
         } else {
-            stopNotice = "Запись прервалась: \(error.localizedDescription)"
-            errorMessage = "Запись остановлена: \(error.localizedDescription)"
-            Notifier.shared.send(id: "meetrec-stopped-unexpectedly", title: "Запись прервалась",
-                                 body: "\(error.localizedDescription). Записанное до этого момента сохранено.")
+            stopNotice = String(localized: "Запись прервалась: \(error.localizedDescription)")
+            stopNoticeInterrupted = true
+            errorMessage = String(localized: "Запись остановлена: \(error.localizedDescription)")
+            Notifier.shared.send(id: "meetrec-stopped-unexpectedly", title: String(localized: "Запись прервалась"),
+                                 body: String(localized: "\(error.localizedDescription). Записанное до этого момента сохранено."))
         }
     }
 
@@ -118,7 +123,7 @@ extension RecorderModel {
         if !CGPreflightScreenCaptureAccess() {
             Log.warning("Screen recording permission not granted, requesting", "permissions")
             CGRequestScreenCaptureAccess()
-            errorMessage = "Разрешите запись экрана для MeetRec в Системных настройках → Конфиденциальность и безопасность → Запись экрана, затем перезапустите MeetRec."
+            errorMessage = String(localized: "Разрешите запись экрана для MeetRec в Системных настройках → Конфиденциальность и безопасность → Запись экрана, затем перезапустите MeetRec.")
             return false
         }
         if microphone, AVCaptureDevice.authorizationStatus(for: .audio) != .authorized {
@@ -126,7 +131,7 @@ extension RecorderModel {
             let granted = await AVCaptureDevice.requestAccess(for: .audio)
             Log.info("Microphone permission \(granted ? "granted" : "denied")", "permissions")
             if !granted {
-                errorMessage = "Нет доступа к микрофону. Разрешите его в Системных настройках → Конфиденциальность и безопасность → Микрофон."
+                errorMessage = String(localized: "Нет доступа к микрофону. Разрешите его в Системных настройках → Конфиденциальность и безопасность → Микрофон.")
                 return false
             }
         }

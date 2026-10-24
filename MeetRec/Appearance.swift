@@ -8,17 +8,17 @@ enum MenuBarStyle: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .full: return "Красный значок и таймер"
-        case .icon: return "Только красный значок"
-        case .discreet: return "Незаметно"
+        case .full: return String(localized: "Красный значок и таймер")
+        case .icon: return String(localized: "Только красный значок")
+        case .discreet: return String(localized: "Незаметно")
         }
     }
 
     var detail: String {
         switch self {
-        case .full: return "Видно сразу, что идёт запись и сколько она длится."
-        case .icon: return "Без таймера; красный кружок всё же заметен."
-        case .discreet: return "Обычный серый значок, во время записи он закрашен. Таймера нет, окошки о начале и конце записи и вопрос о звонке не показываются."
+        case .full: return String(localized: "Видно сразу, что идёт запись и сколько она длится.")
+        case .icon: return String(localized: "Без таймера; красный кружок всё же заметен.")
+        case .discreet: return String(localized: "Обычный серый значок, во время записи он закрашен. Таймера нет, окошки о начале и конце записи и вопрос о звонке не показываются.")
         }
     }
 
@@ -94,7 +94,7 @@ struct MenuBarPreview: View {
         .animation(.easeInOut(duration: 0.2), value: style)
     }
 
-    private func row(_ label: String, recording: Bool) -> some View {
+    private func row(_ label: LocalizedStringKey, recording: Bool) -> some View {
         HStack(spacing: 8) {
             Text(label).font(.caption).foregroundStyle(.secondary).frame(width: 78, alignment: .leading)
             HStack(spacing: 10) {

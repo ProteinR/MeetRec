@@ -138,7 +138,7 @@ struct ContentView: View {
                 ScreenshotsSection(isExpanded: expanded("screenshots"), close: close)
             }
             if let notice = model.stopNotice, !model.isRecording, frozenLayout == nil {
-                LastRecordingNotice(notice: notice, file: model.lastFile) { model.stopNotice = nil }
+                LastRecordingNotice(notice: notice, interrupted: model.stopNoticeInterrupted, file: model.lastFile) { model.stopNotice = nil }
             }
             if let error = model.errorMessage {
                 Text(error)
@@ -158,8 +158,8 @@ struct ContentView: View {
                 settingsTabRaw = SettingsTab.shortcuts.rawValue
                 showingSettings = true
             } label: {
-                WarningLabel(text: "Не работает: " + taken.compactMap { Shortcuts.shared.combo($0)?.text }.joined(separator: ", ")
-                             + " — сочетание занято другим приложением. Изменить…")
+                let combos = taken.compactMap { Shortcuts.shared.combo($0)?.text }.joined(separator: ", ")
+                WarningLabel(text: String(localized: "Не работает: \(combos) — сочетание занято другим приложением. Изменить…"))
                     .font(.caption)
             }
             .buttonStyle(.plain)
@@ -229,7 +229,7 @@ struct ContentView: View {
                     }
                 }
                 .labelsHidden()
-                .help("Какой микрофон записывать. «По умолчанию» — сейчас: \(AVCaptureDevice.default(for: .audio)?.localizedName ?? "нет")")
+                .help("Какой микрофон записывать. «По умолчанию» — сейчас: \(AVCaptureDevice.default(for: .audio)?.localizedName ?? String(localized: "нет"))")
                 .disabled(!model.microphone)
             }
             if model.microphone {
@@ -240,7 +240,7 @@ struct ContentView: View {
             sourceRow(icon: "speaker.wave.2.fill", isOn: $model.systemAudio) {
                 Text("Звук системы")
             }
-            CollapsibleSection(title: model.chosenWindow.map { "Окно: \($0.label)" } ?? model.effectiveDisplay?.name ?? "Монитор не найден",
+            CollapsibleSection(title: model.chosenWindow.map { String(localized: "Окно: \($0.label)") } ?? model.effectiveDisplay?.name ?? String(localized: "Монитор не найден"),
                                icon: model.chosenWindow == nil ? "display" : "macwindow",
                                summary: displaySummary, isExpanded: expanded("display")) {
                 DisplayChooser(preview: displayPreview, windows: windowPreview)
@@ -278,9 +278,11 @@ struct ContentView: View {
 
     private var displaySummary: String {
         guard let display = model.effectiveDisplay else { return "" }
-        if model.chosenWindow != nil { return "Только это окно · на «\(display.name)» · на одну запись" }
-        let kind = display.isBuiltIn ? "встроенный экран" : "внешний монитор"
-        return model.displayID == RecorderModel.autoDisplay ? "Авто · \(kind)" : kind
+        if model.chosenWindow != nil { return String(localized: "Только это окно · на «\(display.name)» · на одну запись") }
+        if model.displayID == RecorderModel.autoDisplay {
+            return display.isBuiltIn ? String(localized: "Авто · встроенный экран") : String(localized: "Авто · внешний монитор")
+        }
+        return display.isBuiltIn ? String(localized: "встроенный экран") : String(localized: "внешний монитор")
     }
 
     private func updatePreviews() {
@@ -313,7 +315,7 @@ struct ContentView: View {
             // Any microphone only on request: the same with or without headphones, no orange dot
             // each time the panel opens.
             HStack(spacing: 6) {
-                Text(micMonitor.deviceName ?? "Микрофон")
+                Text(micMonitor.deviceName ?? String(localized: "Микрофон"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -340,12 +342,12 @@ struct ContentView: View {
     }
 
     private var micPreviewText: String {
-        guard let name = micMonitor.deviceName else { return "Микрофон не найден" }
+        guard let name = micMonitor.deviceName else { return String(localized: "Микрофон не найден") }
         if InputMuteState.isMuted(uid: model.microphoneID.isEmpty ? nil : model.microphoneID) {
-            return "\(name): выключен кнопкой — в записи будет тишина"
+            return String(localized: "\(name): выключен кнопкой — в записи будет тишина")
         }
-        if !micMonitor.receiving { return "\(name): сигнал не приходит" }
-        return micMonitor.levelDB > -45 ? "\(name): слышно" : "\(name): скажите что-нибудь — полоска должна двигаться"
+        if !micMonitor.receiving { return String(localized: "\(name): сигнал не приходит") }
+        return micMonitor.levelDB > -45 ? String(localized: "\(name): слышно") : String(localized: "\(name): скажите что-нибудь — полоска должна двигаться")
     }
 
     private func updateMicPreview() {

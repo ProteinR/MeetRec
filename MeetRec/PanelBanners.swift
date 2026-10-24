@@ -8,12 +8,13 @@ import AppKit
 /// progress while it runs, then a click opens it.
 struct LastRecordingNotice: View {
     let notice: String
+    /// The recording was cut short (crash, capture stopped): orange instead of green.
+    let interrupted: Bool
     let file: URL?
     @State private var namingSpeakers = false
     let close: () -> Void
     @EnvironmentObject private var transcriber: Transcriber
 
-    private var interrupted: Bool { notice.hasPrefix("Запись прервалась") }
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -152,7 +153,7 @@ struct CountdownBanner: View {
                     Text("Через \(countdown.seconds) с начну записывать \(countdown.what)")
                         .font(.callout.weight(.semibold))
                         .contentTransition(.numericText(countsDown: true))
-                    Text("Остановится сама, когда \(countdown.app.noun) закончится.")
+                    Text(countdown.app.asks ? "Остановится сама, когда звонок закончится." : "Остановится сама, когда встреча закончится.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -194,7 +195,8 @@ struct StopCountdownBanner: View {
                     .frame(width: 26, height: 26)
                     .background(Circle().strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1.5))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("\(countdown.app.asks ? "Звонок закончился" : "Встреча закончилась"), запись остановится через \(countdown.seconds) с")
+                    Text(countdown.app.asks ? "Звонок закончился, запись остановится через \(countdown.seconds) с"
+                                             : "Встреча закончилась, запись остановится через \(countdown.seconds) с")
                         .font(.callout.weight(.semibold))
                         .contentTransition(.numericText(countsDown: true))
                     Text("\(countdown.app.name) отпустил микрофон. Если он снова его возьмёт, запись продолжится.")

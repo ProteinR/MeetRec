@@ -25,13 +25,13 @@ extension ContentView {
                 generalSettings
                 // Accordion: one card open at a time keeps the page within the screen height.
                 VStack(spacing: 8) {
-                    CollapsibleSection(title: "Видео", icon: "video.fill", summary: videoSummary,
+                    CollapsibleSection(title: String(localized: "Видео"), icon: "video.fill", summary: videoSummary,
                                        isExpanded: expanded("video")) { videoSettings }
-                    CollapsibleSection(title: "Встречи и звонки", icon: "person.2.wave.2.fill", summary: meetingSummary,
+                    CollapsibleSection(title: String(localized: "Встречи и звонки"), icon: "person.2.wave.2.fill", summary: meetingSummary,
                                        isExpanded: expanded("meetings")) { MeetingSettings() }
-                    CollapsibleSection(title: "Транскрибация", icon: "text.bubble.fill", summary: transcriptionSummary,
+                    CollapsibleSection(title: String(localized: "Транскрибация"), icon: "text.bubble.fill", summary: transcriptionSummary,
                                        isExpanded: expanded("transcription")) { TranscriptionSettings() }
-                    CollapsibleSection(title: "Вид во время записи", icon: "menubar.rectangle", summary: appearanceSummary,
+                    CollapsibleSection(title: String(localized: "Вид во время записи"), icon: "menubar.rectangle", summary: appearanceSummary,
                                        isExpanded: expanded("appearance")) { AppearanceSettings() }
                 }
             case .screenshots:
@@ -88,32 +88,33 @@ extension ContentView {
     }
 
     var meetingSummary: String {
-        guard model.meetingDetection else { return "Выключена" }
+        guard model.meetingDetection else { return String(localized: "Выключена") }
         let names = MeetingApp.all.filter { $0.supported && model.selectedMeetingApps.contains($0.id) }.map(\.name)
-        guard !names.isEmpty else { return "Не выбраны приложения" }
-        return (model.detectorStatus ?? "Включена") + " · " + names.joined(separator: ", ")
+        guard !names.isEmpty else { return String(localized: "Не выбраны приложения") }
+        return (model.detectorStatus ?? String(localized: "Включена")) + " · " + names.joined(separator: ", ")
     }
 
     var appearanceSummary: String {
         let style = (MenuBarStyle(rawValue: menuBarStyle) ?? .full).title
-        return hideFromSharing ? "\(style) · скрыт при показе экрана" : style
+        return hideFromSharing ? String(localized: "\(style) · скрыт при показе экрана") : style
     }
 
     var videoSummary: String {
         let resolution = ResolutionPreset(rawValue: model.resolution)?.title ?? model.resolution
-        return "\(model.fps) к/с · \(resolution) · \(model.codec == "hevc" ? "HEVC" : "H.264")"
+        let codec = model.codec == "hevc" ? "HEVC" : "H.264"
+        return String(localized: "\(model.fps) к/с · \(resolution) · \(codec)")
     }
 
     var transcriptionSummary: String {
         switch transcriber.modelsState {
-        case .missing: return "Модели не скачаны"
-        case .downloading: return "Скачивание моделей…"
-        case .failed: return "Ошибка моделей"
-        case .checking: return "Проверка…"
+        case .missing: return String(localized: "Модели не скачаны")
+        case .downloading: return String(localized: "Скачивание моделей…")
+        case .failed: return String(localized: "Ошибка моделей")
+        case .checking: return String(localized: "Проверка…")
         case .ready:
-            var parts = [transcriber.transcribeAfterRecording ? "После записи: вкл" : "После записи: выкл"]
-            if transcriber.diarization { parts.append("по ролям") }
-            parts.append(transcriber.language.isEmpty ? "язык авто" : transcriber.language)
+            var parts = [transcriber.transcribeAfterRecording ? String(localized: "После записи: вкл") : String(localized: "После записи: выкл")]
+            if transcriber.diarization { parts.append(String(localized: "по ролям")) }
+            parts.append(transcriber.language.isEmpty ? String(localized: "язык авто") : transcriber.language)
             return parts.joined(separator: " · ")
         }
     }

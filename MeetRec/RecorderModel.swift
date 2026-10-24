@@ -67,6 +67,9 @@ final class RecorderModel: ObservableObject {
     var autoStartedAppID: String?
     /// Shown in the panel after a recording stops ("Запись сохранена · 34:12 · …") until the next start.
     @Published var stopNotice: String?
+    /// `stopNotice` tells of an interrupted recording (crash, capture stopped): the panel shows it as a
+    /// warning. A flag, not a check of the text, since the text is localized.
+    @Published var stopNoticeInterrupted = false
     /// Bumped to open the settings page (quick menu "Настройки…"), at `settingsTab` and
     /// `settingsSection` if set.
     @Published private(set) var settingsRequest = 0
@@ -386,20 +389,21 @@ final class RecorderModel: ObservableObject {
         }
         errorMessage = nil
         stopNotice = nil
+        stopNoticeInterrupted = false
         firedAlerts = []
         guard let display = effectiveDisplay else {
-            errorMessage = "Нет доступных мониторов"
+            errorMessage = String(localized: "Нет доступных мониторов")
             Log.error("Start failed: no displays")
             return
         }
         let free = DiskSpace.available(at: folderURL)
         Log.info("Free space on recordings volume: \(free.map(DiskSpace.format) ?? "unknown")")
         if let free, free < DiskSpace.refuseStartBelow {
-            errorMessage = "На диске осталось \(DiskSpace.format(free)) — запись не начата. Освободите место или выберите другую папку."
+            errorMessage = String(localized: "На диске осталось \(DiskSpace.format(free)) — запись не начата. Освободите место или выберите другую папку.")
             Log.error("Start refused: only \(DiskSpace.format(free)) free")
             if autoApp != nil {
-                Notifier.shared.send(id: "meetrec-disk-full", title: "Запись встречи не началась",
-                                     body: "На диске осталось \(DiskSpace.format(free)). Освободите место.")
+                Notifier.shared.send(id: "meetrec-disk-full", title: String(localized: "Запись встречи не началась"),
+                                     body: String(localized: "На диске осталось \(DiskSpace.format(free)). Освободите место."))
             }
             return
         }
@@ -446,20 +450,20 @@ final class RecorderModel: ObservableObject {
                 didStart()
                 if let startWindow {
                     captureWindow = startWindow
-                    healthTracker?.displayName = "окно \(startWindow.appName)"
+                    healthTracker?.displayName = String(localized: "окно \(startWindow.appName)")
                     lastWindowCheck = Date()
                     updateMeetingTitle(force: true)
                     Log.info("Recording only window from the start: \(startWindow.label)")
                 }
                 if let free, free < DiskSpace.warnBelow {
-                    alert("disk-low", when: true, title: "Мало места на диске",
-                          body: "Свободно \(DiskSpace.format(free)). Запись остановится сама, если останется меньше \(DiskSpace.format(DiskSpace.stopBelow)).")
+                    alert("disk-low", when: true, title: String(localized: "Мало места на диске"),
+                          body: String(localized: "Свободно \(DiskSpace.format(free)). Запись остановится сама, если останется меньше \(DiskSpace.format(DiskSpace.stopBelow))."))
                 }
             } catch {
                 errorMessage = error.localizedDescription
                 Log.error("Start failed: \(Log.describe(error))")
                 if let autoApp {
-                    Notifier.shared.send(id: "meetrec-start-failed", title: "Запись встречи в \(autoApp.name) не началась",
+                    Notifier.shared.send(id: "meetrec-start-failed", title: String(localized: "Запись встречи в \(autoApp.name) не началась"),
                                          body: error.localizedDescription)
                 }
             }
@@ -512,12 +516,13 @@ final class RecorderModel: ObservableObject {
             didStop(file: file)
             // "14:03–14:25 · 22:10": when it was, so it is easy to tell which meeting this is.
             let span = began.map { "\($0.formatted(date: .omitted, time: .shortened))–\(Date().formatted(date: .omitted, time: .shortened)) · " } ?? ""
-            stopNotice = ["Запись сохранена · \(span)\(duration)", reason].compactMap { $0 }.joined(separator: " · ")
+            stopNoticeInterrupted = false
+            stopNotice = [String(localized: "Запись сохранена · \(span)\(duration)"), reason].compactMap { $0 }.joined(separator: " · ")
             let transcriber = Transcriber.shared
             let transcriptNote = file != nil && transcriber.transcribeAfterRecording && transcriber.modelsState == .ready
-                ? "транскрипт появится рядом с видео" : nil
+                ? String(localized: "транскрипт появится рядом с видео") : nil
             let detail = [reason, transcriptNote].compactMap { $0 }.joined(separator: " · ")
-            lastStopToast = Toast(kind: .stopped, title: "Запись сохранена · \(duration)",
+            lastStopToast = Toast(kind: .stopped, title: String(localized: "Запись сохранена · \(duration)"),
                                   detail: detail.isEmpty ? file?.lastPathComponent : detail.prefix(1).uppercased() + detail.dropFirst(),
                                   file: file)
             // The panel folded away when the stop began; if it was opened again since, the toast waits
@@ -596,15 +601,15 @@ final class RecorderModel: ObservableObject {
             let title: String
             let app = MeetingApp.all.first { $0.id == autoStartedAppID }
             if let ruleTitle = meetingTitle {
-                title = "Записываю: \(ruleTitle)" // a browser rule, e.g. "Записываю: Skyeng"
+                title = String(localized: "Записываю: \(ruleTitle)") // a browser rule, e.g. "Записываю: Skyeng"
             } else if let app {
-                title = "Записываю \(app.asks ? "звонок" : "встречу") в \(app.place)"
+                title = Self.recordingStartedTitle(app)
             } else {
-                title = "Запись началась"
+                title = String(localized: "Запись началась")
             }
             showToast(Toast(kind: .started, title: title,
-                            detail: app.map { "Остановится сама, когда \($0.noun) закончится" }
-                                ?? [Self.hotKeyHint.map { "\($0) — остановить" }, Self.markerHotKeyHint.map { "\($0) — отметить момент" }]
+                            detail: app.map { Self.stopsByItself($0) }
+                                ?? [Self.hotKeyHint.map { String(localized: "\($0) — остановить") }, Self.markerHotKeyHint.map { String(localized: "\($0) — отметить момент") }]
                                     .compactMap { $0 }.joined(separator: ", ")))
         }
         if let file = recorder.currentFile().url {

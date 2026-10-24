@@ -166,7 +166,7 @@ struct DisplayChooser: View {
                     }
                 }))
             if !CGPreflightScreenCaptureAccess() {
-                WarningLabel(text: "Нет доступа к записи экрана — превью не показать").font(.caption)
+                WarningLabel(text: String(localized: "Нет доступа к записи экрана — превью не показать")).font(.caption)
             }
         }
         .padding(.top, 6)
@@ -242,7 +242,7 @@ extension DisplayChooser {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(selected ? "Записывается только «\(tile.window.label)»; клик — весь экран" : "Записывать только «\(tile.window.label)»")
+        .help(selected ? String(localized: "Записывается только «\(tile.window.label)»; клик — весь экран") : String(localized: "Записывать только «\(tile.window.label)»"))
     }
 }
 

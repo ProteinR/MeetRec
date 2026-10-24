@@ -184,7 +184,7 @@ struct EditorView: View {
             if document.windowShot != nil { marginControl }
             Spacer(minLength: 8)
             Text(document.status ?? (document.selectedID != nil
-                ? "Тяните — передвинуть, точки — изменить, Delete — удалить, Esc — снять выбор"
+                ? String(localized: "Тяните — передвинуть, точки — изменить, Delete — удалить, Esc — снять выбор")
                 : document.tool.hint))
                 .lineLimit(1)
                 .truncationMode(.tail)

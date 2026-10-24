@@ -38,7 +38,7 @@ extension RecorderModel {
                 let since = meetingWindowProblemSince ?? Date()
                 meetingWindowProblemSince = since
                 if Date().timeIntervalSince(since) >= Self.meetingWindowWarnAfter {
-                    let text = "Встреча Teams на мониторе «\(elsewhere.name)», а записывается «\(recordingNames.display)»."
+                    let text = String(localized: "Встреча Teams на мониторе «\(elsewhere.name)», а записывается «\(recordingNames.display)».")
                     meetingWindowWarning = text
                     meetingWindowDisplay = elsewhere
                     Log.warning("Alert: Teams meeting window is on display \(elsewhere.id) \(elsewhere.name), recording \(displayID)", "alerts")
@@ -50,7 +50,7 @@ extension RecorderModel {
         } else if let elsewhere, elsewhere.id != meetingWindowDisplay?.id {
             // Moved on to a third monitor: offer that one.
             meetingWindowDisplay = elsewhere
-            meetingWindowWarning = "Встреча Teams на мониторе «\(elsewhere.name)», а записывается «\(recordingNames.display)»."
+            meetingWindowWarning = String(localized: "Встреча Teams на мониторе «\(elsewhere.name)», а записывается «\(recordingNames.display)».")
         }
         // A shown warning waits for an answer; otherwise the check ends with the first seconds.
         if meetingWindowWarning == nil, Date().timeIntervalSince(startedAt) >= Self.meetingWindowCheckPeriod {
@@ -124,7 +124,7 @@ extension RecorderModel {
         skippedMeetingApp = nil // a new call
         guard meetingDetection, !isRecording, !isBusy, MenuBarStyle.current != .discreet else { return }
         // Only calls that will record by themselves: Teams, and browser tabs with a rule.
-        var what = "\(app.asks ? "звонок" : "встречу") в \(app.place)"
+        var what = Self.countdownWhat(app)
         if asks(app) {
             guard app.id == "browser", let rule = matchingBrowserRule(for: app) else { return }
             countdownRule = rule
@@ -206,7 +206,7 @@ extension RecorderModel {
         guard let countdown = stopCountdown else { return }
         cancelStopCountdown()
         Log.info("User stopped the recording before the stop countdown ended", "meetings")
-        stop(reason: "\(countdown.app.noun) в \(countdown.app.place) \(countdown.app.asks ? "завершился" : "завершилась")")
+        stop(reason: Self.callEnded(countdown.app))
     }
 
     /// "Продолжить запись": keep recording after the meeting, like a manual recording.
@@ -256,6 +256,37 @@ extension RecorderModel {
 
     /// "в браузере" / "в Telegram".
     static func callPlace(_ app: MeetingApp) -> String { app.place }
+
+    // Whole localizable phrases per app: word order and grammar differ between languages, so the
+    // browser ("в браузере") gets its own phrase instead of `app.place` glued in.
+
+    /// "Записываю встречу в Teams" (the toast when a recording starts).
+    static func recordingStartedTitle(_ app: MeetingApp) -> String {
+        if app.id == "browser" { return String(localized: "Записываю звонок в браузере") }
+        return app.asks ? String(localized: "Записываю звонок в \(app.place)") : String(localized: "Записываю встречу в \(app.place)")
+    }
+
+    /// "Остановится сама, когда встреча закончится".
+    static func stopsByItself(_ app: MeetingApp) -> String {
+        app.asks ? String(localized: "Остановится сама, когда звонок закончится") : String(localized: "Остановится сама, когда встреча закончится")
+    }
+
+    /// "встречу в Teams": what the countdown is about to record.
+    static func countdownWhat(_ app: MeetingApp) -> String {
+        if app.id == "browser" { return String(localized: "звонок в браузере") }
+        return app.asks ? String(localized: "звонок в \(app.place)") : String(localized: "встречу в \(app.place)")
+    }
+
+    /// "встреча в Teams завершилась": the stop reason after a meeting ends.
+    static func callEnded(_ app: MeetingApp) -> String {
+        if app.id == "browser" { return String(localized: "звонок в браузере завершился") }
+        return app.asks ? String(localized: "звонок в \(app.place) завершился") : String(localized: "встреча в \(app.place) завершилась")
+    }
+
+    /// "Как в Teams": why the microphone was switched.
+    static func sameAsApp(_ app: MeetingApp) -> String {
+        app.id == "browser" ? String(localized: "Как в браузере") : String(localized: "Как в \(app.place)")
+    }
 
     // MARK: - Meeting without recording
 
@@ -370,13 +401,13 @@ extension RecorderModel {
                     return
                 }
                 Log.info("Auto-stopping recording: \(app.name) meeting did not come back", "meetings")
-                self.stop(reason: app.asks ? "звонок в \(Self.callPlace(app)) завершился" : "встреча в \(Self.callPlace(app)) завершилась")
+                self.stop(reason: Self.callEnded(app))
             }
             return
         }
         Log.info("Auto-stopping recording: \(app.name) meeting ended", "meetings")
         // The "Запись сохранена" toast makes the end obvious (see stop()).
-        stop(reason: app.asks ? "звонок в \(Self.callPlace(app)) завершился" : "встреча в \(Self.callPlace(app)) завершилась")
+        stop(reason: Self.callEnded(app))
 
     }
 

@@ -567,7 +567,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     static func screenName(_ id: CGDirectDisplayID) -> String {
         NSScreen.screens.first {
             ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == id
-        }?.localizedName ?? "монитор \(id)"
+        }?.localizedName ?? String(localized: "монитор \(Int(id))")
     }
 
     func outputVideoEffectDidStart(for stream: SCStream) {

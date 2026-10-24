@@ -238,7 +238,7 @@ struct IslandView: View {
                 Button {
                     model.addMarker()
                 } label: {
-                    Label(model.markers.isEmpty ? "Отметить" : "Отметить · \(model.markers.count)", systemImage: "star.fill")
+                    Label(model.markers.isEmpty ? String(localized: "Отметить") : String(localized: "Отметить · \(model.markers.count)"), systemImage: "star.fill")
                         .frame(maxWidth: .infinity)
                 }
                 }

@@ -32,7 +32,7 @@ enum AudioDevices {
     }
 
     static func name(of uid: String?) -> String {
-        guard let uid, !uid.isEmpty else { return AVCaptureDevice.default(for: .audio)?.localizedName ?? "по умолчанию" }
+        guard let uid, !uid.isEmpty else { return AVCaptureDevice.default(for: .audio)?.localizedName ?? String(localized: "по умолчанию") }
         return AVCaptureDevice(uniqueID: uid)?.localizedName ?? uid
     }
 

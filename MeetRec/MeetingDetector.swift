@@ -22,40 +22,52 @@ struct MeetingApp: Identifiable, Hashable {
 
     static let all: [MeetingApp] = [
         MeetingApp(id: "teams", name: "Microsoft Teams", bundlePrefixes: ["com.microsoft.teams2", "com.microsoft.teams"], supported: true),
-        MeetingApp(id: "zoom", name: "Zoom", bundlePrefixes: ["us.zoom.xos"], supported: false, note: "скоро"),
+        MeetingApp(id: "zoom", name: "Zoom", bundlePrefixes: ["us.zoom.xos"], supported: false, note: String(localized: "скоро")),
         MeetingApp(id: "telegram", name: "Telegram", bundlePrefixes: ["ru.keepcoder.Telegram", "org.telegram.desktop"], supported: true,
                    asks: true, startAfter: 15),
         // Calls in a browser (Google Meet, Teams web, Zoom web…). Chromium browsers capture audio in
         // helper processes, Safari in the WebKit GPU process; prefixes cover both.
-        MeetingApp(id: "browser", name: "Браузер",
+        MeetingApp(id: "browser", name: String(localized: "Браузер"),
                    bundlePrefixes: ["com.google.Chrome", "com.apple.Safari", "com.apple.WebKit.GPU", "company.thebrowser.Browser",
                                     "com.microsoft.edgemac", "org.mozilla.firefox", "ru.yandex.desktop.yandex-browser",
                                     "com.brave.Browser", "com.operasoftware.Opera", "com.vivaldi.Vivaldi"],
                    supported: true, asks: true, startAfter: 10),
-        MeetingApp(id: "slack", name: "Slack", bundlePrefixes: ["com.tinyspeck.slackmacgap"], supported: false, note: "скоро"),
-        MeetingApp(id: "webex", name: "Webex", bundlePrefixes: ["Cisco-Systems.Spark"], supported: false, note: "скоро"),
-        MeetingApp(id: "facetime", name: "FaceTime", bundlePrefixes: ["com.apple.FaceTime"], supported: false, note: "скоро"),
-        MeetingApp(id: "discord", name: "Discord", bundlePrefixes: ["com.hnc.Discord"], supported: false, note: "скоро"),
+        MeetingApp(id: "slack", name: "Slack", bundlePrefixes: ["com.tinyspeck.slackmacgap"], supported: false, note: String(localized: "скоро")),
+        MeetingApp(id: "webex", name: "Webex", bundlePrefixes: ["Cisco-Systems.Spark"], supported: false, note: String(localized: "скоро")),
+        MeetingApp(id: "facetime", name: "FaceTime", bundlePrefixes: ["com.apple.FaceTime"], supported: false, note: String(localized: "скоро")),
+        MeetingApp(id: "discord", name: "Discord", bundlePrefixes: ["com.hnc.Discord"], supported: false, note: String(localized: "скоро")),
     ]
 
     /// Where the call is, for messages: "в Teams", "в браузере", "в Telegram".
     var place: String {
         switch id {
         case "teams": return "Teams"
-        case "browser": return "браузере"
+        case "browser": return String(localized: "браузере", comment: "Where a call is: «в браузере» (in the browser)")
         default: return name
         }
     }
 
     /// "встреча" for Teams, "звонок" for browsers and Telegram: one word per app, everywhere.
-    var noun: String { asks ? "звонок" : "встреча" }
+    var noun: String { asks ? String(localized: "звонок") : String(localized: "встреча") }
 
     /// "Похоже, идёт звонок в браузере" / "Идёт встреча в Teams, запись не ведётся".
     func promptTitle(reminder: Bool) -> String {
-        reminder ? "Идёт \(noun) в \(place), запись не ведётся" : "Похоже, идёт \(noun) в \(place)"
+        if id == "browser" {
+            return reminder ? String(localized: "Идёт звонок в браузере, запись не ведётся")
+                            : String(localized: "Похоже, идёт звонок в браузере")
+        }
+        if asks {
+            return reminder ? String(localized: "Идёт звонок в \(place), запись не ведётся")
+                            : String(localized: "Похоже, идёт звонок в \(place)")
+        }
+        return reminder ? String(localized: "Идёт встреча в \(place), запись не ведётся")
+                        : String(localized: "Похоже, идёт встреча в \(place)")
     }
 
-    var promptDetail: String { "Записать? Запись остановится сама, когда \(noun) закончится." }
+    var promptDetail: String {
+        asks ? String(localized: "Записать? Запись остановится сама, когда звонок закончится.")
+             : String(localized: "Записать? Запись остановится сама, когда встреча закончится.")
+    }
 
     var icon: String { id == "browser" ? "globe" : (id == "teams" ? "person.2.fill" : "phone.fill") }
 
@@ -172,11 +184,13 @@ final class MeetingDetector {
                     onPending(nil)
                     onMeetingStarted?(holding)
                 } else {
-                    onStatus?("\(Self.shortName(holding)) взял микрофон · \(Int(held)) с")
+                    onStatus?(String(localized: "\(Self.shortName(holding)) взял микрофон · \(Int(held)) с"))
                 }
             }
-            if meetingApp != nil {
-                onStatus?("Идёт \(meetingApp!.asks ? "звонок" : "встреча") в \(meetingApp!.place)")
+            if let app = meetingApp {
+                onStatus?(app.id == "browser" ? String(localized: "Идёт звонок в браузере")
+                          : app.asks ? String(localized: "Идёт звонок в \(app.place)")
+                          : String(localized: "Идёт встреча в \(app.place)"))
             }
         } else {
             if let app = activeApp {
@@ -194,7 +208,7 @@ final class MeetingDetector {
                     kept = true
                     Log.info("\(meeting.name): microphone off, but the call tab is still open; the call goes on", "meetings")
                 }
-                onStatus?("Микрофон выключен · вкладка звонка открыта")
+                onStatus?(String(localized: "Микрофон выключен · вкладка звонка открыта"))
             } else if let meeting = meetingApp {
                 if kept {
                     kept = false
@@ -211,12 +225,12 @@ final class MeetingDetector {
                     inactiveSince = nil
                     onEnding(nil)
                     onMeetingEnded?(meeting)
-                    onStatus?("Жду встречу")
+                    onStatus?(String(localized: "Жду встречу"))
                 } else {
-                    onStatus?("\(Self.shortName(meeting)) отпустил микрофон · стоп через \(Int(Self.endAfter - released)) с")
+                    onStatus?(String(localized: "\(Self.shortName(meeting)) отпустил микрофон · стоп через \(Int(Self.endAfter - released)) с"))
                 }
             } else {
-                onStatus?("Жду встречу")
+                onStatus?(String(localized: "Жду встречу"))
             }
         }
     }

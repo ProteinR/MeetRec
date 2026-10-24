@@ -71,11 +71,6 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertEqual(outside, CGRect(x: 0.75, y: 0, width: 0.25, height: 0.5))
     }
 
-    func testLineWord() {
-        XCTAssertEqual([1, 2, 5, 11, 21, 22, 25, 112].map(Screenshotter.lineWord),
-                       ["строка", "строки", "строк", "строк", "строка", "строки", "строк", "строк"])
-    }
-
     func testSaveKeepsScaleAndTimestampName() throws {
         let date = ISO8601DateFormatter().date(from: "2026-10-16T10:03:22Z")!
         let shot = try image(width: 40, height: 20)

@@ -53,7 +53,7 @@ final class Screenshotter: ObservableObject {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Выбрать"
+        panel.prompt = String(localized: "Выбрать")
         panel.directoryURL = folderURL
         NSApp.activate()
         if panel.runModal() == .OK, let url = panel.url {
@@ -93,7 +93,7 @@ final class Screenshotter: ObservableObject {
             } catch {
                 freezing = false
                 Log.error("Screen capture failed: \(Log.describe(error))", "screenshots")
-                RecorderModel.shared.showToast(Toast(kind: .screenshot, title: "Не удалось снять экран",
+                RecorderModel.shared.showToast(Toast(kind: .screenshot, title: String(localized: "Не удалось снять экран"),
                                                      detail: error.localizedDescription))
                 return
             }
@@ -150,9 +150,10 @@ final class Screenshotter: ObservableObject {
                  + (copy || saved == nil ? ", copied" : "") + (saved.map { ", saved: \($0.lastPathComponent)" } ?? ""), "screenshots")
         guard showToast else { return }
         // Says it is in the clipboard already, so there is no urge to copy it again.
-        let title = copy && saved != nil ? "Скопирован и сохранён" : copy || saved == nil ? "Скриншот скопирован" : "Скриншот сохранён"
-        let detail = saved != nil ? "Папка «\(folderURL.lastPathComponent)»"
-            : (saveToFolder ? "В папку сохранить не удалось" : nil)
+        let title = copy && saved != nil ? String(localized: "Скопирован и сохранён")
+            : copy || saved == nil ? String(localized: "Скриншот скопирован") : String(localized: "Скриншот сохранён")
+        let detail = saved != nil ? String(localized: "Папка «\(folderURL.lastPathComponent)»")
+            : (saveToFolder ? String(localized: "В папку сохранить не удалось") : nil)
         // Something to drag out of the toast even when nothing was saved.
         let dragFile = saved ?? ScreenshotFiles.dragCopy(image, scale: scale)
         // A small copy: the toast shows 72×48 points, no need to keep the full picture for it.
@@ -183,23 +184,17 @@ final class Screenshotter: ObservableObject {
         let lines = text.split(separator: "\n").count
         guard !text.isEmpty else {
             Log.info("OCR found no text in \(name)", "screenshots")
-            RecorderModel.shared.showToast(Toast(kind: .screenshot, title: "Текст не найден"))
-            return "Текст не найден"
+            let none = String(localized: "Текст не найден")
+            RecorderModel.shared.showToast(Toast(kind: .screenshot, title: none))
+            return none
         }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         Log.info("OCR: \(lines) lines, \(text.count) characters copied from \(name)", "screenshots")
-        let title = "Текст скопирован · \(lines) \(Self.lineWord(lines))"
+        let title = String(localized: "Текст скопирован · \(lines) строк")
         RecorderModel.shared.showToast(Toast(kind: .screenshot, title: title,
                                              detail: String(text.prefix(80)).replacingOccurrences(of: "\n", with: " ")))
         return title
-    }
-
-    static func lineWord(_ count: Int) -> String {
-        let mod10 = count % 10, mod100 = count % 100
-        if mod10 == 1 && mod100 != 11 { return "строка" }
-        if (2...4).contains(mod10) && !(12...14).contains(mod100) { return "строки" }
-        return "строк"
     }
 
     func trash(_ url: URL) {

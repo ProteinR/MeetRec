@@ -13,7 +13,7 @@ struct RecordButton: View {
     @State private var ripple = false
 
     private var title: String {
-        isRecording ? (isBusy ? "Сохраняю запись…" : "Остановить запись") : "Начать запись"
+        isRecording ? (isBusy ? String(localized: "Сохраняю запись…") : String(localized: "Остановить запись")) : String(localized: "Начать запись")
     }
 
     private static let startColor = Color(red: 0.96, green: 0.26, blue: 0.27)

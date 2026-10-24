@@ -7,7 +7,7 @@ extension RecorderModel {
 
     func handleNotificationAction(_ action: String) {
         if action == "pause-stop" {
-            stop(reason: "остановлена на паузе")
+            stop(reason: String(localized: "остановлена на паузе"))
         } else if action == "pause-resume" {
             resume()
         } else if action == "pause-keep" {

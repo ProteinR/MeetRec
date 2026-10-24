@@ -24,7 +24,7 @@ final class ScreenshotEditor: NSObject, NSWindowDelegate {
             return
         }
         guard let loaded = ScreenshotFiles.load(url) else {
-            RecorderModel.shared.showToast(Toast(kind: .screenshot, title: "Скриншот не открылся", detail: url.lastPathComponent))
+            RecorderModel.shared.showToast(Toast(kind: .screenshot, title: String(localized: "Скриншот не открылся"), detail: url.lastPathComponent))
             return
         }
         let editor = ScreenshotEditor(document: EditorDocument(url: url, image: loaded.image, scale: loaded.scale,

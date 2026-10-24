@@ -81,8 +81,8 @@ extension RecorderModel {
         if !pauseNoticeSent, paused >= Self.pauseNoticeAfter {
             pauseNoticeSent = true
             Log.info("Pause reminder: \(Int(paused / 60)) min", "alerts")
-            Notifier.shared.send(id: "meetrec-paused", title: "Запись на паузе \(Int(paused / 60)) минут",
-                                 body: "Ничего не записывается. Нажмите, чтобы открыть MeetRec и снять с паузы.", silent: true)
+            Notifier.shared.send(id: "meetrec-paused", title: String(localized: "Запись на паузе \(Int(paused / 60)) минут"),
+                                 body: String(localized: "Ничего не записывается. Нажмите, чтобы открыть MeetRec и снять с паузы."), silent: true)
         }
         let due = Int(paused / Self.pauseQuestionEvery)
         if due > pauseQuestionsSent {
@@ -90,11 +90,11 @@ extension RecorderModel {
             let minutes = Int(paused / 60)
             Log.info("Pause question: \(minutes) min", "alerts")
             Notifier.shared.remove(id: "meetrec-paused")
-            Notifier.shared.send(id: "meetrec-pause-question", title: "Запись на паузе уже \(minutes) минут",
-                                 body: "Сохранить её, продолжить запись или оставить на паузе?",
-                                 actions: [Notifier.Action(id: "pause-stop", title: "Сохранить и остановить"),
-                                           Notifier.Action(id: "pause-resume", title: "Снять с паузы"),
-                                           Notifier.Action(id: "pause-keep", title: "Оставить на паузе")],
+            Notifier.shared.send(id: "meetrec-pause-question", title: String(localized: "Запись на паузе уже \(minutes) минут"),
+                                 body: String(localized: "Сохранить её, продолжить запись или оставить на паузе?"),
+                                 actions: [Notifier.Action(id: "pause-stop", title: String(localized: "Сохранить и остановить")),
+                                           Notifier.Action(id: "pause-resume", title: String(localized: "Снять с паузы")),
+                                           Notifier.Action(id: "pause-keep", title: String(localized: "Оставить на паузе"))],
                                  silent: true)
         }
     }

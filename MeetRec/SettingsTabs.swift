@@ -10,9 +10,9 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .recording: "Запись"
-        case .screenshots: "Скриншоты"
-        case .shortcuts: "Клавиши"
+        case .recording: String(localized: "Запись")
+        case .screenshots: String(localized: "Скриншоты")
+        case .shortcuts: String(localized: "Клавиши")
         }
     }
 

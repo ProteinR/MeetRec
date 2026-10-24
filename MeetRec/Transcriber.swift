@@ -63,7 +63,7 @@ final class Transcriber: ObservableObject {
         loadKnownSpeakers()
         migrateCopyRules()
         if myName.isEmpty {
-            myName = NSFullUserName().split(separator: " ").first.map(String.init) ?? "Я"
+            myName = NSFullUserName().split(separator: " ").first.map(String.init) ?? String(localized: "Я")
         }
         refreshModels()
     }
@@ -80,7 +80,7 @@ final class Transcriber: ObservableObject {
 
     func downloadModels() {
         guard modelsState != .ready, job == .idle || isFailed else { return }
-        modelsState = .downloading("Подготовка окружения…")
+        modelsState = .downloading(String(localized: "Подготовка окружения…"))
         Log.info("Model download started", "transcribe")
         Task {
             let result = await runScript(["download"]) { [weak self] event in
@@ -107,7 +107,7 @@ final class Transcriber: ObservableObject {
         guard transcribeAfterRecording, !Profiling.isActive else { return }
         guard modelsState == .ready else {
             Log.warning("Auto-transcription skipped for \(file.lastPathComponent): models not downloaded", "transcribe")
-            job = .failed("Модели не скачаны — транскрибация пропущена")
+            job = .failed(String(localized: "Модели не скачаны — транскрибация пропущена"))
             return
         }
         enqueue(file)
@@ -157,7 +157,7 @@ final class Transcriber: ObservableObject {
         guard !queue.isEmpty else { return }
         let file = queue.removeFirst()
         let output = Self.transcriptURL(for: file)
-        job = .running(file: file, phase: "Запуск…", startedAt: Date())
+        job = .running(file: file, phase: String(localized: "Запуск…"), startedAt: Date())
         progress = nil
         var stageProgress: [String: Double] = [:]
         let useDiarization = diarization
@@ -274,8 +274,8 @@ final class Transcriber: ObservableObject {
                 Log.info("Transcript copied: \(transcript.path) → \(destination.path)", "transcribe")
             } catch {
                 Log.warning("Transcript copy to \(destination.path) failed: \(Log.describe(error))", "transcribe")
-                Notifier.shared.send(id: "meetrec-copy-failed", title: "Транскрипт встречи не скопирован",
-                                     body: "Не удалось скопировать в «\(folder.lastPathComponent)»: \(error.localizedDescription). Он лежит рядом с видео.")
+                Notifier.shared.send(id: "meetrec-copy-failed", title: String(localized: "Транскрипт встречи не скопирован"),
+                                     body: String(localized: "Не удалось скопировать в «\(folder.lastPathComponent)»: \(error.localizedDescription). Он лежит рядом с видео."))
             }
         }
     }
@@ -305,12 +305,13 @@ final class Transcriber: ObservableObject {
 
     private static func describe(done event: [String: Any]) -> String {
         var parts: [String] = []
-        if let lines = event["lines"] as? Int { parts.append("\(lines) реплик") }
-        if let language = event["language"] as? String { parts.append("язык \(language)") }
-        if let seconds = event["seconds"] as? Int { parts.append("за \(seconds) с") }
+        if let lines = event["lines"] as? Int { parts.append(String(localized: "\(lines) реплик")) }
+        if let language = event["language"] as? String { parts.append(String(localized: "язык \(language)")) }
+        if let seconds = event["seconds"] as? Int { parts.append(String(localized: "за \(seconds) с")) }
         if let speakers = event["speakers"] as? [[String: Any]], !speakers.isEmpty {
             let names = speakers.compactMap { $0["name"] as? String }
-            parts.append("говорили: " + Array(NSOrderedSet(array: names)).compactMap { $0 as? String }.joined(separator: ", "))
+            let list = Array(NSOrderedSet(array: names)).compactMap { $0 as? String }.joined(separator: ", ")
+            parts.append(String(localized: "говорили: \(list)"))
         }
         return parts.joined(separator: " · ")
     }
@@ -320,14 +321,14 @@ final class Transcriber: ObservableObject {
     func enrollSample(_ wav: URL) async -> Bool {
         let name = myName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else {
-            enrollMessage = "Укажите своё имя"
+            enrollMessage = String(localized: "Укажите своё имя")
             return false
         }
         guard modelsState == .ready else {
-            enrollMessage = "Сначала скачайте модели"
+            enrollMessage = String(localized: "Сначала скачайте модели")
             return false
         }
-        enrollMessage = "Анализ образца…"
+        enrollMessage = String(localized: "Анализ образца…")
         Log.info("Enrolling voice sample for \(name): \(wav.path)", "transcribe")
         var samples: Int?
         let result = await runScript(["enroll-sample", wav.path, "--name", name, "--speakers", speakersFile.path]) { event in
@@ -336,7 +337,7 @@ final class Transcriber: ObservableObject {
         loadSpeakers()
         switch result {
         case .success:
-            enrollMessage = "Голос сохранён (\(samples ?? speakerSamples[name] ?? 1) образц.)"
+            enrollMessage = String(localized: "Голос сохранён (\(samples ?? speakerSamples[name] ?? 1) образц.)")
             Log.info("Voice sample enrolled for \(name): \(samples ?? 0) sample(s)", "transcribe")
             return true
         case .failure(let message):
@@ -390,10 +391,10 @@ final class Transcriber: ObservableObject {
     /// Runs the helper and forwards its JSON events to `onEvent` on the main actor. stderr goes to the log.
     private func runScript(_ arguments: [String], onEvent: @escaping ([String: Any]) -> Void) async -> ScriptResult {
         guard let uv = Self.findUV() else {
-            return .failure("Не найден uv. Установите: brew install uv")
+            return .failure(String(localized: "Не найден uv. Установите: brew install uv"))
         }
         guard let script = Bundle.main.url(forResource: "transcribe", withExtension: "py") else {
-            return .failure("transcribe.py не найден в приложении")
+            return .failure(String(localized: "transcribe.py не найден в приложении"))
         }
 
         let process = Process()
@@ -406,6 +407,8 @@ final class Transcriber: ObservableObject {
         environment["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
         environment["PYTHONUNBUFFERED"] = "1"
         environment["TOKENIZERS_PARALLELISM"] = "false"
+        // The helper's messages and the marker lines in the transcript follow the app's language.
+        environment["MEETREC_LANGUAGE"] = Bundle.main.preferredLocalizations.first ?? "ru"
         process.environment = environment
         process.currentDirectoryURL = stateDir
 
@@ -459,8 +462,8 @@ final class Transcriber: ObservableObject {
         Log.info("Helper exited with status \(status) (\(process.terminationReason == .uncaughtSignal ? "signal" : "exit"))", "transcribe")
 
         if status == 0 { return .success }
-        if process.terminationReason == .uncaughtSignal { return .failure("Отменено") }
-        return .failure(collector.errorMessage ?? collector.lastStderr ?? "Ошибка помощника (код \(status))")
+        if process.terminationReason == .uncaughtSignal { return .failure(String(localized: "Отменено")) }
+        return .failure(collector.errorMessage ?? collector.lastStderr ?? String(localized: "Ошибка помощника (код \(status))"))
     }
 }
 

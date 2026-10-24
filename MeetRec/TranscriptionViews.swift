@@ -19,9 +19,9 @@ struct TranscriptionSettings: View {
             }
             Picker("Язык", selection: $transcriber.language) {
                 Text("Определять автоматически").tag("")
-                Text("English").tag("en")
-                Text("Русский").tag("ru")
-                Text("Deutsch").tag("de")
+                Text(verbatim: "English").tag("en")
+                Text(verbatim: "Русский").tag("ru")
+                Text(verbatim: "Deutsch").tag("de")
             }
             meetingsFolder
             if transcriber.diarization {
@@ -72,8 +72,8 @@ struct TranscriptionSettings: View {
             }
             let samples = transcriber.speakerSamples[transcriber.myName] ?? 0
             Text(samples > 0
-                 ? "Мой голос: \(samples) образц. — буду подписан как «\(transcriber.myName)»"
-                 : "Образца голоса нет — я буду «Speaker N»")
+                 ? String(localized: "Мой голос: \(samples) образц. — буду подписан как «\(transcriber.myName)»")
+                 : String(localized: "Образца голоса нет — я буду «Speaker N»"))
                 .font(.caption)
                 .foregroundStyle(samples > 0 ? .green : .secondary)
             if sampleRecorder.isRecording {
@@ -83,11 +83,11 @@ struct TranscriptionSettings: View {
                     Button("Отмена") { sampleRecorder.cancel() }
                 }
             } else {
-                Button(samples > 0 ? "Записать ещё образец (20 с)" : "Записать образец голоса (20 с)") {
+                Button(samples > 0 ? String(localized: "Записать ещё образец (20 с)") : String(localized: "Записать образец голоса (20 с)")) {
                     transcriber.setEnrollMessage(nil)
                     sampleRecorder.start { url in
                         guard let url else {
-                            transcriber.setEnrollMessage("Запись образца не удалась")
+                            transcriber.setEnrollMessage(String(localized: "Запись образца не удалась"))
                             return
                         }
                         Task { _ = await transcriber.enrollSample(url) }
@@ -121,9 +121,9 @@ struct CopyRulesEditor: View {
 
     /// Apps, then browser rules ("Skyeng (браузер)"): each can have its own folder.
     private var sources: [(key: String, title: String)] {
-        apps.map { ($0.id, $0.id == "browser" ? "Браузер (все)" : $0.name.replacingOccurrences(of: "Microsoft ", with: "")) }
+        apps.map { ($0.id, $0.id == "browser" ? String(localized: "Браузер (все)") : $0.name.replacingOccurrences(of: "Microsoft ", with: "")) }
             + model.browserRules.filter { !$0.keyword.isEmpty }.map { rule in
-                (CopyRule.ruleKey(rule.id.uuidString), "\(rule.title.isEmpty ? rule.keyword : rule.title) (браузер)")
+                (CopyRule.ruleKey(rule.id.uuidString), String(localized: "\(rule.title.isEmpty ? rule.keyword : rule.title) (браузер)"))
             }
     }
 
@@ -143,12 +143,12 @@ struct CopyRulesEditor: View {
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "folder")
-                            Text(rule.folder.isEmpty ? "Выбрать папку…" : URL(fileURLWithPath: rule.folder).lastPathComponent)
+                            Text(rule.folder.isEmpty ? String(localized: "Выбрать папку…") : URL(fileURLWithPath: rule.folder).lastPathComponent)
                                 .lineLimit(1).truncationMode(.middle)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .help(rule.folder.isEmpty ? "Куда копировать" : rule.folder)
+                    .help(rule.folder.isEmpty ? String(localized: "Куда копировать") : rule.folder)
                     Button {
                         transcriber.copyRules.removeAll { $0.id == rule.id }
                     } label: {
@@ -163,7 +163,7 @@ struct CopyRulesEditor: View {
                 let app = apps.first { !used.contains($0.id) }?.id ?? "teams"
                 transcriber.copyRules.append(CopyRule(app: app, folder: ""))
             } label: {
-                Label(transcriber.copyRules.isEmpty ? "Добавить приложение" : "Добавить ещё", systemImage: "plus.circle.fill")
+                Label(transcriber.copyRules.isEmpty ? String(localized: "Добавить приложение") : String(localized: "Добавить ещё"), systemImage: "plus.circle.fill")
             }
             .buttonStyle(.borderless)
             Text("Для записей встреч (начатых автоматически или по вопросу о звонке) длиннее \(Int(Transcriber.minimumMeetingDuration / 60)) мин. Транскрипт остаётся и рядом с видео; файл в папке никогда не перезаписывается.")

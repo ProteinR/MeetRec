@@ -19,7 +19,7 @@ extension RecorderModel {
                 clearMeetingWindowProblem()
                 Log.info("Recording switched to display \(displayID) \"\(name)\"")
             } catch {
-                errorMessage = "Не удалось переключить монитор: \(error.localizedDescription)"
+                errorMessage = String(localized: "Не удалось переключить монитор: \(error.localizedDescription)")
                 Log.error("Switching display failed: \(Log.describe(error))")
             }
         }
@@ -45,7 +45,7 @@ extension RecorderModel {
             do {
                 let displayName = try await recorder.setTarget(windowID: window?.id)
                 captureWindow = window
-                healthTracker?.displayName = window.map { "окно \($0.appName)" } ?? displayName
+                healthTracker?.displayName = window.map { String(localized: "окно \($0.appName)") } ?? displayName
                 if let window {
                     lastWindowCheck = Date()
                     updateMeetingTitle(force: true)
@@ -54,7 +54,7 @@ extension RecorderModel {
                     Log.info("Recording whole display again")
                 }
             } catch {
-                errorMessage = "Не удалось переключить запись: \(error.localizedDescription)"
+                errorMessage = String(localized: "Не удалось переключить запись: \(error.localizedDescription)")
                 Log.error("Switching capture target failed: \(Log.describe(error))")
             }
         }
@@ -66,8 +66,8 @@ extension RecorderModel {
         Log.warning("Recorded window \(window.id) (\(window.label)) closed; recording the whole display \(displayName)")
         captureWindow = nil
         healthTracker?.displayName = displayName
-        Notifier.shared.send(id: "meetrec-window-gone", title: "Окно закрыто",
-                             body: "«\(window.label)» больше нет — записывается весь экран.", silent: true)
+        Notifier.shared.send(id: "meetrec-window-gone", title: String(localized: "Окно закрыто"),
+                             body: String(localized: "«\(window.label)» больше нет — записывается весь экран."), silent: true)
     }
 
     /// If the recorded window was closed, falls back to the whole display so nothing is lost.
@@ -76,8 +76,8 @@ extension RecorderModel {
         lastWindowCheck = Date()
         guard !MeetingTitle.exists(window.id) else { return }
         Log.warning("Recorded window \(window.id) (\(window.label)) is gone, switching back to the whole display")
-        Notifier.shared.send(id: "meetrec-window-gone", title: "Окно закрыто",
-                             body: "«\(window.label)» больше нет — записывается весь экран.")
+        Notifier.shared.send(id: "meetrec-window-gone", title: String(localized: "Окно закрыто"),
+                             body: String(localized: "«\(window.label)» больше нет — записывается весь экран."))
         record(window: nil)
     }
 }

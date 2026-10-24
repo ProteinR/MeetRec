@@ -53,10 +53,10 @@ enum RecorderError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .displayNotFound: return "Монитор не найден"
-        case .windowNotFound: return "Окно не найдено — возможно, оно закрыто"
-        case .notRecording: return "Запись не идёт"
-        case .writer(let message): return "Не удалось начать запись: \(message)"
+        case .displayNotFound: return String(localized: "Монитор не найден")
+        case .windowNotFound: return String(localized: "Окно не найдено — возможно, оно закрыто")
+        case .notRecording: return String(localized: "Запись не идёт")
+        case .writer(let message): return String(localized: "Не удалось начать запись: \(message)")
         }
     }
 }

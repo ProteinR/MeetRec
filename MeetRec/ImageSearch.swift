@@ -30,7 +30,7 @@ enum ImageSearchError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unexpectedResponse(let detail): return "Сервис ответил не так, как ожидалось (\(detail))"
+        case .unexpectedResponse(let detail): return String(localized: "Сервис ответил не так, как ожидалось (\(detail))")
         }
     }
 }
@@ -42,7 +42,7 @@ enum ImageSearch {
         GoogleLensSearch(), YandexImageSearch(), TinEyeSearch(),
         // Bing's upload needs a token signed for its own page.
         PasteOnPageSearch(id: "bing", name: "Bing", iconName: "BingLogo", page: "https://www.bing.com/images?FORM=SBIIDP",
-                          hint: "Нажмите на камеру в поиске Bing и вставьте его: ⌘V или перетащите"),
+                          hint: String(localized: "Нажмите на камеру в поиске Bing и вставьте его: ⌘V или перетащите")),
         PasteOnPageSearch(id: "pimeyes", name: "PimEyes", iconName: "PimEyesLogo", page: "https://pimeyes.com/en"),
         PasteOnPageSearch(id: "facecheck", name: "FaceCheck.ID", iconName: "FaceCheckLogo", page: "https://facecheck.id/"),
         PasteOnPageSearch(id: "search4faces", name: "Search4faces", iconName: "Search4facesLogo",
@@ -76,7 +76,7 @@ enum ImageSearch {
             ScreenshotFiles.copy(picture, scale: scale)
             NSWorkspace.shared.open(page)
             Log.info("Image search in \(provider.name): \(name) copied, upload page opened", "screenshots")
-            RecorderModel.shared.showToast(Toast(kind: .screenshot, title: "Снимок в буфере обмена",
+            RecorderModel.shared.showToast(Toast(kind: .screenshot, title: String(localized: "Снимок в буфере обмена"),
                                                  detail: hint))
         case .upload(let resultsPage):
             guard let png = uploadPNG(picture) else { return }
@@ -93,7 +93,7 @@ enum ImageSearch {
 
     private static func uploadAndOpen(_ png: Data, name: String, provider: any ImageSearchProvider,
                                       resultsPage: @escaping (Data) async throws -> URL) {
-        RecorderModel.shared.showToast(Toast(kind: .screenshot, title: "Ищу в \(provider.name)…"))
+        RecorderModel.shared.showToast(Toast(kind: .screenshot, title: String(localized: "Ищу в \(provider.name)…")))
         Task {
             let started = Date()
             do {
@@ -104,7 +104,7 @@ enum ImageSearch {
                 NSWorkspace.shared.open(page)
             } catch {
                 Log.warning("Image search in \(provider.name) failed for \(name): \(Log.describe(error))", "screenshots")
-                RecorderModel.shared.showToast(Toast(kind: .screenshot, title: "Не удалось найти в \(provider.name)",
+                RecorderModel.shared.showToast(Toast(kind: .screenshot, title: String(localized: "Не удалось найти в \(provider.name)"),
                                                      detail: error.localizedDescription))
             }
         }
@@ -126,7 +126,7 @@ enum ImageSearch {
                      + (browser?.deletingPathExtension().lastPathComponent ?? "the default app"), "screenshots")
         } catch {
             Log.warning("Image search in \(provider.name) failed for \(name): \(Log.describe(error))", "screenshots")
-            RecorderModel.shared.showToast(Toast(kind: .screenshot, title: "Не удалось найти в \(provider.name)",
+            RecorderModel.shared.showToast(Toast(kind: .screenshot, title: String(localized: "Не удалось найти в \(provider.name)"),
                                                  detail: error.localizedDescription))
         }
     }
@@ -182,7 +182,7 @@ enum ImageSearch {
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
                          forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.upload(for: request, from: body)
-        guard let http = response as? HTTPURLResponse else { throw ImageSearchError.unexpectedResponse("не HTTP") }
+        guard let http = response as? HTTPURLResponse else { throw ImageSearchError.unexpectedResponse(String(localized: "не HTTP")) }
         return (data, http)
     }
 }
@@ -208,7 +208,7 @@ struct GoogleLensSearch: ImageSearchProvider {
 /// Yandex Images: the upload returns the picture's id (`cbirId`) for the "search by image" page.
 struct YandexImageSearch: ImageSearchProvider {
     let id = "yandex"
-    let name = "Яндекс"
+    let name = String(localized: "Яндекс")
     var icon: NSImage { Self.mark }
     var method: ImageSearchMethod { .upload(resultsPage) }
 
@@ -286,6 +286,6 @@ struct PasteOnPageSearch: ImageSearchProvider {
 
     var icon: NSImage { NSImage(named: iconName) ?? NSImage() }
     var method: ImageSearchMethod {
-        .pasteOnPage(URL(string: page)!, hint: hint ?? "Вставьте его на странице \(name): ⌘V или перетащите")
+        .pasteOnPage(URL(string: page)!, hint: hint ?? String(localized: "Вставьте его на странице \(name): ⌘V или перетащите"))
     }
 }

@@ -28,8 +28,8 @@ struct ImageSearchButtons: View {
 
     static func tooltip(_ provider: any ImageSearchProvider) -> String {
         switch provider.method {
-        case .upload, .uploadInBrowser: return "Найти в \(provider.name): снимок отправится туда"
-        case .pasteOnPage: return "Найти в \(provider.name): снимок в буфер обмена, откроется сайт — вставьте его там"
+        case .upload, .uploadInBrowser: return String(localized: "Найти в \(provider.name): снимок отправится туда")
+        case .pasteOnPage: return String(localized: "Найти в \(provider.name): снимок в буфер обмена, откроется сайт — вставьте его там")
         }
     }
 }

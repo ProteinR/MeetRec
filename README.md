@@ -4,7 +4,9 @@ A small native macOS menu bar app that records meetings (screen, microphone and 
 audio), transcribes them locally and takes Shottr-style screenshots. Written to replace OBS, which
 was only ever used for "Start Recording" in calls.
 
-**The interface is in Russian.** English localization may come later; pull requests are welcome.
+**English and Russian.** MeetRec follows the system language; to pick one for MeetRec only, use
+System Settings → General → Language & Region → Applications. Translations to other languages are
+welcome (`MeetRec/Localizable.xcstrings`).
 
 [Русская версия ниже](#по-русски)
 

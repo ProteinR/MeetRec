@@ -22,8 +22,8 @@ enum SpeakerNaming {
         case noRun, noEmbedding(String)
         var errorDescription: String? {
             switch self {
-            case .noRun: return "Нет данных о голосах: транскрибируйте запись с разбивкой по ролям"
-            case .noEmbedding(let label): return "Нет отпечатка голоса для \(label)"
+            case .noRun: return String(localized: "Нет данных о голосах: транскрибируйте запись с разбивкой по ролям")
+            case .noEmbedding(let label): return String(localized: "Нет отпечатка голоса для \(label)")
             }
         }
     }

@@ -213,7 +213,7 @@ final class EditorDocument: ObservableObject {
         // What the frame shows is what is kept, as when it is applied by hand.
         applyPendingCrop()
         guard let result = render() else {
-            status = "Не удалось сохранить"
+            status = String(localized: "Не удалось сохранить")
             return false
         }
         do {
@@ -228,13 +228,13 @@ final class EditorDocument: ObservableObject {
                 }
             }
             dirty = false
-            status = "Сохранено"
+            status = String(localized: "Сохранено")
             Log.info("Screenshot edited and saved: \(url.lastPathComponent) (\(annotations.count) marks\(crop != nil ? ", cropped" : ""))", "screenshots")
             Screenshotter.shared.edited(url)
             return true
         } catch {
             Log.error("Screenshot not saved: \(Log.describe(error))", "screenshots")
-            status = "Не удалось сохранить"
+            status = String(localized: "Не удалось сохранить")
             return false
         }
     }
@@ -253,9 +253,9 @@ final class EditorDocument: ObservableObject {
         Log.info("Edited screenshot copied: \(url.lastPathComponent)", "screenshots")
         let hadChanges = dirty
         if dirty, !save() { return false }
-        status = "Скопировано"
-        RecorderModel.shared.showToast(Toast(kind: .screenshot, title: "Скриншот скопирован",
-                                             detail: hadChanges ? "Пометки сохранены в «\(url.lastPathComponent)»" : nil))
+        status = String(localized: "Скопировано")
+        RecorderModel.shared.showToast(Toast(kind: .screenshot, title: String(localized: "Скриншот скопирован"),
+                                             detail: hadChanges ? String(localized: "Пометки сохранены в «\(url.lastPathComponent)»") : nil))
         return true
     }
 
@@ -263,7 +263,7 @@ final class EditorDocument: ObservableObject {
     func recognize(region: CGRect?) {
         guard !recognizing else { return }
         recognizing = true
-        status = "Распознаю текст…"
+        status = String(localized: "Распознаю текст…")
         let image = image
         Task {
             let text = await ScreenshotFiles.recognizeText(in: image, region: region)

@@ -36,13 +36,13 @@ extension RecorderModel {
         guard let free = freeSpaceEstimate.check(exact: { DiskSpace.available(at: folder) },
                                                  plain: { DiskSpace.plain(at: folder) }) else { return }
         freeSpace = free
-        alert("disk-low", when: free < DiskSpace.warnBelow, title: "Мало места на диске",
-              body: "Свободно \(DiskSpace.format(free)). Запись остановится сама, если останется меньше \(DiskSpace.format(DiskSpace.stopBelow)).")
+        alert("disk-low", when: free < DiskSpace.warnBelow, title: String(localized: "Мало места на диске"),
+              body: String(localized: "Свободно \(DiskSpace.format(free)). Запись остановится сама, если останется меньше \(DiskSpace.format(DiskSpace.stopBelow))."))
         if free < DiskSpace.stopBelow {
             Log.error("Only \(DiskSpace.format(free)) free, stopping the recording to close the file safely")
-            Notifier.shared.send(id: "meetrec-disk-stop", title: "Запись остановлена: диск заполнен",
-                                 body: "Осталось \(DiskSpace.format(free)). Файл сохранён.")
-            stop(reason: "на диске осталось \(DiskSpace.format(free))")
+            Notifier.shared.send(id: "meetrec-disk-stop", title: String(localized: "Запись остановлена: диск заполнен"),
+                                 body: String(localized: "Осталось \(DiskSpace.format(free)). Файл сохранён."))
+            stop(reason: String(localized: "на диске осталось \(DiskSpace.format(free))"))
         }
     }
 
@@ -81,7 +81,7 @@ extension RecorderModel {
         let newHealth = tracker.update(with: recorder.snapshot(), micMuted: muted, freeSpace: freeSpace)
         healthTracker = tracker
         if let old = health {
-            logTransition(old.microphone, newHealth.microphone)
+            logTransition(old.microphone, newHealth.microphone, isMicrophone: true)
             logTransition(old.systemAudio, newHealth.systemAudio)
             logTransition(old.screen, newHealth.screen)
         }
@@ -111,25 +111,25 @@ extension RecorderModel {
     func checkAlerts(_ health: RecordingHealth) {
         let mic = recordingNames.microphone
         alert("mic-dead", when: microphone && health.microphone.state == .noSignal,
-              title: "Микрофон не передаёт сигнал",
-              body: "«\(mic)»: звук не приходит. Проверьте устройство или перезапустите запись.")
+              title: String(localized: "Микрофон не передаёт сигнал"),
+              body: String(localized: "«\(mic)»: звук не приходит. Проверьте устройство или перезапустите запись."))
         alert("system-dead", when: systemAudio && health.systemAudio.state == .noSignal,
-              title: "Звук системы не записывается",
-              body: "Сигнал звука системы пропал. Голоса собеседников могут не попасть в запись.")
+              title: String(localized: "Звук системы не записывается"),
+              body: String(localized: "Сигнал звука системы пропал. Голоса собеседников могут не попасть в запись."))
         alert("screen-dead", when: health.screen.state == .noSignal,
-              title: "Экран не записывается",
-              body: "Кадры не приходят: монитор отключён, заблокирован экран или Mac уснул.")
+              title: String(localized: "Экран не записывается"),
+              body: String(localized: "Кадры не приходят: монитор отключён, заблокирован экран или Mac уснул."))
         // Dead silence for a minute (not just listening): likely the wrong microphone. Once per recording.
         alert("mic-quiet", when: microphone && health.microphone.state != .noSignal
                 && health.micSilentFor >= Self.micSilenceAlertAfter, once: true,
-              title: "С микрофона не идёт звук",
-              body: "«\(mic)» молчит больше минуты, даже фонового шума нет. Возможно, выбран не тот микрофон.")
+              title: String(localized: "С микрофона не идёт звук"),
+              body: String(localized: "«\(mic)» молчит больше минуты, даже фонового шума нет. Возможно, выбран не тот микрофон."))
         alert("file-stalled", when: health.fileStalledFor >= HealthTracker.fileStalledAfter,
-              title: "Файл записи перестал расти",
-              body: "Данные не записываются уже \(Int(health.fileStalledFor)) с. Остановите и начните запись заново.")
+              title: String(localized: "Файл записи перестал расти"),
+              body: String(localized: "Данные не записываются уже \(Int(health.fileStalledFor)) с. Остановите и начните запись заново."))
         alert("screen-black", when: health.blackFor >= HealthTracker.blackAfter,
-              title: "В записи чёрный экран",
-              body: "Картинка полностью чёрная \(Int(health.blackFor)) с: экран заблокирован, монитор спит или выбран не тот монитор.")
+              title: String(localized: "В записи чёрный экран"),
+              body: String(localized: "Картинка полностью чёрная \(Int(health.blackFor)) с: экран заблокирован, монитор спит или выбран не тот монитор."))
         // Silence of the other side is normal while the user talks: shown in the panel, no alert.
     }
 
@@ -146,10 +146,10 @@ extension RecorderModel {
         }
     }
 
-    func logTransition(_ old: SignalHealth, _ new: SignalHealth) {
+    func logTransition(_ old: SignalHealth, _ new: SignalHealth, isMicrophone: Bool = false) {
         guard old.state != new.state else { return }
         let text = "\(new.title): \(old.state) → \(new.state) (\(new.detail))"
-        if new.state == .noSignal || (new.title == "Микрофон" && new.state == .quiet) {
+        if new.state == .noSignal || (isMicrophone && new.state == .quiet) {
             Log.warning(text, "health")
         } else {
             Log.info(text, "health")

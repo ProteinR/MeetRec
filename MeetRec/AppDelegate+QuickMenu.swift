@@ -14,23 +14,23 @@ extension AppDelegate {
             let key = action.flatMap { shortcuts.isEnabled($0) ? shortcuts.combo($0)?.menuKey : nil }
             return QuickMenuItem(title, key: key?.key ?? "", modifiers: key?.modifiers ?? []) { handler() }
         }
-        menu.addItem(item(model.isRecording ? "Остановить запись" : "Начать запись", .record) { model.toggle() })
+        menu.addItem(item(model.isRecording ? String(localized: "Остановить запись") : String(localized: "Начать запись"), .record) { model.toggle() })
         if model.isRecording && !model.isStopping {
-            menu.addItem(item(model.isPaused ? "Снять с паузы" : "Пауза", .pause) { model.togglePause() })
-            menu.addItem(item("Отметить момент", .marker) { model.addMarker() })
+            menu.addItem(item(model.isPaused ? String(localized: "Снять с паузы") : String(localized: "Пауза"), .pause) { model.togglePause() })
+            menu.addItem(item(String(localized: "Отметить момент"), .marker) { model.addMarker() })
         }
         if let last = model.lastFile {
             menu.addItem(.separator())
-            menu.addItem(.sectionHeader(title: "Последняя запись"))
-            menu.addItem(QuickMenuItem("Показать в Finder") { NSWorkspace.shared.activateFileViewerSelecting([last]) })
+            menu.addItem(.sectionHeader(title: String(localized: "Последняя запись")))
+            menu.addItem(QuickMenuItem(String(localized: "Показать в Finder")) { NSWorkspace.shared.activateFileViewerSelecting([last]) })
             let transcriber = Transcriber.shared
             if transcriber.runningFile == last {
                 let percent = transcriber.progress.map { " \(Int($0 * 100)) %" } ?? "…"
-                let running = QuickMenuItem("Транскрибация\(percent)") {}
+                let running = QuickMenuItem(String(localized: "Транскрибация\(percent)")) {}
                 running.isEnabled = false
                 menu.addItem(running)
             } else if let transcript = Transcriber.existingTranscript(for: last) {
-                menu.addItem(QuickMenuItem("Открыть транскрипт") { NSWorkspace.shared.open(transcript) })
+                menu.addItem(QuickMenuItem(String(localized: "Открыть транскрипт")) { NSWorkspace.shared.open(transcript) })
             }
         }
         menu.addItem(.separator())
@@ -41,12 +41,12 @@ extension AppDelegate {
             })
         }
         menu.addItem(.separator())
-        menu.addItem(QuickMenuItem(CameraMirror.shared.isShown ? "Закрыть зеркало" : "Как я выгляжу") { CameraMirror.shared.toggle() })
-        menu.addItem(QuickMenuItem("Настройки…", key: ",") { [weak self] in
+        menu.addItem(QuickMenuItem(CameraMirror.shared.isShown ? String(localized: "Закрыть зеркало") : String(localized: "Как я выгляжу")) { CameraMirror.shared.toggle() })
+        menu.addItem(QuickMenuItem(String(localized: "Настройки…"), key: ",") { [weak self] in
             self?.showPanel()
             model.requestSettings()
         })
-        let quit = QuickMenuItem("Завершить MeetRec", key: "q") { NSApp.terminate(nil) }
+        let quit = QuickMenuItem(String(localized: "Завершить MeetRec"), key: "q") { NSApp.terminate(nil) }
         quit.isEnabled = !model.isRecording
         menu.addItem(quit)
         menu.autoenablesItems = false

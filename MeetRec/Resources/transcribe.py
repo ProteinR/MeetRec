@@ -22,6 +22,7 @@ Commands:
 import argparse
 import json
 import math
+import os
 import re
 import subprocess
 import sys
@@ -36,6 +37,15 @@ DIARIZATION_MODEL = "pyannote/speaker-diarization-community-1"
 ENGINE = "mlx-whisper large-v3-turbo"
 SAMPLE_RATE = 16000
 DEFAULT_THRESHOLD = 0.7
+
+
+# MeetRec passes its UI language (MEETREC_LANGUAGE: "ru" or "en"); messages and the marker lines
+# in the transcript follow it. Russian when unset.
+ENGLISH = os.environ.get("MEETREC_LANGUAGE", "ru").startswith("en")
+
+
+def tr(russian, english):
+    return english if ENGLISH else russian
 
 
 def emit(event, **data):
@@ -140,7 +150,7 @@ def extract_audio(recording, wav):
     The mix MeetRec adds for players is not used: the raw tracks are mixed here without the gain."""
     streams = audio_streams(recording)
     if not streams:
-        fail("no_audio", "В записи нет звука")
+        fail("no_audio", tr("В записи нет звука", "The recording has no audio"))
     roles = stream_roles(streams)
     sources = [roles["microphone"], roles["system"]] if roles else list(range(len(streams)))
     command = ["ffmpeg", "-v", "error", "-y", "-i", str(recording), "-vn"]
@@ -431,11 +441,14 @@ def load_pipeline():
     except Exception as error:  # gated repo, missing token, network
         text = f"{type(error).__name__}: {error}"
         if "Gated" in text or "403" in text or "401" in text or "token" in text.lower():
-            fail("gated", "Нет доступа к модели pyannote: нужен вход в Hugging Face и принятые условия модели "
-                          "pyannote/speaker-diarization-community-1")
+            fail("gated", tr("Нет доступа к модели pyannote: нужен вход в Hugging Face и принятые условия модели "
+                             "pyannote/speaker-diarization-community-1",
+                             "No access to the pyannote model: log in to Hugging Face and accept the conditions of "
+                             "pyannote/speaker-diarization-community-1"))
         raise
     if pipeline is None:
-        fail("gated", "Модель pyannote не загрузилась: проверьте токен Hugging Face")
+        fail("gated", tr("Модель pyannote не загрузилась: проверьте токен Hugging Face",
+                         "The pyannote model did not load: check your Hugging Face token"))
     if torch.backends.mps.is_available():
         pipeline.to(torch.device("mps"))
     return pipeline
@@ -756,8 +769,10 @@ def marker_line(marker):
     time, note = marker if isinstance(marker, tuple) else (marker, None)
     if isinstance(note, tuple) and note[0] == "mute":
         until = f"–{format_time(note[1])}" if note[1] is not None else ""
-        return f"🔇 [{format_time(time)}{until}] Микрофон выключен"
-    return f"⏸ [{format_time(time)}] {PAUSE_NOTE}" if note == PAUSE_NOTE else f"⭐ [{format_time(time)}] Отметка"
+        return f"🔇 [{format_time(time)}{until}] {tr('Микрофон выключен', 'Microphone muted')}"
+    if note == PAUSE_NOTE:
+        return f"⏸ [{format_time(time)}] {tr(PAUSE_NOTE, 'Pause')}"
+    return f"⭐ [{format_time(time)}] {tr('Отметка', 'Marker')}"
 
 
 def insert_markers(timed_lines, markers):
@@ -779,26 +794,26 @@ def insert_markers(timed_lines, markers):
 def download(args):
     from huggingface_hub import snapshot_download
 
-    emit("phase", name="Скачивание модели распознавания речи")
+    emit("phase", name=tr("Скачивание модели распознавания речи", "Downloading the speech recognition model"))
     t0 = time.time()
     snapshot_download(ASR_MODEL)
     log(f"ASR model ready in {time.time() - t0:.0f}s")
-    emit("phase", name="Скачивание модели разбивки по ролям")
+    emit("phase", name=tr("Скачивание модели разбивки по ролям", "Downloading the speaker diarization model"))
     t0 = time.time()
     load_pipeline()
     log(f"Diarization model ready in {time.time() - t0:.0f}s")
-    emit("done", message="Модели готовы")
+    emit("done", message=tr("Модели готовы", "Models ready"))
 
 
 def transcribe(args):
     recording = Path(args.recording).expanduser()
     if not recording.exists():
-        fail("not_found", f"Запись не найдена: {recording}")
+        fail("not_found", tr(f"Запись не найдена: {recording}", f"Recording not found: {recording}"))
     output = Path(args.output)
     t0 = time.time()
     with tempfile.TemporaryDirectory() as tmp:
         wav = Path(tmp) / "audio.wav"
-        emit("phase", name="Извлечение звука")
+        emit("phase", name=tr("Извлечение звука", "Extracting audio"))
         separate = extract_audio(recording, wav)
         levels = None
         if not args.no_diarization and args.me and len(separate) == 2:
@@ -815,11 +830,11 @@ def transcribe(args):
                 log(f"Microphone hears the other side (echo {echo:.0%} > {ECHO_LIMIT:.0%}, speakers?): mixed transcription")
         my_asr = None
         if args.no_diarization:
-            emit("phase", name="Распознавание речи")
+            emit("phase", name=tr("Распознавание речи", "Recognizing speech"))
             asr = run_asr(str(wav), args.language)
             diarization = None
         else:
-            emit("phase", name="Распознавание речи и разбивка по ролям")
+            emit("phase", name=tr("Распознавание речи и разбивка по ролям", "Recognizing speech and speakers"))
             # One after the other, each in a fresh process: the GPU busy with one model at a time keeps
             # the Mac cooler (and quieter) at the cost of a longer run; nothing waits for the transcript.
             others = str(separate["system"]) if chunks is not None else str(wav)
@@ -831,7 +846,7 @@ def transcribe(args):
             with ProcessPoolExecutor(max_workers=1) as pool:
                 diarization = pool.submit(run_diarization, others).result()
 
-    emit("phase", name="Сохранение")
+    emit("phase", name=tr("Сохранение", "Saving"))
     speakers_summary = []
     if diarization:
         names, scores = match_speakers(diarization["embeddings"], load_speakers(args.speakers), args.threshold)
@@ -906,17 +921,19 @@ def enroll_sample(args):
     """Stores the voice in a short solo recording as a reference embedding for `name`."""
     wav = Path(args.wav)
     if not wav.exists():
-        fail("not_found", f"Файл образца не найден: {wav}")
-    emit("phase", name="Анализ образца голоса")
+        fail("not_found", tr(f"Файл образца не найден: {wav}", f"Sample file not found: {wav}"))
+    emit("phase", name=tr("Анализ образца голоса", "Analyzing the voice sample"))
     diarization = run_diarization(str(wav))
     if not diarization["turns"]:
-        fail("no_speech", "В образце не найдена речь. Говорите громче или ближе к микрофону.")
+        fail("no_speech", tr("В образце не найдена речь. Говорите громче или ближе к микрофону.",
+                               "No speech found in the sample. Speak louder or closer to the microphone."))
     speaking = {}
     for turn in diarization["turns"]:
         speaking[turn["speaker"]] = speaking.get(turn["speaker"], 0.0) + turn["end"] - turn["start"]
     label = max(speaking, key=speaking.get)
     if speaking[label] < 5:
-        fail("too_short", f"Слишком мало речи в образце ({speaking[label]:.0f} с). Нужно хотя бы 10 секунд.")
+        fail("too_short", tr(f"Слишком мало речи в образце ({speaking[label]:.0f} с). Нужно хотя бы 10 секунд.",
+                                f"Too little speech in the sample ({speaking[label]:.0f} s). At least 10 seconds are needed."))
     speakers_file = Path(args.speakers)
     references = load_speakers(speakers_file)
     references.setdefault(args.name, []).append(diarization["embeddings"][label])

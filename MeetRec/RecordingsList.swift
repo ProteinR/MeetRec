@@ -74,7 +74,7 @@ struct RecordingsSection: View {
     @State private var searchTask: Task<Void, Never>?
 
     var body: some View {
-        CollapsibleSection(title: "Записи", icon: "film.stack", summary: summary, isExpanded: $isExpanded) {
+        CollapsibleSection(title: String(localized: "Записи"), icon: "film.stack", summary: summary, isExpanded: $isExpanded) {
             VStack(spacing: 6) {
                 HStack(spacing: 8) {
                     HStack(spacing: 4) {
@@ -96,7 +96,7 @@ struct RecordingsSection: View {
                 }
 
                 if items.isEmpty {
-                    Text(query.isEmpty ? "Пока нет записей в папке «\(model.folderURL.lastPathComponent)»" : "Ничего не найдено")
+                    Text(query.isEmpty ? String(localized: "Пока нет записей в папке «\(model.folderURL.lastPathComponent)»") : String(localized: "Ничего не найдено"))
                         .font(.caption).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
@@ -122,14 +122,14 @@ struct RecordingsSection: View {
     }
 
     private var summary: String {
-        guard !items.isEmpty || !query.isEmpty else { return "Пока пусто" }
+        guard !items.isEmpty || !query.isEmpty else { return String(localized: "Пока пусто") }
         if let running = transcriber.runningFile, items.contains(where: { $0.url == running }) {
             let percent = transcriber.progress.map { " \(Int($0 * 100))%" } ?? ""
-            return "Транскрибируется\(percent) · всего \(countText)"
+            return String(localized: "Транскрибируется\(percent) · всего \(countText)")
         }
-        if !query.isEmpty { return "Найдено: \(items.count)" }
+        if !query.isEmpty { return String(localized: "Найдено: \(items.count)") }
         let transcribed = items.filter { Transcriber.existingTranscript(for: $0.url) != nil }.count
-        return "\(countText) · с текстом: \(transcribed)"
+        return String(localized: "\(countText) · с текстом: \(transcribed)")
     }
 
     private var countText: String {
@@ -172,7 +172,8 @@ struct RecordingRow: View {
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ru_RU")
+        // The app's own language (Russian or English), not the system region.
+        formatter.locale = Locale(identifier: Bundle.main.preferredLocalizations.first ?? "ru")
         formatter.dateFormat = "d MMM, HH:mm"
         return formatter
     }()
@@ -253,7 +254,7 @@ struct RecordingRow: View {
             }
             if !item.markers.isEmpty {
                 Divider()
-                Button(addingChapters ? "Добавляю главы…" : "Добавить отметки в видео как главы") { addChapters() }
+                Button(addingChapters ? String(localized: "Добавляю главы…") : String(localized: "Добавить отметки в видео как главы")) { addChapters() }
                     .disabled(addingChapters || isBusy)
             }
             Divider()
@@ -331,7 +332,7 @@ struct RecordingRow: View {
             model.recordingMoved(from: item.url, to: renamed)
             onChange()
         } catch {
-            self.error = "Не удалось переименовать: \(error.localizedDescription)"
+            self.error = String(localized: "Не удалось переименовать: \(error.localizedDescription)")
             Log.error("Rename of \(item.url.lastPathComponent) failed: \(Log.describe(error))", "files")
         }
     }
@@ -368,7 +369,7 @@ struct RecordingRow: View {
             do {
                 try await ChapterWriter.addChapters(item.markers, to: item.url)
             } catch {
-                self.error = "Главы не добавлены: \(error.localizedDescription)"
+                self.error = String(localized: "Главы не добавлены: \(error.localizedDescription)")
                 Log.warning("Chapters not added to \(item.url.lastPathComponent): \(Log.describe(error))", "files")
             }
             addingChapters = false
@@ -382,7 +383,7 @@ struct RecordingRow: View {
             model.recordingMoved(from: item.url, to: nil)
             onChange()
         } catch {
-            self.error = "Не удалось удалить: \(error.localizedDescription)"
+            self.error = String(localized: "Не удалось удалить: \(error.localizedDescription)")
             Log.error("Trash of \(item.url.lastPathComponent) failed: \(Log.describe(error))", "files")
         }
     }
@@ -427,12 +428,12 @@ struct SpeakersEditor: View {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Text(speaker.name).font(.callout.weight(.semibold))
-                        Text(String(format: "%.1f мин", speaker.minutes)).font(.caption).foregroundStyle(.secondary)
+                        Text("\(speaker.minutes, specifier: "%.1f") мин").font(.caption).foregroundStyle(.secondary)
                         Spacer()
                         if let closest = speaker.closest, let score = speaker.score {
                             // Similarity to the closest enrolled voice when transcribed; 70% and above names it.
-                            Text(closest == speaker.name ? "сходство \(Int((score * 100).rounded()))%"
-                                                         : "похож на \(closest) \(Int((score * 100).rounded()))%")
+                            Text(closest == speaker.name ? String(localized: "сходство \(Int((score * 100).rounded()))%")
+                                                         : String(localized: "похож на \(closest) \(Int((score * 100).rounded()))%"))
                                 .font(.caption2)
                                 .foregroundStyle(score >= 0.7 ? Color.secondary : Color.orange)
                                 .help("Сходство с ближайшим известным голосом во время транскрибации. Имя ставится автоматически от 70%.")

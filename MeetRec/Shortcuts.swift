@@ -67,10 +67,10 @@ enum ShortcutAction: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .record: return "Начать / остановить запись"
-        case .marker: return "Отметить момент"
-        case .pause: return "Пауза"
-        case .screenshot: return "Скриншот"
+        case .record: return String(localized: "Начать / остановить запись")
+        case .marker: return String(localized: "Отметить момент")
+        case .pause: return String(localized: "Пауза")
+        case .screenshot: return String(localized: "Скриншот")
         case .text: return "OCR"
         }
     }
@@ -226,7 +226,7 @@ struct ShortcutRow: View {
                         Image(systemName: action.defaultCombo == nil ? "xmark.circle" : "arrow.counterclockwise")
                     }
                     .buttonStyle(.borderless)
-                    .help(action.defaultCombo.map { "Вернуть \($0.text)" } ?? "Убрать сочетание")
+                    .help(action.defaultCombo.map { String(localized: "Вернуть \($0.text)") } ?? String(localized: "Убрать сочетание"))
                 }
             }
             if shortcuts.taken.contains(action), let combo = shortcuts.combo(action) {
@@ -257,7 +257,7 @@ private struct HotKeyRecorder: View {
         Button {
             recording ? stop(nil) : start()
         } label: {
-            Text(recording ? (hint ?? "Нажмите сочетание…") : (shortcuts.combo(action)?.text ?? "Задать"))
+            Text(recording ? (hint ?? String(localized: "Нажмите сочетание…")) : (shortcuts.combo(action)?.text ?? String(localized: "Задать")))
                 .font(.system(.callout, design: .rounded).weight(.medium))
                 .frame(minWidth: 90)
         }
@@ -278,7 +278,7 @@ private struct HotKeyRecorder: View {
             }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             guard KeyCombo.isUsable(flags) else {
-                hint = "Нужен ⌘, ⌥ или ⌃"
+                hint = String(localized: "Нужен ⌘, ⌥ или ⌃")
                 NSSound.beep()
                 return nil
             }
@@ -286,7 +286,7 @@ private struct HotKeyRecorder: View {
             let combo = KeyCombo(keyCode: keyCode, modifiers: KeyCombo.carbonModifiers(flags),
                                  label: KeyCombo.label(keyCode: keyCode, characters: event.charactersIgnoringModifiers))
             if let other = shortcuts.conflict(combo, for: action) {
-                hint = "Уже у «\(other.title)»"
+                hint = String(localized: "Уже у «\(other.title)»")
                 NSSound.beep()
                 return nil
             }

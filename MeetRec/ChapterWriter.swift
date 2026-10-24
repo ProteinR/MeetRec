@@ -17,10 +17,10 @@ enum ChapterWriter {
         case noVideo, notEnoughSpace, writer(String), verification(String)
         var errorDescription: String? {
             switch self {
-            case .noVideo: return "В записи нет видеодорожки"
-            case .notEnoughSpace: return "Недостаточно места на диске для глав"
-            case .writer(let message): return "Не удалось записать главы: \(message)"
-            case .verification(let message): return "Файл с главами не прошёл проверку: \(message)"
+            case .noVideo: return String(localized: "В записи нет видеодорожки")
+            case .notEnoughSpace: return String(localized: "Недостаточно места на диске для глав")
+            case .writer(let message): return String(localized: "Не удалось записать главы: \(message)")
+            case .verification(let message): return String(localized: "Файл с главами не прошёл проверку: \(message)")
             }
         }
     }
@@ -34,8 +34,10 @@ enum ChapterWriter {
             .sorted { $0.time < $1.time }
             .filter { seen.insert($0.time).inserted }
         var number = 0
-        return [(0, "Начало")] + inside.map { marker in
-            if marker.isPause { return (marker.time, "⏸ \(RecorderModel.pauseNote) · \(marker.timeText)") }
+        // Shown in players, never read back: in the app's language. `RecorderModel.pauseNote` is the
+        // stored marker note; the chapter shows a localized word instead.
+        return [(0, String(localized: "Начало"))] + inside.map { marker in
+            if marker.isPause { return (marker.time, String(localized: "⏸ Пауза · \(marker.timeText)")) }
             number += 1
             return (marker.time, "⭐ \(number) · \(marker.timeText)")
         }
@@ -161,15 +163,15 @@ enum ChapterWriter {
             mixing.add(mixOutput)
             let input = AVAssetWriterInput(mediaType: .audio, outputSettings: AudioMixer.aacSettings)
             input.expectsMediaDataInRealTime = false
-            input.metadata = [trackName("Микрофон + звук системы")]
+            input.metadata = [trackName(String(localized: "Микрофон + звук системы"))]
             guard writer.canAdd(input) else { throw Failure.writer("cannot write the mix") }
             writer.add(input)
             feeds.append((SampleQueue(mixOutput) { AudioMixer.apply(gain: gain, to: $0) }, input))
             audioInputs.append(input)
             defaultAudio = input
             mixReader = mixing
-            audioInputs.append(try await passthrough(mix.microphone, name: "Микрофон"))
-            audioInputs.append(try await passthrough(mix.system, name: "Звук системы"))
+            audioInputs.append(try await passthrough(mix.microphone, name: String(localized: "Микрофон")))
+            audioInputs.append(try await passthrough(mix.system, name: String(localized: "Звук системы")))
         } else {
             // A file mixed earlier keeps its layout: its mix (the only enabled audio track) stays the
             // default. The recorder's own two tracks are both enabled and stay ungrouped.

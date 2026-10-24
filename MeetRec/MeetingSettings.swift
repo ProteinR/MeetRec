@@ -39,8 +39,8 @@ struct MeetingSettings: View {
                         .fixedSize()
                         .controlSize(.small)
                         .disabled(!model.meetingDetection || !model.selectedMeetingApps.contains(app.id))
-                        .help(model.asks(app) ? "Спросит «Записать?», когда \(app.name) возьмёт микрофон"
-                                              : "Начнёт запись сама, с отсчётом у значка")
+                        .help(model.asks(app) ? String(localized: "Спросит «Записать?», когда \(app.name) возьмёт микрофон")
+                                              : String(localized: "Начнёт запись сама, с отсчётом у значка"))
                     } else if let note = app.note {
                         Spacer()
                         Text(note).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
@@ -132,11 +132,11 @@ struct BrowserRulesEditor: View {
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(0.08)))
     }
 
-    private func field<Content: View>(_ label: String, hint: String?, @ViewBuilder content: () -> Content) -> some View {
+    private func field<Content: View>(_ label: LocalizedStringKey, hint: LocalizedStringKey?, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 4) {
                 Text(label).font(.caption)
-                if let hint { Text("— \(hint)").font(.caption).foregroundStyle(.secondary) }
+                if let hint { (Text(verbatim: "— ") + Text(hint)).font(.caption).foregroundStyle(.secondary) }
             }
             content()
         }

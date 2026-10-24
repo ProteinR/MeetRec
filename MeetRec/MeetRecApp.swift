@@ -141,7 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let model = RecorderModel.shared
             guard model.isRecording || model.isBusy else { return .terminateNow }
             Log.warning("Quit requested while recording: finishing the file first")
-            model.stop(reason: "выход из MeetRec")
+            model.stop(reason: String(localized: "выход из MeetRec"))
             Task { @MainActor in
                 for _ in 0..<100 where model.isRecording || model.isBusy {
                     try? await Task.sleep(for: .milliseconds(100))

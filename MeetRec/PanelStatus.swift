@@ -95,10 +95,10 @@ struct StatusPanel: View {
             Text("Статус записи").font(.subheadline.weight(.semibold))
             // The device lines are menus: switching happens where the device is shown.
             StatusRow(icon: "mic.fill", signal: health.microphone, menu: health.microphone.state == .off ? nil : AnyView(MicrophoneMenuItems()),
-                      menuHelp: "Переключить микрофон, не останавливая запись")
+                      menuHelp: String(localized: "Переключить микрофон, не останавливая запись"))
             StatusRow(icon: "speaker.wave.2.fill", signal: health.systemAudio)
             StatusRow(icon: "display", signal: health.screen, menu: AnyView(CaptureMenuItems()),
-                      menuHelp: "Записывать другой монитор или только одно окно")
+                      menuHelp: String(localized: "Записывать другой монитор или только одно окно"))
             StatusRow(icon: "internaldrive", signal: health.file)
             if let load {
                 HStack(spacing: 8) {
@@ -182,7 +182,7 @@ struct StatusRow: View {
     private var color: Color {
         switch signal.state {
         case .ok: return .green
-        case .quiet: return signal.title == "Микрофон" ? .yellow : .gray
+        case .quiet: return icon == "mic.fill" ? .yellow : .gray
         case .noSignal: return .red
         case .off: return .gray.opacity(0.4)
         }

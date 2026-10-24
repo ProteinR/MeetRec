@@ -146,38 +146,38 @@ struct HealthTracker {
         var micDetail = microphoneName
         if !microphoneOn {
             micState = .off
-            micDetail = "выключен"
+            micDetail = String(localized: "выключен")
         } else if micMuted {
             micState = .quiet
-            micDetail = "\(microphoneName) — выключен кнопкой"
+            micDetail = String(localized: "\(microphoneName) — выключен кнопкой")
         } else if Self.isDead(status.lastMicBuffer, now: now, running: running) {
             micState = .noSignal
-            micDetail = "\(microphoneName) — нет сигнала"
+            micDetail = String(localized: "\(microphoneName) — нет сигнала")
         } else if running > Self.micQuietAfter, now.timeIntervalSince(lastLoudMic) > Self.micQuietAfter {
             micState = .quiet
-            micDetail = "\(microphoneName) — полная тишина \(Int(now.timeIntervalSince(lastLoudMic))) с"
+            micDetail = String(localized: "\(microphoneName) — полная тишина \(Int(now.timeIntervalSince(lastLoudMic))) с")
         }
 
         // System audio: silence is normal (nothing playing), so it is never a problem by itself.
         var systemState: SignalState = .ok
-        var systemDetail = "идёт"
+        var systemDetail = String(localized: "идёт")
         if !systemAudioOn {
             systemState = .off
-            systemDetail = "выключен"
+            systemDetail = String(localized: "выключен")
         } else if Self.isDead(status.lastSystemBuffer, now: now, running: running) {
             systemState = .noSignal
-            systemDetail = "нет сигнала"
+            systemDetail = String(localized: "нет сигнала")
         } else if systemDB <= Self.silenceThresholdDB {
             systemState = .quiet
-            systemDetail = "тишина"
+            systemDetail = String(localized: "тишина")
         }
 
         // Screen: idle samples count as alive, a static screen is fine.
         var screenState: SignalState = .ok
-        var screenDetail = "\(displayName) · \(status.width)×\(status.height) · \(Int(fps.rounded())) к/с"
+        var screenDetail = String(localized: "\(displayName) · \(status.width)×\(status.height) · \(Int(fps.rounded())) к/с")
         if Self.isDead(status.lastScreenSample, now: now, running: running) {
             screenState = .noSignal
-            screenDetail = "\(displayName) — кадры не приходят"
+            screenDetail = String(localized: "\(displayName) — кадры не приходят")
         }
 
         // The file grows once per 5 s fragment; a stat of the file being written took ~2 ms.
@@ -205,29 +205,29 @@ struct HealthTracker {
         let blackFor = blackSince.map { now.timeIntervalSince($0) } ?? 0
         if screenState == .ok, blackFor >= Self.blackAfter {
             screenState = .quiet
-            screenDetail = "\(displayName) — чёрный экран \(Int(blackFor)) с"
+            screenDetail = String(localized: "\(displayName) — чёрный экран \(Int(blackFor)) с")
         }
 
         var fileDetail = "\(fileSize) · \(status.fileURL?.lastPathComponent ?? "")"
         var fileState = SignalState.ok
         let diskLow = freeSpace.map { $0 < DiskSpace.warnBelow } ?? false
         if let freeSpace {
-            fileDetail = "\(fileSize) · свободно \(DiskSpace.format(freeSpace))"
+            fileDetail = String(localized: "\(fileSize) · свободно \(DiskSpace.format(freeSpace))")
             if diskLow {
                 fileState = .noSignal
-                fileDetail = "\(fileSize) · мало места: \(DiskSpace.format(freeSpace))"
+                fileDetail = String(localized: "\(fileSize) · мало места: \(DiskSpace.format(freeSpace))")
             }
         }
         if stalledFor >= Self.fileStalledAfter {
             fileState = .noSignal
-            fileDetail = "\(fileSize) — файл не растёт \(Int(stalledFor)) с"
+            fileDetail = String(localized: "\(fileSize) — файл не растёт \(Int(stalledFor)) с")
         }
 
         return RecordingHealth(
-            microphone: SignalHealth(title: "Микрофон", detail: micDetail, levelDB: microphoneOn ? micDB : nil, state: micState),
-            systemAudio: SignalHealth(title: "Звук системы", detail: systemDetail, levelDB: systemAudioOn ? systemDB : nil, state: systemState),
-            screen: SignalHealth(title: "Экран", detail: screenDetail, levelDB: nil, state: screenState),
-            file: SignalHealth(title: "Файл", detail: fileDetail, levelDB: nil, state: fileState),
+            microphone: SignalHealth(title: String(localized: "Микрофон"), detail: micDetail, levelDB: microphoneOn ? micDB : nil, state: micState),
+            systemAudio: SignalHealth(title: String(localized: "Звук системы"), detail: systemDetail, levelDB: systemAudioOn ? systemDB : nil, state: systemState),
+            screen: SignalHealth(title: String(localized: "Экран"), detail: screenDetail, levelDB: nil, state: screenState),
+            file: SignalHealth(title: String(localized: "Файл"), detail: fileDetail, levelDB: nil, state: fileState),
             micSilentFor: now.timeIntervalSince(lastLoudMic),
             systemSilentFor: now.timeIntervalSince(lastLoudSystem),
             fileStalledFor: stalledFor,

@@ -1,0 +1,5196 @@
+{
+  "sourceLanguage" : "ru",
+  "strings" : {
+    "" : {
+      "shouldTranslate" : false
+    },
+    "%.1f мин" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%.1f min"
+          }
+        }
+      }
+    },
+    "%@ (%@)" : {
+      "shouldTranslate" : false
+    },
+    "%@ (%lld)" : {
+      "shouldTranslate" : false
+    },
+    "%@ (браузер)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (browser)"
+          }
+        }
+      }
+    },
+    "%@ · %lld×%lld · %lld к/с" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %lld×%lld · %lld fps"
+          }
+        }
+      }
+    },
+    "%@ · клик — редактировать, правый клик — ещё" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · click to edit, right-click for more"
+          }
+        }
+      }
+    },
+    "%@ · мало места: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · low disk space: %@"
+          }
+        }
+      }
+    },
+    "%@ · с текстом: %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · transcribed: %2$lld"
+          }
+        }
+      }
+    },
+    "%@ · свободно %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ free"
+          }
+        }
+      }
+    },
+    "%@ · скрыт при показе экрана" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · hidden when sharing the screen"
+          }
+        }
+      }
+    },
+    "%@ взял микрофон · %lld с" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ took the microphone · %lld s"
+          }
+        }
+      }
+    },
+    "%@ занято другим приложением или macOS. Освободите его там или задайте другое и нажмите «Повторить»." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is taken by another app or macOS. Free it there or set another one, then click “Retry”."
+          }
+        }
+      }
+    },
+    "%@ отпустил микрофон · стоп через %lld с" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ released the microphone · stopping in %lld s"
+          }
+        }
+      }
+    },
+    "%@ отпустил микрофон. Если он снова его возьмёт, запись продолжится." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ released the microphone. If it takes it again, the recording continues."
+          }
+        }
+      }
+    },
+    "%@ — выключен кнопкой" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — muted"
+          }
+        }
+      }
+    },
+    "%@ — кадры не приходят" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — no frames arriving"
+          }
+        }
+      }
+    },
+    "%@ — нет сигнала" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — no signal"
+          }
+        }
+      }
+    },
+    "%@ — остановить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ to stop"
+          }
+        }
+      }
+    },
+    "%@ — отметить момент" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ to mark a moment"
+          }
+        }
+      }
+    },
+    "%@ — полная тишина %lld с" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — dead silence for %lld s"
+          }
+        }
+      }
+    },
+    "%@ — скриншот" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — screenshot"
+          }
+        }
+      }
+    },
+    "%@ — файл не растёт %lld с" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — file not growing for %lld s"
+          }
+        }
+      }
+    },
+    "%@ — чёрный экран %lld с" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — black screen for %lld s"
+          }
+        }
+      }
+    },
+    "%@. Записанное до этого момента сохранено." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. Everything recorded up to this point is saved."
+          }
+        }
+      }
+    },
+    "%@. Записанное сохранено, запись продолжается в новом файле." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. What was recorded is saved; recording continues in a new file."
+          }
+        }
+      }
+    },
+    "%@: выключен кнопкой — в записи будет тишина" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: muted by a button — the recording will be silent"
+          }
+        }
+      }
+    },
+    "%@: сигнал не приходит" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: no signal"
+          }
+        }
+      }
+    },
+    "%@: скажите что-нибудь — полоска должна двигаться" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: say something — the bar should move"
+          }
+        }
+      }
+    },
+    "%@: слышно" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: working"
+          }
+        }
+      }
+    },
+    "%lld" : {
+      "shouldTranslate" : false
+    },
+    "%lld · последний %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld · latest %2$@"
+          }
+        }
+      }
+    },
+    "%lld к/с · %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld fps · %@ · %@"
+          }
+        }
+      }
+    },
+    "%lld реплик" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld line"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld lines"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld реплики"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld реплик"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld реплика"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld реплики"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld%%" : {
+      "shouldTranslate" : false
+    },
+    "12:34" : {
+      "shouldTranslate" : false
+    },
+    "H.264 (совместимость)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "H.264 (compatible)"
+          }
+        }
+      }
+    },
+    "HEVC (меньше файлы)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HEVC (smaller files)"
+          }
+        }
+      }
+    },
+    "MeetRec" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MeetRec"
+          }
+        }
+      }
+    },
+    "MeetRec %lld%% · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MeetRec %lld%% · %@"
+          }
+        }
+      }
+    },
+    "MeetRec видит только активную вкладку окна браузера: если в начале звонка открыта другая вкладка, появится обычный вопрос." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MeetRec only sees the active tab of a browser window: if another tab is open when the call starts, you get the usual question."
+          }
+        }
+      }
+    },
+    "MeetRec не сможет записывать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MeetRec can't record"
+          }
+        }
+      }
+    },
+    "MeetRec перезапущен после сбоя" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MeetRec relaunched after a crash"
+          }
+        }
+      }
+    },
+    "OCR" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OCR"
+          }
+        }
+      }
+    },
+    "PNG" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG"
+          }
+        }
+      }
+    },
+    "Skyeng" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skyeng"
+          }
+        }
+      }
+    },
+    "Vimbox, Skysmart" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vimbox, Skysmart"
+          }
+        }
+      }
+    },
+    "px" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "px"
+          }
+        }
+      }
+    },
+    "transcribe.py не найден в приложении" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "transcribe.py is missing from the app"
+          }
+        }
+      }
+    },
+    "~/Pictures/screenshots, как было у Shottr" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "~/Pictures/screenshots, as in Shottr"
+          }
+        }
+      }
+    },
+    "«%@»" : {
+      "shouldTranslate" : false
+    },
+    "«%@» больше нет — записывается весь экран." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is gone, recording the whole screen."
+          }
+        }
+      }
+    },
+    "«%@» молчит больше минуты, даже фонового шума нет. Возможно, выбран не тот микрофон." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” has been silent for over a minute, not even background noise. The wrong microphone may be selected."
+          }
+        }
+      }
+    },
+    "«%@»: звук не приходит. Проверьте устройство или перезапустите запись." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”: no sound is coming in. Check the device or restart the recording."
+          }
+        }
+      }
+    },
+    "Авто (PNG/JPEG)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto (PNG/JPEG)"
+          }
+        }
+      }
+    },
+    "Авто · внешний монитор" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto · external display"
+          }
+        }
+      }
+    },
+    "Авто · встроенный экран" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto · built-in display"
+          }
+        }
+      }
+    },
+    "Авто выбирает по содержимому: фото, градиенты и шум сохраняются в JPEG (он тогда намного меньше), текст и плоские цвета — в PNG, чтобы оставались чёткими. В буфер обмена всегда идёт PNG." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto picks by content: photos, gradients and noise are saved as JPEG (much smaller then), text and flat colors as PNG so they stay sharp. The clipboard always gets PNG."
+          }
+        }
+      }
+    },
+    "Авто: внешний монитор, если подключён" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto: external display when connected"
+          }
+        }
+      }
+    },
+    "Анализ образца…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyzing the sample…"
+          }
+        }
+      }
+    },
+    "Без записи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not recording"
+          }
+        }
+      }
+    },
+    "Без таймера; красный кружок всё же заметен." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No timer; the red dot is still noticeable."
+          }
+        }
+      }
+    },
+    "Браузер" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browser"
+          }
+        }
+      }
+    },
+    "Браузер (все)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browser (all)"
+          }
+        }
+      }
+    },
+    "В Корзину вместе с транскриптом и отметками; оттуда можно вернуть" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moves it to the Trash with its transcript and markers; you can restore it from there"
+          }
+        }
+      }
+    },
+    "В записи нет видеодорожки" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The recording has no video track"
+          }
+        }
+      }
+    },
+    "В записи чёрный экран" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording shows a black screen"
+          }
+        }
+      }
+    },
+    "В очереди на транскрибацию" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Queued for transcription"
+          }
+        }
+      }
+    },
+    "В папку сохранить не удалось" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t save to the folder"
+          }
+        }
+      }
+    },
+    "В системе выбран «%@», а запись идёт с «%@»." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The system uses “%1$@”, but the recording is from “%2$@”."
+          }
+        }
+      }
+    },
+    "Вернуть %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore %@"
+          }
+        }
+      }
+    },
+    "Вернуть всё" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore all"
+          }
+        }
+      }
+    },
+    "Весь текст" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All text"
+          }
+        }
+      }
+    },
+    "Вид во время записи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "While recording"
+          }
+        }
+      }
+    },
+    "Видео" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video"
+          }
+        }
+      }
+    },
+    "Видно сразу, что идёт запись и сколько она длится." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows at a glance that a recording is running and for how long."
+          }
+        }
+      }
+    },
+    "Вкл." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On"
+          }
+        }
+      }
+    },
+    "Вкладка называется" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab title contains"
+          }
+        }
+      }
+    },
+    "Включена" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On"
+          }
+        }
+      }
+    },
+    "Включит микрофон, чтобы показать уровень, пока панель открыта" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turns on the microphone to show its level while the panel is open"
+          }
+        }
+      }
+    },
+    "Включит микрофон, чтобы показать уровень. Наушники переключатся в режим гарнитуры, пока панель открыта" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turns on the microphone to show its level. Headphones switch to headset mode while the panel is open"
+          }
+        }
+      }
+    },
+    "Во время записи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "While recording"
+          }
+        }
+      }
+    },
+    "Вставьте его на странице %@: ⌘V или перетащите" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste it on the %@ page: ⌘V or drag it in"
+          }
+        }
+      }
+    },
+    "Встреча Teams на мониторе «%@», а записывается «%@»." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Teams meeting is on “%1$@”, but “%2$@” is being recorded."
+          }
+        }
+      }
+    },
+    "Встреча закончилась, запись остановится через %lld с" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The meeting has ended, recording stops in %lld s"
+          }
+        }
+      }
+    },
+    "Встреча замечается, когда приложение берёт микрофон. «Записывать» — запись начнётся сама через несколько секунд, у значка идёт отсчёт. «Спрашивать» — появится вопрос «Записать?». Остановится запись сама, через %lld с после конца встречи." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A meeting is noticed when an app takes the microphone. “Record”: recording starts by itself after a few seconds, with a countdown next to the icon. “Ask”: you are asked “Record?”. Recording stops by itself %lld s after the meeting ends."
+          }
+        }
+      }
+    },
+    "Встречи и звонки" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meetings and calls"
+          }
+        }
+      }
+    },
+    "Выбрать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose"
+          }
+        }
+      }
+    },
+    "Выбрать папку…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose folder…"
+          }
+        }
+      }
+    },
+    "Выделите область или кликните по окну" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select an area or click a window"
+          }
+        }
+      }
+    },
+    "Выделите область с текстом — он скопируется. Или «Весь текст»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select an area with text to copy it, or use “All text”"
+          }
+        }
+      }
+    },
+    "Выделите область — её текст скопируется (OCR)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select an area to copy its text (OCR)"
+          }
+        }
+      }
+    },
+    "Выделите текст — он скопируется · клик по окну — весь его текст · Esc — отмена" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select text to copy it · click a window for all its text · Esc to cancel"
+          }
+        }
+      }
+    },
+    "Выделите, что оставить: рамку можно двигать и тянуть за края · Enter — обрезать, Esc — отмена" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select what to keep: move the frame or drag its edges · Enter to crop, Esc to cancel"
+          }
+        }
+      }
+    },
+    "Выделите, что скрыть" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select what to hide"
+          }
+        }
+      }
+    },
+    "Выкл." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        }
+      }
+    },
+    "Выключена" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        }
+      }
+    },
+    "Главы не добавлены: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chapters not added: %@"
+          }
+        }
+      }
+    },
+    "Говорите обычным голосом… %lld с" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speak in your normal voice… %lld s"
+          }
+        }
+      }
+    },
+    "Голос сохранён (%lld образц.)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voice saved (samples: %lld)"
+          }
+        }
+      }
+    },
+    "Данные не записываются уже %lld с. Остановите и начните запись заново." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing has been written for %lld s. Stop and start the recording again."
+          }
+        }
+      }
+    },
+    "Для записей встреч (начатых автоматически или по вопросу о звонке) длиннее %lld мин. Транскрипт остаётся и рядом с видео; файл в папке никогда не перезаписывается." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For meeting recordings (started automatically or from the call question) longer than %lld min. The transcript also stays next to the video; a file in the folder is never overwritten."
+          }
+        }
+      }
+    },
+    "Добавить ещё" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add another"
+          }
+        }
+      }
+    },
+    "Добавить отметки в видео как главы" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add markers to the video as chapters"
+          }
+        }
+      }
+    },
+    "Добавить приложение" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add app"
+          }
+        }
+      }
+    },
+    "Добавить сайт" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add site"
+          }
+        }
+      }
+    },
+    "Добавляю главы…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adding chapters…"
+          }
+        }
+      }
+    },
+    "Если MeetRec упадёт, он запустится снова через несколько секунд и продолжит запись" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If MeetRec crashes, it opens again within a few seconds and continues the recording"
+          }
+        }
+      }
+    },
+    "Если встреча ещё идёт, запись продолжится в новом файле." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the meeting is still going, recording continues in a new file."
+          }
+        }
+      }
+    },
+    "Есть безымянные спикеры — подписать…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some speakers have no name — name speakers…"
+          }
+        }
+      }
+    },
+    "Жду встречу" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for a meeting"
+          }
+        }
+      }
+    },
+    "Журнал" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log"
+          }
+        }
+      }
+    },
+    "Жёлтый" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yellow"
+          }
+        }
+      }
+    },
+    "Завершить MeetRec" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit MeetRec"
+          }
+        }
+      }
+    },
+    "Задать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set"
+          }
+        }
+      }
+    },
+    "Заканчивается место на диске. Запись остановится сама, когда останется меньше %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The disk is almost full. The recording stops by itself when less than %@ is left."
+          }
+        }
+      }
+    },
+    "Закрыть (Esc)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close (Esc)"
+          }
+        }
+      }
+    },
+    "Закрыть зеркало" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close mirror"
+          }
+        }
+      }
+    },
+    "Записать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record"
+          }
+        }
+      }
+    },
+    "Записать ещё образец (20 с)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record another sample (20 s)"
+          }
+        }
+      }
+    },
+    "Записать образец голоса (20 с)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record a voice sample (20 s)"
+          }
+        }
+      }
+    },
+    "Записать сейчас" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record now"
+          }
+        }
+      }
+    },
+    "Записать? Запись остановится сама, когда встреча закончится." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record it? Recording stops by itself when the meeting ends."
+          }
+        }
+      }
+    },
+    "Записать? Запись остановится сама, когда звонок закончится." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record it? Recording stops by itself when the call ends."
+          }
+        }
+      }
+    },
+    "Записи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recordings"
+          }
+        }
+      }
+    },
+    "Записывается только «%@»; клик — весь экран" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only “%@” is recorded; click for the whole screen"
+          }
+        }
+      }
+    },
+    "Записывается только окно — клик по нему или по монитору вернёт весь экран" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only the window is recorded — click it or the display to record the whole screen again"
+          }
+        }
+      }
+    },
+    "Записывать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record"
+          }
+        }
+      }
+    },
+    "Записывать «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record “%@”"
+          }
+        }
+      }
+    },
+    "Записывать «%@»?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record “%@”?"
+          }
+        }
+      }
+    },
+    "Записывать другой монитор или только одно окно" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record another display or a single window"
+          }
+        }
+      }
+    },
+    "Записывать только «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record only “%@”"
+          }
+        }
+      }
+    },
+    "Записывать этот монитор" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record this display"
+          }
+        }
+      }
+    },
+    "Записываю встречу в %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording the meeting in %@"
+          }
+        }
+      }
+    },
+    "Записываю звонок в %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording the call in %@"
+          }
+        }
+      }
+    },
+    "Записываю звонок в браузере" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording the call in the browser"
+          }
+        }
+      }
+    },
+    "Записываю: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording: %@"
+          }
+        }
+      }
+    },
+    "Запись" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording"
+          }
+        }
+      }
+    },
+    "Запись «%@» сохранена до %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording “%1$@” is saved up to %2$@."
+          }
+        }
+      }
+    },
+    "Запись встречи в %@ не началась" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meeting recording in %@ didn't start"
+          }
+        }
+      }
+    },
+    "Запись встречи не началась" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meeting recording didn't start"
+          }
+        }
+      }
+    },
+    "Запись на паузе" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording paused"
+          }
+        }
+      }
+    },
+    "Запись на паузе %lld минут" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Recording paused for %lld minute"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Recording paused for %lld minutes"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Запись на паузе %lld минуты"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Запись на паузе %lld минут"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Запись на паузе %lld минуту"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Запись на паузе %lld минуты"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Запись на паузе уже %lld минут" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Recording has been paused for %lld minute"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Recording has been paused for %lld minutes"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Запись на паузе уже %lld минуты"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Запись на паузе уже %lld минут"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Запись на паузе уже %lld минуту"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Запись на паузе уже %lld минуты"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Запись началась" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording started"
+          }
+        }
+      }
+    },
+    "Запись не идёт" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not recording"
+          }
+        }
+      }
+    },
+    "Запись образца не удалась" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sample recording failed"
+          }
+        }
+      }
+    },
+    "Запись остановлена: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording stopped: %@"
+          }
+        }
+      }
+    },
+    "Запись остановлена: диск заполнен" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording stopped: disk full"
+          }
+        }
+      }
+    },
+    "Запись прервалась" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording interrupted"
+          }
+        }
+      }
+    },
+    "Запись прервалась и продолжена" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording interrupted and continued"
+          }
+        }
+      }
+    },
+    "Запись прервалась из-за сбоя MeetRec · сохранено до %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording interrupted by a MeetRec crash · saved up to %@"
+          }
+        }
+      }
+    },
+    "Запись прервалась: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording interrupted: %@"
+          }
+        }
+      }
+    },
+    "Запись продолжается в новом файле." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording continues in a new file."
+          }
+        }
+      }
+    },
+    "Запись продолжается с «%@». %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording continues from “%1$@”. %2$@"
+          }
+        }
+      }
+    },
+    "Запись продолжается: «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording continues: “%@”"
+          }
+        }
+      }
+    },
+    "Запись сохранена · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording saved · %@"
+          }
+        }
+      }
+    },
+    "Запись сохранена · %@%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording saved · %1$@%2$@"
+          }
+        }
+      }
+    },
+    "Запуск при входе" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open at login"
+          }
+        }
+      }
+    },
+    "Запускать MeetRec при входе в систему, чтобы автозапись встреч работала после перезагрузки" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open MeetRec when you log in, so meetings are still recorded automatically after a restart"
+          }
+        }
+      }
+    },
+    "Запуск…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starting…"
+          }
+        }
+      }
+    },
+    "Звонки в браузере обычно спрашивают «Записать?». На этих сайтах MeetRec начинает запись без вопроса." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browser calls normally ask “Record?”. On these sites MeetRec starts recording without asking."
+          }
+        }
+      }
+    },
+    "Звонок закончился, запись остановится через %lld с" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The call has ended, recording stops in %lld s"
+          }
+        }
+      }
+    },
+    "Звонок использует «%@», а запись идёт с «%@»." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The call uses “%1$@”, but the recording is from “%2$@”."
+          }
+        }
+      }
+    },
+    "Звук затвора" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shutter sound"
+          }
+        }
+      }
+    },
+    "Звук системы" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System audio"
+          }
+        }
+      }
+    },
+    "Звук системы не записывается" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System audio isn't being recorded"
+          }
+        }
+      }
+    },
+    "Знакомые голоса: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Known voices: %@"
+          }
+        }
+      }
+    },
+    "Значок и панель MeetRec не попадают в демонстрацию экрана (там, где приложение это учитывает)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MeetRec's icon and panel stay out of screen sharing (in apps that respect this)"
+          }
+        }
+      }
+    },
+    "Значок, панель и остров исключаются из захвата экрана. Работает не во всех приложениях — проверьте на тестовом звонке. Системные значки macOS (оранжевая точка микрофона, значок записи экрана) скрыть нельзя, но во время звонка с показом экрана они и так горят из-за Teams." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The icon, the panel and the island are excluded from screen capture. Not every app respects this — check it on a test call. macOS's own indicators (the orange microphone dot, the screen recording icon) cannot be hidden, but during a call with screen sharing they are on anyway because of Teams."
+          }
+        }
+      }
+    },
+    "Игнорировать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ignore"
+          }
+        }
+      }
+    },
+    "Идёт встреча в %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meeting in progress in %@"
+          }
+        }
+      }
+    },
+    "Идёт встреча в %@, запись не ведётся" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A meeting is going on in %@, not recording"
+          }
+        }
+      }
+    },
+    "Идёт запись" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording"
+          }
+        }
+      }
+    },
+    "Идёт звонок в %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Call in progress in %@"
+          }
+        }
+      }
+    },
+    "Идёт звонок в %@, запись не ведётся" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A call is going on in %@, not recording"
+          }
+        }
+      }
+    },
+    "Идёт звонок в браузере" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Call in progress in the browser"
+          }
+        }
+      }
+    },
+    "Идёт звонок в браузере, запись не ведётся" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A call is going on in the browser, not recording"
+          }
+        }
+      }
+    },
+    "Изменить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change"
+          }
+        }
+      }
+    },
+    "Или только одно окно этого монитора:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Or just one window on this display:"
+          }
+        }
+      }
+    },
+    "Имя" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
+          }
+        }
+      }
+    },
+    "Ищу в %@…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Searching %@…"
+          }
+        }
+      }
+    },
+    "Кадров/с" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frame rate"
+          }
+        }
+      }
+    },
+    "Кадры не приходят: монитор отключён, заблокирован экран или Mac уснул." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No frames are coming in: the display is disconnected, the screen is locked or the Mac is asleep."
+          }
+        }
+      }
+    },
+    "Как в %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same as %@"
+          }
+        }
+      }
+    },
+    "Как в браузере" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same as the browser"
+          }
+        }
+      }
+    },
+    "Как у монитора" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Native"
+          }
+        }
+      }
+    },
+    "Как я выгляжу" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check my look"
+          }
+        }
+      }
+    },
+    "Как я выгляжу: зеркало с камеры" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check my look: camera mirror"
+          }
+        }
+      }
+    },
+    "Какой микрофон записывать. «По умолчанию» — сейчас: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Microphone to record. “Default” is currently: %@"
+          }
+        }
+      }
+    },
+    "Камера" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera"
+          }
+        }
+      }
+    },
+    "Камера не найдена" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No camera found"
+          }
+        }
+      }
+    },
+    "Картинка полностью чёрная %lld с: экран заблокирован, монитор спит или выбран не тот монитор." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The picture has been completely black for %lld s: the screen is locked, the display is asleep or the wrong display is selected."
+          }
+        }
+      }
+    },
+    "Клавиши" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shortcuts"
+          }
+        }
+      }
+    },
+    "Кликай по порядку: 1, 2, 3…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click in order: 1, 2, 3…"
+          }
+        }
+      }
+    },
+    "Кликните, где поставить надпись; Enter — готово" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click where the caption goes; Enter when done"
+          }
+        }
+      }
+    },
+    "Кнопки в сообщении после снимка, в меню снимков и в редакторе; снимок уходит в сервис только по клику" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buttons in the message after a screenshot, in the screenshot menu and in the editor; the screenshot is sent to the service only when clicked"
+          }
+        }
+      }
+    },
+    "Кодек" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codec"
+          }
+        }
+      }
+    },
+    "Копировать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy"
+          }
+        }
+      }
+    },
+    "Копировать в буфер обмена" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy to clipboard"
+          }
+        }
+      }
+    },
+    "Копировать и сохранить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy and save"
+          }
+        }
+      }
+    },
+    "Копировать транскрипты встреч" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy meeting transcripts"
+          }
+        }
+      }
+    },
+    "Красная точка и таймер вокруг выреза MacBook; при наведении — уровни звука, отметка и стоп. В режиме «Незаметно» не показывается." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A red dot and timer around the MacBook notch; on hover, audio levels, marker and stop. Not shown in the “Discreet” style."
+          }
+        }
+      }
+    },
+    "Красный" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red"
+          }
+        }
+      }
+    },
+    "Красный значок и таймер" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red icon and timer"
+          }
+        }
+      }
+    },
+    "Кто это?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Who is this?"
+          }
+        }
+      }
+    },
+    "Куда копировать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where to copy"
+          }
+        }
+      }
+    },
+    "Мало места на диске" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Low disk space"
+          }
+        }
+      }
+    },
+    "Меняется после записи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can be changed after the recording"
+          }
+        }
+      }
+    },
+    "Меняется после записи: текущий файл пишется в эту папку" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can be changed after the recording: the current file is being written to this folder"
+          }
+        }
+      }
+    },
+    "Микрофон" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Microphone"
+          }
+        }
+      }
+    },
+    "Микрофон + звук системы" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Microphone + system audio"
+          }
+        }
+      }
+    },
+    "Микрофон выключен · вкладка звонка открыта" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Microphone muted · call tab still open"
+          }
+        }
+      }
+    },
+    "Микрофон не найден" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No microphone found"
+          }
+        }
+      }
+    },
+    "Микрофон не передаёт сигнал" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No signal from the microphone"
+          }
+        }
+      }
+    },
+    "Микрофон не переключился" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Microphone didn't switch"
+          }
+        }
+      }
+    },
+    "Микрофон: «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Microphone: “%@”"
+          }
+        }
+      }
+    },
+    "Модели загружены" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Models downloaded"
+          }
+        }
+      }
+    },
+    "Модели не скачаны" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Models not downloaded"
+          }
+        }
+      }
+    },
+    "Модели не скачаны (~3 ГБ: распознавание речи и разбивка по ролям)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Models not downloaded (~3 GB: speech recognition and speaker separation)"
+          }
+        }
+      }
+    },
+    "Модели не скачаны — транскрибация пропущена" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Models not downloaded, transcription skipped"
+          }
+        }
+      }
+    },
+    "Мой голос: %lld образц. — буду подписан как «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My voice: %1$lld samples, labeled as “%2$@”"
+          }
+        }
+      }
+    },
+    "Монитор «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Display “%@”"
+          }
+        }
+      }
+    },
+    "Монитор не найден" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Display not found"
+          }
+        }
+      }
+    },
+    "Монитор отключён" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Display disconnected"
+          }
+        }
+      }
+    },
+    "Моё имя" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My name"
+          }
+        }
+      }
+    },
+    "На диске осталось %@ — запись не начата. Освободите место или выберите другую папку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only %@ left on disk, recording not started. Free up space or choose another folder."
+          }
+        }
+      }
+    },
+    "На диске осталось %@. Освободите место." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only %@ left on disk. Free up space."
+          }
+        }
+      }
+    },
+    "Надпись" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caption"
+          }
+        }
+      }
+    },
+    "Нажмите на камеру в поиске Bing и вставьте его: ⌘V или перетащите" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click the camera in Bing search and paste it: ⌘V or drag it in"
+          }
+        }
+      }
+    },
+    "Нажмите сочетание с ⌘, ⌥ или ⌃; Esc — отмена" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press a shortcut with ⌘, ⌥ or ⌃; Esc cancels"
+          }
+        }
+      }
+    },
+    "Нажмите сочетание…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press shortcut…"
+          }
+        }
+      }
+    },
+    "Нажмите, чтобы задать сочетание" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click to set a shortcut"
+          }
+        }
+      }
+    },
+    "Назад" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back"
+          }
+        }
+      }
+    },
+    "Название" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Title"
+          }
+        }
+      }
+    },
+    "Название записи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording name"
+          }
+        }
+      }
+    },
+    "Назвать «Speaker N» по именам; голоса запомнятся для следующих встреч" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Give “Speaker N” real names; the voices are remembered for future meetings"
+          }
+        }
+      }
+    },
+    "Найдено: %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Found: %lld"
+          }
+        }
+      }
+    },
+    "Найти в %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search %@"
+          }
+        }
+      }
+    },
+    "Найти в %@: снимок в буфер обмена, откроется сайт — вставьте его там" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search %@: the screenshot goes to the clipboard and the site opens — paste it there"
+          }
+        }
+      }
+    },
+    "Найти в %@: снимок отправится туда" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search %@: the screenshot is sent there"
+          }
+        }
+      }
+    },
+    "Найти похожее" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find similar"
+          }
+        }
+      }
+    },
+    "Найти:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search:"
+          }
+        }
+      }
+    },
+    "Например, урок: если голос преподавателя меняется со связью, он не распадётся на двух спикеров" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For a lesson, say: if the teacher's voice changes with the connection, it is not split into two speakers"
+          }
+        }
+      }
+    },
+    "Настройки" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        }
+      }
+    },
+    "Настройки…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings…"
+          }
+        }
+      }
+    },
+    "Начало" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start"
+          }
+        }
+      }
+    },
+    "Начать / остановить запись" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start / stop recording"
+          }
+        }
+      }
+    },
+    "Начать запись" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start recording"
+          }
+        }
+      }
+    },
+    "Начнёт запись сама, с отсчётом у значка" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starts recording by itself, with a countdown next to the icon"
+          }
+        }
+      }
+    },
+    "Не выбраны приложения" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No apps selected"
+          }
+        }
+      }
+    },
+    "Не записывать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Don’t record"
+          }
+        }
+      }
+    },
+    "Не найден uv. Установите: brew install uv" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "uv not found. Install it: brew install uv"
+          }
+        }
+      }
+    },
+    "Не найдено поддерживаемых приложений для звонков" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No supported calling apps found"
+          }
+        }
+      }
+    },
+    "Не работает: %@ — сочетание занято другим приложением. Изменить…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not working: %@ — the shortcut is taken by another app. Change…"
+          }
+        }
+      }
+    },
+    "Не сейчас" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not now"
+          }
+        }
+      }
+    },
+    "Не удалось записать главы: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't write chapters: %@"
+          }
+        }
+      }
+    },
+    "Не удалось найти в %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search in %@ failed"
+          }
+        }
+      }
+    },
+    "Не удалось начать запись: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not start recording: %@"
+          }
+        }
+      }
+    },
+    "Не удалось переименовать: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't rename: %@"
+          }
+        }
+      }
+    },
+    "Не удалось переключить запись: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't switch the recording: %@"
+          }
+        }
+      }
+    },
+    "Не удалось переключить микрофон: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't switch the microphone: %@"
+          }
+        }
+      }
+    },
+    "Не удалось переключить монитор: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't switch the display: %@"
+          }
+        }
+      }
+    },
+    "Не удалось скопировать в «%@»: %@. Он лежит рядом с видео." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't copy to “%1$@”: %2$@. It is next to the video."
+          }
+        }
+      }
+    },
+    "Не удалось снять экран" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t capture the screen"
+          }
+        }
+      }
+    },
+    "Не удалось сохранить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t save"
+          }
+        }
+      }
+    },
+    "Не удалось удалить: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't move to Trash: %@"
+          }
+        }
+      }
+    },
+    "Недостаточно места на диске для глав" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not enough disk space for chapters"
+          }
+        }
+      }
+    },
+    "Незаметно" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discreet"
+          }
+        }
+      }
+    },
+    "Нет данных о голосах. Транскрибируйте запись заново с разбивкой по ролям." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No voice data. Transcribe the recording again with speaker separation."
+          }
+        }
+      }
+    },
+    "Нет данных о голосах: транскрибируйте запись с разбивкой по ролям" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No voice data: transcribe the recording with speaker separation"
+          }
+        }
+      }
+    },
+    "Нет доступа к записи экрана — превью не показать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No screen recording access — previews cannot be shown"
+          }
+        }
+      }
+    },
+    "Нет доступа к камере" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No access to the camera"
+          }
+        }
+      }
+    },
+    "Нет доступа к микрофону. Разрешите его в Системных настройках → Конфиденциальность и безопасность → Микрофон." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No access to the microphone. Allow it in System Settings → Privacy & Security → Microphone."
+          }
+        }
+      }
+    },
+    "Нет доступных мониторов" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No displays available"
+          }
+        }
+      }
+    },
+    "Нет окон" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No windows"
+          }
+        }
+      }
+    },
+    "Нет отпечатка голоса для %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No voiceprint for %@"
+          }
+        }
+      }
+    },
+    "Нет разрешения: запись экрана. Без него встреча не запишется." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No permission for screen recording. Without it the meeting won't be recorded."
+          }
+        }
+      }
+    },
+    "Нет разрешения: микрофон и запись экрана. Без него встреча не запишется." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No permission for the microphone and screen recording. Without it the meeting won't be recorded."
+          }
+        }
+      }
+    },
+    "Нет разрешения: микрофон. Без него встреча не запишется." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No permission for the microphone. Without it the meeting won't be recorded."
+          }
+        }
+      }
+    },
+    "Ничего не записывается. Нажмите, чтобы открыть MeetRec и снять с паузы." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing is being recorded. Click to open MeetRec and resume."
+          }
+        }
+      }
+    },
+    "Ничего не записывается; в файле пауза будет вырезана" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing is being recorded; the pause is cut out of the file"
+          }
+        }
+      }
+    },
+    "Ничего не записывать, пока вы не снимете с паузы; в файле пауза будет вырезана" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record nothing until you resume; the pause is cut out of the file"
+          }
+        }
+      }
+    },
+    "Ничего не найдено" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing found"
+          }
+        }
+      }
+    },
+    "Нужен ⌘, ⌥ или ⌃" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs ⌘, ⌥ or ⌃"
+          }
+        }
+      }
+    },
+    "Оба выключены: снимок всё равно скопируется, чтобы не пропасть." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Both are off: the screenshot is still copied so it is not lost."
+          }
+        }
+      }
+    },
+    "Обновить список окон" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh window list"
+          }
+        }
+      }
+    },
+    "Обои вокруг окна" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wallpaper around window"
+          }
+        }
+      }
+    },
+    "Образца голоса нет — я буду «Speaker N»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No voice sample: I'll be “Speaker N”"
+          }
+        }
+      }
+    },
+    "Обрезать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crop"
+          }
+        }
+      }
+    },
+    "Общая загрузка процессора Mac; справа — сколько процессора (в % одного ядра) и памяти занимает MeetRec" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total CPU load of the Mac; on the right, the CPU (in % of one core) and memory used by MeetRec"
+          }
+        }
+      }
+    },
+    "Обычный серый значок, во время записи он закрашен. Таймера нет, окошки о начале и конце записи и вопрос о звонке не показываются." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The usual grey icon, filled while recording. No timer, and no pop-ups about the start and end of a recording or questions about a call."
+          }
+        }
+      }
+    },
+    "Овал" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ellipse"
+          }
+        }
+      }
+    },
+    "Один из источников не передаёт сигнал. Проверьте устройство или остановите и начните запись заново." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One of the sources has no signal. Check the device, or stop and start the recording again."
+          }
+        }
+      }
+    },
+    "Окно закрыто" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window closed"
+          }
+        }
+      }
+    },
+    "Окно не найдено — возможно, оно закрыто" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window not found — it may have been closed"
+          }
+        }
+      }
+    },
+    "Окно: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window: %@"
+          }
+        }
+      }
+    },
+    "Определять автоматически" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detect automatically"
+          }
+        }
+      }
+    },
+    "Определять встречи и звонки автоматически" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detect meetings and calls automatically"
+          }
+        }
+      }
+    },
+    "Определять, кто говорит, и подписывать реплики именами" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detect who is speaking and label lines with names"
+          }
+        }
+      }
+    },
+    "Оставить на паузе" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep paused"
+          }
+        }
+      }
+    },
+    "Оставить только то, что в рамке (Enter)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep only what is inside the frame (Enter)"
+          }
+        }
+      }
+    },
+    "Осталось %@. Файл сохранён." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ left. The file is saved."
+          }
+        }
+      }
+    },
+    "Остановится сама, когда встреча закончится" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stops by itself when the meeting ends"
+          }
+        }
+      }
+    },
+    "Остановится сама, когда встреча закончится." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stops by itself when the meeting ends."
+          }
+        }
+      }
+    },
+    "Остановится сама, когда звонок закончится" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stops by itself when the call ends"
+          }
+        }
+      }
+    },
+    "Остановится сама, когда звонок закончится." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stops by itself when the call ends."
+          }
+        }
+      }
+    },
+    "Остановить запись" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop recording"
+          }
+        }
+      }
+    },
+    "Остановить сейчас" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop now"
+          }
+        }
+      }
+    },
+    "Остановить транскрибацию" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop transcription"
+          }
+        }
+      }
+    },
+    "Остров" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Island"
+          }
+        }
+      }
+    },
+    "Остров у выреза экрана во время записи (если у экрана есть вырез)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Island around the notch while recording (if the screen has a notch)"
+          }
+        }
+      }
+    },
+    "Открыть" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open"
+          }
+        }
+      }
+    },
+    "Открыть видео" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open video"
+          }
+        }
+      }
+    },
+    "Открыть видео на %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open video at %@"
+          }
+        }
+      }
+    },
+    "Открыть настройки" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Settings"
+          }
+        }
+      }
+    },
+    "Открыть папку «%@» в Finder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the “%@” folder in Finder"
+          }
+        }
+      }
+    },
+    "Открыть транскрипт" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open transcript"
+          }
+        }
+      }
+    },
+    "Открыть транскрипт в редакторе" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open transcript in editor"
+          }
+        }
+      }
+    },
+    "Отмена" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "Отменено" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelled"
+          }
+        }
+      }
+    },
+    "Отменить (⌘Z), вернуть — ⇧⌘Z" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo (⌘Z), redo ⇧⌘Z"
+          }
+        }
+      }
+    },
+    "Отметить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark"
+          }
+        }
+      }
+    },
+    "Отметить · %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark · %lld"
+          }
+        }
+      }
+    },
+    "Отметить момент" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark moment"
+          }
+        }
+      }
+    },
+    "Отметка попадёт в транскрипт как «⭐ время»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The marker goes into the transcript as “⭐ time”"
+          }
+        }
+      }
+    },
+    "Отметки: открыть видео на нужном моменте" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markers: open the video at that moment"
+          }
+        }
+      }
+    },
+    "Отметок: %lld, последняя на %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markers: %lld, last at %@"
+          }
+        }
+      }
+    },
+    "Ошибка моделей" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model error"
+          }
+        }
+      }
+    },
+    "Ошибка помощника (код %d)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Helper error (code %d)"
+          }
+        }
+      }
+    },
+    "Ошибка: %@. Нажмите, чтобы повторить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error: %@. Click to retry"
+          }
+        }
+      }
+    },
+    "Папка «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folder “%@”"
+          }
+        }
+      }
+    },
+    "Папка для записей" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recordings folder"
+          }
+        }
+      }
+    },
+    "Пауза" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause"
+          }
+        }
+      }
+    },
+    "Перезапуск после сбоя" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Relaunch after a crash"
+          }
+        }
+      }
+    },
+    "Переименовать…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename…"
+          }
+        }
+      }
+    },
+    "Переключить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch"
+          }
+        }
+      }
+    },
+    "Переключить микрофон, не останавливая запись" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch the microphone without stopping the recording"
+          }
+        }
+      }
+    },
+    "Перетащите в чат или в поле загрузки; клик — редактировать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag into a chat or an upload field; click to edit"
+          }
+        }
+      }
+    },
+    "Пишется только это окно: другие окна и уведомления в запись не попадут." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only this window is recorded: other windows and notifications stay out of the recording."
+          }
+        }
+      }
+    },
+    "По умолчанию" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default"
+          }
+        }
+      }
+    },
+    "Повторить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry"
+          }
+        }
+      }
+    },
+    "Под значком в меню: превью можно перетащить в чат или в поле браузера, клик по нему — редактировать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Under the menu bar icon: drag the preview into a chat or a browser field, click it to edit"
+          }
+        }
+      }
+    },
+    "Подготовка окружения…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing the environment…"
+          }
+        }
+      }
+    },
+    "Подписать спикеров…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name speakers…"
+          }
+        }
+      }
+    },
+    "Подробный лог: запись, звук, встречи, транскрибация" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detailed log: recording, audio, meetings, transcription"
+          }
+        }
+      }
+    },
+    "Поиск по картинке" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Image search"
+          }
+        }
+      }
+    },
+    "Поиск по названиям и транскриптам" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search titles and transcripts"
+          }
+        }
+      }
+    },
+    "Пока нет записей в папке «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No recordings in the “%@” folder yet"
+          }
+        }
+      }
+    },
+    "Пока нет скриншотов в «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No screenshots in “%@” yet"
+          }
+        }
+      }
+    },
+    "Пока пусто" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing yet"
+          }
+        }
+      }
+    },
+    "Показать в Finder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show in Finder"
+          }
+        }
+      }
+    },
+    "Пометки сохранены в «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marks saved to “%@”"
+          }
+        }
+      }
+    },
+    "После записи: вкл" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After recording: on"
+          }
+        }
+      }
+    },
+    "После записи: выкл" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After recording: off"
+          }
+        }
+      }
+    },
+    "Последняя запись" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last recording"
+          }
+        }
+      }
+    },
+    "Похоже, идёт встреча в %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Looks like a meeting in %@"
+          }
+        }
+      }
+    },
+    "Похоже, идёт звонок в %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Looks like a call in %@"
+          }
+        }
+      }
+    },
+    "Похоже, идёт звонок в браузере" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Looks like a call in the browser"
+          }
+        }
+      }
+    },
+    "Приложение" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App"
+          }
+        }
+      }
+    },
+    "Приложения на этом Mac" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apps on this Mac"
+          }
+        }
+      }
+    },
+    "Проверить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Test"
+          }
+        }
+      }
+    },
+    "Проверка моделей…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking models…"
+          }
+        }
+      }
+    },
+    "Проверка…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking…"
+          }
+        }
+      }
+    },
+    "Продолжить запись" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep recording"
+          }
+        }
+      }
+    },
+    "Продолжить запись в тот же файл" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue recording into the same file"
+          }
+        }
+      }
+    },
+    "Просмотреть транскрипт" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview transcript"
+          }
+        }
+      }
+    },
+    "Просмотреть транскрипт; открыть в редакторе — в меню записи (правый клик по строке)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview the transcript; to open it in an editor, right-click the recording"
+          }
+        }
+      }
+    },
+    "Процессор %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU %lld%%"
+          }
+        }
+      }
+    },
+    "Прятать MeetRec при показе экрана" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide MeetRec when sharing the screen"
+          }
+        }
+      }
+    },
+    "Пт 9:41" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fri 9:41"
+          }
+        }
+      }
+    },
+    "Разбивка по ролям" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speaker separation"
+          }
+        }
+      }
+    },
+    "Размер пикселей размытия" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blur pixel size"
+          }
+        }
+      }
+    },
+    "Размыть" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blur"
+          }
+        }
+      }
+    },
+    "Размыть: скрыть пароль, почту, лишнее" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blur: hide passwords, e-mails, anything private"
+          }
+        }
+      }
+    },
+    "Разрешение" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resolution"
+          }
+        }
+      }
+    },
+    "Разрешите MeetRec в настройках «Объекты входа»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow MeetRec in Login Items settings"
+          }
+        }
+      }
+    },
+    "Разрешите запись экрана для MeetRec в Системных настройках → Конфиденциальность и безопасность → Запись экрана, затем перезапустите MeetRec." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow screen recording for MeetRec in System Settings → Privacy & Security → Screen & System Audio Recording, then relaunch MeetRec."
+          }
+        }
+      }
+    },
+    "Рамка" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rectangle"
+          }
+        }
+      }
+    },
+    "Распознать текст на снимке и скопировать его" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recognize the text in the screenshot and copy it"
+          }
+        }
+      }
+    },
+    "Распознаю текст…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recognizing text…"
+          }
+        }
+      }
+    },
+    "Редактировать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit"
+          }
+        }
+      }
+    },
+    "Режим" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode"
+          }
+        }
+      }
+    },
+    "С микрофона не идёт звук" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No sound from the microphone"
+          }
+        }
+      }
+    },
+    "Сайты, где запись начинается сразу" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sites recorded right away"
+          }
+        }
+      }
+    },
+    "Сбой повторился — запись не возобновлена, начните её вручную." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The crash happened again, so the recording was not resumed. Start it manually."
+          }
+        }
+      }
+    },
+    "Свободно %@. Запись остановится сама, если останется меньше %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ free. Recording stops by itself if less than %2$@ is left."
+          }
+        }
+      }
+    },
+    "Сервис ответил не так, как ожидалось (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unexpected response from the service (%@)"
+          }
+        }
+      }
+    },
+    "Сигнал звука системы пропал. Голоса собеседников могут не попасть в запись." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System audio signal is lost. The other people's voices may be missing from the recording."
+          }
+        }
+      }
+    },
+    "Синий" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blue"
+          }
+        }
+      }
+    },
+    "Скачать модели" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download models"
+          }
+        }
+      }
+    },
+    "Скачивание моделей…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading models…"
+          }
+        }
+      }
+    },
+    "Сколько обоев видно вокруг окна, 0–%lld; по умолчанию — из настроек «Скриншоты»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How much wallpaper shows around the window, 0–%lld; the default comes from the “Screenshots” settings"
+          }
+        }
+      }
+    },
+    "Скопирован и сохранён" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied and saved"
+          }
+        }
+      }
+    },
+    "Скопировано" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied"
+          }
+        }
+      }
+    },
+    "Скопировать картинку с пометками в буфер, сохранить её в тот же файл и закрыть (⌘C). Закрытие окна тоже сохраняет" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy the picture with marks to the clipboard, save it to the same file and close (⌘C). Closing the window saves too"
+          }
+        }
+      }
+    },
+    "Скопировать текст с картинки (OCR)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy text from the picture (OCR)"
+          }
+        }
+      }
+    },
+    "Скриншот" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screenshot"
+          }
+        }
+      }
+    },
+    "Скриншот не открылся" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t open the screenshot"
+          }
+        }
+      }
+    },
+    "Скриншот скопирован" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screenshot copied"
+          }
+        }
+      }
+    },
+    "Скриншот сохранён" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screenshot saved"
+          }
+        }
+      }
+    },
+    "Скриншоты" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screenshots"
+          }
+        }
+      }
+    },
+    "Сначала скачайте модели" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download the models first"
+          }
+        }
+      }
+    },
+    "Снимок в буфере обмена" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screenshot in the clipboard"
+          }
+        }
+      }
+    },
+    "Снимок кладётся в буфер обмена и открывается сайт: вставьте его там (⌘V)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The screenshot goes to the clipboard and the site opens: paste it there (⌘V)"
+          }
+        }
+      }
+    },
+    "Снимок окна (клик по заголовку): сколько обоев оставить вокруг него. В редакторе можно поменять для каждого снимка" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window screenshot (click the title bar): how much wallpaper to keep around it. Can be changed per screenshot in the editor"
+          }
+        }
+      }
+    },
+    "Снять обрезку: снова вся картинка" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo the crop: the whole picture again"
+          }
+        }
+      }
+    },
+    "Снять с паузы" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume"
+          }
+        }
+      }
+    },
+    "Собеседник один (урок): в транскрипте все, кроме вас, — один человек" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One other person (lesson): everyone but you is one speaker in the transcript"
+          }
+        }
+      }
+    },
+    "Сообщение с превью после снимка" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview message after a screenshot"
+          }
+        }
+      }
+    },
+    "Сохранение в папку выключено: снимки только копируются" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving to a folder is off: screenshots are only copied"
+          }
+        }
+      }
+    },
+    "Сохранено" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved"
+          }
+        }
+      }
+    },
+    "Сохранить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
+          }
+        }
+      }
+    },
+    "Сохранить её, продолжить запись или оставить на паузе?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save it, resume recording or keep it paused?"
+          }
+        }
+      }
+    },
+    "Сохранить и остановить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save and stop"
+          }
+        }
+      }
+    },
+    "Сохранять в папку" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save to folder"
+          }
+        }
+      }
+    },
+    "Сохраняю запись…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving recording…"
+          }
+        }
+      }
+    },
+    "Спрашивать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask"
+          }
+        }
+      }
+    },
+    "Спросит «Записать?», когда %@ возьмёт микрофон" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asks “Record?” when %@ takes the microphone"
+          }
+        }
+      }
+    },
+    "Сразу после записи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right after recording"
+          }
+        }
+      }
+    },
+    "Статус записи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording status"
+          }
+        }
+      }
+    },
+    "Стоп" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop"
+          }
+        }
+      }
+    },
+    "Стрелка" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrow"
+          }
+        }
+      }
+    },
+    "Сходство с ближайшим известным голосом во время транскрибации. Имя ставится автоматически от 70%." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Similarity to the closest known voice at transcription time. The name is set automatically from 70%."
+          }
+        }
+      }
+    },
+    "Так выбрано в системе" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected in the system"
+          }
+        }
+      }
+    },
+    "Текст не найден" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No text found"
+          }
+        }
+      }
+    },
+    "Текст скопирован · %lld строк" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Text copied · %lld line"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Text copied · %lld lines"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Текст скопирован · %lld строки"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Текст скопирован · %lld строк"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Текст скопирован · %lld строка"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Текст скопирован · %lld строки"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Только красный значок" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red icon only"
+          }
+        }
+      }
+    },
+    "Только окно: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window only: %@"
+          }
+        }
+      }
+    },
+    "Только это окно · на «%@» · на одну запись" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This window only · on “%@” · for one recording"
+          }
+        }
+      }
+    },
+    "Транскрибация" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcription"
+          }
+        }
+      }
+    },
+    "Транскрибация не удалась — повторить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcription failed — try again"
+          }
+        }
+      }
+    },
+    "Транскрибация%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcription%@"
+          }
+        }
+      }
+    },
+    "Транскрибировать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcribe"
+          }
+        }
+      }
+    },
+    "Транскрибировать заново" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcribe again"
+          }
+        }
+      }
+    },
+    "Транскрибировать каждую запись, как только она остановлена" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcribe each recording as soon as it stops"
+          }
+        }
+      }
+    },
+    "Транскрибируется" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcribing"
+          }
+        }
+      }
+    },
+    "Транскрибируется%@ · всего %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcribing%1$@ · %2$@ in total"
+          }
+        }
+      }
+    },
+    "Транскрипт встречи не скопирован" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meeting transcript not copied"
+          }
+        }
+      }
+    },
+    "Транскрипт готов" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcript ready"
+          }
+        }
+      }
+    },
+    "Тяните от начала к острию; точка посередине изгибает" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag from the start to the tip; the middle point bends it"
+          }
+        }
+      }
+    },
+    "Тяните — передвинуть, точки — изменить, Delete — удалить, Esc — снять выбор" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag to move, handles to reshape, Delete to remove, Esc to deselect"
+          }
+        }
+      }
+    },
+    "Тяните, чтобы обвести" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag to outline"
+          }
+        }
+      }
+    },
+    "Убрать правило" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove rule"
+          }
+        }
+      }
+    },
+    "Убрать рамку (Esc)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove the frame (Esc)"
+          }
+        }
+      }
+    },
+    "Убрать сочетание" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove shortcut"
+          }
+        }
+      }
+    },
+    "Удалить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to Trash"
+          }
+        }
+      }
+    },
+    "Удалить правило" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove rule"
+          }
+        }
+      }
+    },
+    "Уже у «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Already used by “%@”"
+          }
+        }
+      }
+    },
+    "Укажите своё имя" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter your name"
+          }
+        }
+      }
+    },
+    "Файл" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File"
+          }
+        }
+      }
+    },
+    "Файл будет:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File name:"
+          }
+        }
+      }
+    },
+    "Файл записи не найден." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording file not found."
+          }
+        }
+      }
+    },
+    "Файл записи перестал расти" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording file stopped growing"
+          }
+        }
+      }
+    },
+    "Файл записи перестал расти: данные не сохраняются. Остановите и начните запись заново." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The recording file has stopped growing: nothing is being saved. Stop and start the recording again."
+          }
+        }
+      }
+    },
+    "Файл с главами не прошёл проверку: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file with chapters failed the check: %@"
+          }
+        }
+      }
+    },
+    "Формат" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format"
+          }
+        }
+      }
+    },
+    "Через %lld с начну записывать %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording %2$@ in %1$lld s"
+          }
+        }
+      }
+    },
+    "Чёрный" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black"
+          }
+        }
+      }
+    },
+    "Шаги" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steps"
+          }
+        }
+      }
+    },
+    "Шаги: кружки с номерами 1, 2, 3… — куда кликать по порядку" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steps: numbered circles 1, 2, 3… showing where to click in order"
+          }
+        }
+      }
+    },
+    "Щелчок, как у системного скриншота, когда область или окно выбраны" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A click, like the system screenshot, when an area or window is chosen"
+          }
+        }
+      }
+    },
+    "Экран" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen"
+          }
+        }
+      }
+    },
+    "Экран не записывается" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen isn't being recorded"
+          }
+        }
+      }
+    },
+    "Этот монитор будет записан" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This display will be recorded"
+          }
+        }
+      }
+    },
+    "Я" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Me"
+          }
+        }
+      }
+    },
+    "Язык" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language"
+          }
+        }
+      }
+    },
+    "Яндекс" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yandex"
+          }
+        }
+      }
+    },
+    "авто · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "auto · %@"
+          }
+        }
+      }
+    },
+    "браузере" : {
+      "comment" : "Where a call is: «в браузере» (in the browser)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the browser"
+          }
+        }
+      }
+    },
+    "внешний" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "external"
+          }
+        }
+      }
+    },
+    "внешний монитор" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "external display"
+          }
+        }
+      }
+    },
+    "встреча" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "meeting"
+          }
+        }
+      }
+    },
+    "встреча в %@ завершилась" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the meeting in %@ ended"
+          }
+        }
+      }
+    },
+    "встречу в %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the meeting in %@"
+          }
+        }
+      }
+    },
+    "встроенный" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "built-in"
+          }
+        }
+      }
+    },
+    "встроенный экран" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "built-in display"
+          }
+        }
+      }
+    },
+    "вчера %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yesterday %@"
+          }
+        }
+      }
+    },
+    "выключен" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "off"
+          }
+        }
+      }
+    },
+    "выход из MeetRec" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MeetRec quit"
+          }
+        }
+      }
+    },
+    "говорили: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "speakers: %@"
+          }
+        }
+      }
+    },
+    "за %lld с" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "in %lld s"
+          }
+        }
+      }
+    },
+    "звонок" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "call"
+          }
+        }
+      }
+    },
+    "звонок в %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the call in %@"
+          }
+        }
+      }
+    },
+    "звонок в %@ завершился" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the call in %@ ended"
+          }
+        }
+      }
+    },
+    "звонок в браузере" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the call in the browser"
+          }
+        }
+      }
+    },
+    "звонок в браузере завершился" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the call in the browser ended"
+          }
+        }
+      }
+    },
+    "и ещё %lld — их можно выбрать во время записи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "and %lld more — you can choose them during the recording"
+          }
+        }
+      }
+    },
+    "идёт" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "on"
+          }
+        }
+      }
+    },
+    "можно несколько через запятую" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "several, separated by commas"
+          }
+        }
+      }
+    },
+    "монитор %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "display %lld"
+          }
+        }
+      }
+    },
+    "на диске осталось %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "only %@ left on disk"
+          }
+        }
+      }
+    },
+    "не HTTP" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not HTTP"
+          }
+        }
+      }
+    },
+    "нет" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "none"
+          }
+        }
+      }
+    },
+    "нет сигнала" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no signal"
+          }
+        }
+      }
+    },
+    "окно %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ window"
+          }
+        }
+      }
+    },
+    "остановлена на паузе" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "stopped while paused"
+          }
+        }
+      }
+    },
+    "по ролям" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "by speaker"
+          }
+        }
+      }
+    },
+    "по умолчанию" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "default"
+          }
+        }
+      }
+    },
+    "похож на %@ %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "like %1$@ %2$lld%%"
+          }
+        }
+      }
+    },
+    "скоро" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "soon"
+          }
+        }
+      }
+    },
+    "сходство %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "similarity %lld%%"
+          }
+        }
+      }
+    },
+    "тишина" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "silence"
+          }
+        }
+      }
+    },
+    "транскрипт появится рядом с видео" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the transcript will appear next to the video"
+          }
+        }
+      }
+    },
+    "язык %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "language %@"
+          }
+        }
+      }
+    },
+    "язык авто" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "auto language"
+          }
+        }
+      }
+    },
+    "⏸ Пауза · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⏸ Pause · %@"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

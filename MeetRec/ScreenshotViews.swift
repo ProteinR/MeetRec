@@ -15,10 +15,10 @@ struct ScreenshotsSection: View {
     @State private var total = 0
 
     var body: some View {
-        CollapsibleSection(title: "Скриншоты", icon: "camera.viewfinder", summary: summary, isExpanded: $isExpanded) {
+        CollapsibleSection(title: String(localized: "Скриншоты"), icon: "camera.viewfinder", summary: summary, isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    captureButton(.screenshot, icon: "plus.viewfinder", title: "Скриншот")
+                    captureButton(.screenshot, icon: "plus.viewfinder", title: String(localized: "Скриншот"))
                     captureButton(.text, icon: "text.viewfinder", title: "OCR")
                     Spacer(minLength: 4)
                     Button { shots.openFolder() } label: {
@@ -28,8 +28,8 @@ struct ScreenshotsSection: View {
                     .help("Открыть папку «\(shots.folderURL.lastPathComponent)» в Finder")
                 }
                 if items.isEmpty {
-                    Text(shots.saveToFolder ? "Пока нет скриншотов в «\(shots.folderURL.lastPathComponent)»"
-                                            : "Сохранение в папку выключено: снимки только копируются")
+                    Text(shots.saveToFolder ? String(localized: "Пока нет скриншотов в «\(shots.folderURL.lastPathComponent)»")
+                                            : String(localized: "Сохранение в папку выключено: снимки только копируются"))
                         .font(.caption).foregroundStyle(.secondary)
                 } else {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: ScreenshotFiles.panelLimit),
@@ -60,19 +60,19 @@ struct ScreenshotsSection: View {
                 if let hint = Shortcuts.shared.hint(action) { Text(hint).foregroundStyle(.secondary) }
             }
         }
-        .help(action == .text ? "Выделите область — её текст скопируется (OCR)" : "Выделите область или кликните по окну")
+        .help(action == .text ? String(localized: "Выделите область — её текст скопируется (OCR)") : String(localized: "Выделите область или кликните по окну"))
     }
 
     private var summary: String {
-        guard let last = items.first else { return Shortcuts.shared.hint(.screenshot).map { "\($0) — скриншот" } ?? "Пока пусто" }
-        return "\(total) · последний \(Self.when(last.date))"
+        guard let last = items.first else { return Shortcuts.shared.hint(.screenshot).map { String(localized: "\($0) — скриншот") } ?? String(localized: "Пока пусто") }
+        return String(localized: "\(total) · последний \(Self.when(last.date))")
     }
 
     /// "14:03", "вчера 18:20", "14 окт".
     static func when(_ date: Date) -> String {
         let calendar = Calendar.current
         if calendar.isDateInToday(date) { return date.formatted(date: .omitted, time: .shortened) }
-        if calendar.isDateInYesterday(date) { return "вчера " + date.formatted(date: .omitted, time: .shortened) }
+        if calendar.isDateInYesterday(date) { return String(localized: "вчера \(date.formatted(date: .omitted, time: .shortened))") }
         return date.formatted(.dateTime.day().month(.abbreviated))
     }
 

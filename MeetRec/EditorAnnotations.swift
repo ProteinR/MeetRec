@@ -22,8 +22,8 @@ enum EditorTool: String, CaseIterable, Identifiable {
     /// Shown next to the icon for the ones that are not obvious from it.
     var label: String? {
         switch self {
-        case .step: return "Шаги"
-        case .blur: return "Размыть"
+        case .step: return String(localized: "Шаги")
+        case .blur: return String(localized: "Размыть")
         case .ocr: return "OCR"
         default: return nil
         }
@@ -31,26 +31,26 @@ enum EditorTool: String, CaseIterable, Identifiable {
 
     var help: String {
         switch self {
-        case .arrow: return "Стрелка"
-        case .rectangle: return "Рамка"
-        case .ellipse: return "Овал"
-        case .caption: return "Надпись"
-        case .step: return "Шаги: кружки с номерами 1, 2, 3… — куда кликать по порядку"
-        case .blur: return "Размыть: скрыть пароль, почту, лишнее"
-        case .crop: return "Обрезать"
-        case .ocr: return "Скопировать текст с картинки (OCR)"
+        case .arrow: return String(localized: "Стрелка")
+        case .rectangle: return String(localized: "Рамка")
+        case .ellipse: return String(localized: "Овал")
+        case .caption: return String(localized: "Надпись")
+        case .step: return String(localized: "Шаги: кружки с номерами 1, 2, 3… — куда кликать по порядку")
+        case .blur: return String(localized: "Размыть: скрыть пароль, почту, лишнее")
+        case .crop: return String(localized: "Обрезать")
+        case .ocr: return String(localized: "Скопировать текст с картинки (OCR)")
         }
     }
 
     var hint: String {
         switch self {
-        case .arrow: return "Тяните от начала к острию; точка посередине изгибает"
-        case .rectangle, .ellipse: return "Тяните, чтобы обвести"
-        case .caption: return "Кликните, где поставить надпись; Enter — готово"
-        case .step: return "Кликай по порядку: 1, 2, 3…"
-        case .blur: return "Выделите, что скрыть"
-        case .crop: return "Выделите, что оставить: рамку можно двигать и тянуть за края · Enter — обрезать, Esc — отмена"
-        case .ocr: return "Выделите область с текстом — он скопируется. Или «Весь текст»"
+        case .arrow: return String(localized: "Тяните от начала к острию; точка посередине изгибает")
+        case .rectangle, .ellipse: return String(localized: "Тяните, чтобы обвести")
+        case .caption: return String(localized: "Кликните, где поставить надпись; Enter — готово")
+        case .step: return String(localized: "Кликай по порядку: 1, 2, 3…")
+        case .blur: return String(localized: "Выделите, что скрыть")
+        case .crop: return String(localized: "Выделите, что оставить: рамку можно двигать и тянуть за края · Enter — обрезать, Esc — отмена")
+        case .ocr: return String(localized: "Выделите область с текстом — он скопируется. Или «Весь текст»")
         }
     }
 
@@ -254,7 +254,7 @@ enum EditorPalette {
         Color(red: 0.16, green: 0.5, blue: 0.96),
         Color(red: 0.12, green: 0.12, blue: 0.12),
     ]
-    static let names = ["Красный", "Жёлтый", "Синий", "Чёрный"]
+    static let names = [String(localized: "Красный"), String(localized: "Жёлтый"), String(localized: "Синий"), String(localized: "Чёрный")]
 
     static func color(_ index: Int) -> Color { colors[min(max(index, 0), colors.count - 1)] }
     /// Text on a caption plate or a step circle: dark on yellow, white on the rest.

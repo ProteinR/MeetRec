@@ -28,11 +28,11 @@ extension RecorderModel {
         var callUses = false
         if let app, let used = AudioDevices.inputsUsed(by: app).first {
             target = used
-            reason = "Как в \(app.place)"
+            reason = Self.sameAsApp(app)
             callUses = true
         } else {
             target = AudioDevices.defaultInputUID()
-            reason = "Так выбрано в системе"
+            reason = String(localized: "Так выбрано в системе")
         }
         guard let target, target != recordingMicUID else {
             micCandidate = nil
@@ -47,12 +47,14 @@ extension RecorderModel {
         let name = AudioDevices.name(of: target)
         if microphoneID.isEmpty && !micOverridden {
             Log.info("Microphone in use changed to \(name) (\(reason)); switching the recording", "devices")
-            switchMicrophone(to: target, announce: Toast(kind: .info, title: "Микрофон: «\(name)»", detail: reason))
+            switchMicrophone(to: target, announce: Toast(kind: .info, title: String(localized: "Микрофон: «\(name)»"), detail: reason))
         } else if !suggestedMics.contains(target) {
             suggestedMics.insert(target)
             Log.info("Suggesting microphone \(name) (\(reason)); recording \(recordingNames.microphone)", "devices")
-            showToast(Toast(kind: .info, title: "Записывать «\(name)»?",
-                            detail: "\(callUses ? "Звонок использует" : "В системе выбран") «\(name)», а запись идёт с «\(recordingNames.microphone)».",
+            showToast(Toast(kind: .info, title: String(localized: "Записывать «\(name)»?"),
+                            detail: callUses
+                                ? String(localized: "Звонок использует «\(name)», а запись идёт с «\(recordingNames.microphone)».")
+                                : String(localized: "В системе выбран «\(name)», а запись идёт с «\(recordingNames.microphone)»."),
                             action: .switchMicrophone(uid: target)))
         }
     }
@@ -72,9 +74,9 @@ extension RecorderModel {
                 firedAlerts.remove("mic-quiet")
                 if let announce { showToast(announce) }
             } catch {
-                errorMessage = "Не удалось переключить микрофон: \(error.localizedDescription)"
-                Notifier.shared.send(id: "meetrec-mic-switch", title: "Микрофон не переключился",
-                                     body: "Запись продолжается с «\(recordingNames.microphone)». \(error.localizedDescription)")
+                errorMessage = String(localized: "Не удалось переключить микрофон: \(error.localizedDescription)")
+                Notifier.shared.send(id: "meetrec-mic-switch", title: String(localized: "Микрофон не переключился"),
+                                     body: String(localized: "Запись продолжается с «\(recordingNames.microphone)». \(error.localizedDescription)"))
             }
         }
     }

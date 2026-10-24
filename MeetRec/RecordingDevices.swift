@@ -18,7 +18,7 @@ enum ResolutionPreset: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .native: return "Как у монитора"
+        case .native: return String(localized: "Как у монитора")
         case .p1440: return "1440p"
         case .p1080: return "1080p"
         case .p720: return "720p"
