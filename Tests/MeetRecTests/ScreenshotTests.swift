@@ -142,6 +142,22 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertEqual(list.items.count, ScreenshotFiles.panelLimit)
         XCTAssertEqual(list.items.first?.date, Date(timeIntervalSince1970: 360))
     }
+
+    /// Google shows its results only to the session that uploaded the picture, so the browser posts
+    /// it from this page: the whole picture, to the given form field.
+    @MainActor
+    func testBrowserUploadPageHoldsThePicture() throws {
+        let png = try XCTUnwrap(ScreenshotFiles.png(image(width: 8, height: 8), scale: 1))
+        let form = URL(string: "https://lens.google.com/v3/upload?hl=ru&st=1")!
+        let page = try ImageSearch.writeUploadPage(png, to: form, field: "encoded_image")
+        defer { try? FileManager.default.removeItem(at: page) }
+        let html = try String(contentsOf: page, encoding: .utf8)
+        XCTAssertTrue(html.contains(#"action="https://lens.google.com/v3/upload?hl=ru&amp;st=1""#))
+        XCTAssertTrue(html.contains(#"name="encoded_image""#))
+        XCTAssertTrue(html.contains(png.base64EncodedString()))
+        XCTAssertTrue(html.contains("form.submit()"))
+    }
+
 }
 
 /// Editor marks as objects: bending, picking by click, reshaping, step numbers.

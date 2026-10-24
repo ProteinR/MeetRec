@@ -258,8 +258,12 @@ What MeetRec does instead:
   "Скриншоты" (setting `imageSearchProviders`). Every place with search uses the same views
   (`ImageSearchViews.swift`): the toast, the recent screenshots' right-click menu (one row of icons,
   `ControlGroup` palette) and the editor toolbar after the colours (the editor searches its result:
-  marks, blur and crop applied), so a provider added or switched off changes all of them. Two kinds (`ImageSearchMethod`): `.upload` (Google,
-  Яндекс, TinEye: MeetRec uploads and opens the results) and `.pasteOnPage` (Bing, PimEyes, FaceCheck.ID,
+  marks, blur and crop applied), so a provider added or switched off changes all of them. Three kinds (`ImageSearchMethod`): `.upload` (Яндекс,
+  TinEye: MeetRec uploads and opens the results), `.uploadInBrowser` (Google Lens: its results page
+  shows the picture only to the session that uploaded it, so a link from MeetRec's own upload opened
+  an empty search; MeetRec writes a page with the shot in `$TMPDIR/MeetRec Image Search` that posts
+  it to Lens' upload form at once and opens it in the default browser; pages older than a minute
+  are removed) and `.pasteOnPage` (Bing, PimEyes, FaceCheck.ID,
   Search4faces: bot protection and their rules forbid automatic uploads, so the shot goes to the
   clipboard and the site's page opens for a ⌘V by hand). All are on until the setting is changed. Only on a click, the shot scaled to ≤ 2048 px is
   uploaded and the page opens in the browser. Both use the sites' own upload forms (no official
