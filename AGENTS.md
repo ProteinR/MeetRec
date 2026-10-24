@@ -45,9 +45,9 @@ What MeetRec does instead:
 - Optional meeting auto-recording: starts when Microsoft Teams holds the microphone for 5 s, opens the
   panel so it is visible, and stops 15 s after Teams releases the mic (never stops manual recordings).
 
-- During a recording: ⭐ markers (⌃⌥⌘M or the panel button) saved to `<recording>.markers.json` and
+- During a recording: ⭐ markers (⌃⌥⌘M or the panel button) saved to `markers.json` in the recording's folder and
   inserted into the transcript; microphone mutes (system level: AirPods button, Teams' mute) saved
-  to `<recording>.mutes.json` (seconds of the file, written on every change) and written into the
+  to `mutes.json` (seconds of the file, written on every change) and written into the
   transcript as "🔇 [00:01:01–00:01:28] Микрофон выключен" (mutes less than 10 s apart joined,
   shorter than 5 s left out; not chapters); switching to a single window (others and notifications left out; the window alone is scaled to
   fill the frame, `desktopIndependentWindow` + `scalesToFit`),
@@ -61,7 +61,17 @@ What MeetRec does instead:
   Teams windows at launch and with each title) after the timestamp,
   which always comes first so Finder sorts by time: `2026-10-16 14-03-22 Weekly sync.mov`. The
   recordings list can rename (keeping the timestamp first), move to Trash, re-transcribe (new `name (2).md`, old kept) and search
-  names and transcript text. Renames and deletes take the `.md`, `.markers.json` and `.mutes.json` files along.
+  names and transcript text.
+- One folder per recording (`RecordingFiles`): `<stem>/<stem>.mov`, transcripts `<stem>.md`,
+  `<stem> (2).md`…, `markers.json`, `mutes.json`, `run.json` (speakers). A rename renames the folder,
+  the video and the transcripts; Trash takes the whole folder. The older flat layout (`<stem>.mov` with
+  `<stem>.md`, `<stem>.markers.json`, `<stem>.mutes.json` next to it, the run in Application
+  Support's `runs/<stem>.json`) still works; at launch (not after a crash while recording)
+  `RecordingsMigration` moves such recordings into folders: renames on the same volume, names
+  without a timestamp first and anything that would collide are left as they are, every move is in
+  the log ("Migration: from → to"). Other tools read both layouts: inventire-workspace's
+  `transcribe-meeting` / `analyze-latest-meeting` skills and english's `transcribe-lesson` scripts
+  (`meetrec_recordings.sh`).
 - Monitor choice is an accordion section on the main page titled with the display to be recorded;
   opened, it shows live thumbnails of all displays (refreshed every 2 s, `DisplayPreview.swift`),
   the one to be recorded framed in red, an "Авто" switch, and a red frame around that whole screen
@@ -116,7 +126,7 @@ What MeetRec does instead:
   file first; `install.sh` quits gracefully so the watchdog does not relaunch the old copy.
 
 - Naming speakers after the fact: "Подписать спикеров…" in a recording's menu lists the diarized
-  speakers (`runs/<recording>.json`: names, scores, turns, voice embeddings), with their first words
+  speakers (`run.json` in its folder: names, scores, turns, voice embeddings), with their first words
   and closest known voice. A name given there adds that speaker's embedding to `speakers.json` (new
   person or extra sample) and renames them in the transcript, joining neighbouring lines; the meetings
   copy is updated only if it is still identical to the transcript. The run file follows renames.

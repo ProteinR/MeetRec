@@ -48,6 +48,16 @@ class MarkerTests(unittest.TestCase):
                 json.dumps([{"time": 40}, {"time": 5.5, "note": None}]), encoding="utf-8")
             self.assertEqual(transcribe.load_markers(video), [(5.5, None), (40.0, None)])
 
+    def test_markers_and_mutes_in_the_recordings_folder(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = Path(root) / "2026-10-16 14-03-22 Sync"
+            folder.mkdir()
+            video = folder / "2026-10-16 14-03-22 Sync.mov"
+            (folder / "markers.json").write_text(json.dumps([{"time": 7}]), encoding="utf-8")
+            (folder / "mutes.json").write_text(json.dumps([{"start": 10, "end": 30}]), encoding="utf-8")
+            self.assertEqual(transcribe.load_markers(video), [(7.0, None)])
+            self.assertEqual(transcribe.load_mutes(video), [(10.0, ("mute", 30.0))])
+
     def test_mutes_are_joined_and_short_ones_left_out(self):
         spans = [(10.0, 12.0), (15.0, 30.0), (100.0, 102.0), (200.0, None)]
         # 10-12 and 15-30 are one mute (gap 3 s); 100-102 is too short; the last lasts to the end.

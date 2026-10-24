@@ -64,9 +64,7 @@ enum Profiling {
             while model.isRecording || model.isBusy { try? await Task.sleep(for: .milliseconds(200)) }
             log("Profile recording stopped")
             if let file = model.lastFile {
-                for companion in RecordingFiles.companions(of: file) + [file] {
-                    try? FileManager.default.trashItem(at: companion, resultingItemURL: nil)
-                }
+                try? RecordingFiles.trash(file)
                 Log.info("Profile recording moved to the Trash: \(file.lastPathComponent)", "profile")
             }
             try? await Task.sleep(for: .seconds(30))

@@ -33,8 +33,11 @@ enum SpeakerNaming {
             .appendingPathComponent("MeetRec/runs", isDirectory: true)
     }
 
+    /// `run.json` in the recording's folder; Application Support's `runs/<stem>.json` for a recording of
+    /// the flat layout (the inventire transcribe-meeting script also writes there).
     static func runURL(for recording: URL) -> URL {
-        runsDir.appendingPathComponent(recording.deletingPathExtension().lastPathComponent).appendingPathExtension("json")
+        if let folder = RecordingFiles.ownFolder(of: recording) { return folder.appendingPathComponent("run.json") }
+        return runsDir.appendingPathComponent(recording.deletingPathExtension().lastPathComponent).appendingPathExtension("json")
     }
 
     /// Some speakers are still "Speaker N": worth naming them.

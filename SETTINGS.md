@@ -26,7 +26,7 @@ syntax and fails), plain strings need no flag.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `folder` | string | `~/Movies/MeetRec` | Where recordings go (absolute path). |
+| `folder` | string | `~/Movies/MeetRec` | Where recordings go (absolute path); each recording gets its own folder there. |
 | `displayID` | int | `0` | Display to record: `0` = auto (prefers an external monitor), else a `CGDirectDisplayID`. |
 | `fps` | int | `15` | Frame rate: 5, 10, 15, 30 or 60. Idle frames are skipped anyway. |
 | `resolution` | string | `p1080` | `native`, `p1440`, `p1080`, `p720` (maximum height). |

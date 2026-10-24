@@ -281,6 +281,9 @@ final class RecorderModel: ObservableObject {
         }
 
         let interrupted = Watchdog.appLaunched(enabled: crashWatchdog)
+        // Not after a crash while recording: the recovered file is reported by its path first; it
+        // moves into its folder at the next launch.
+        if interrupted == nil, !AppDelegate.isRunningTests { migrateRecordings() }
         checkPermissions()
         permissionTimer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.checkPermissions() }
@@ -692,8 +695,20 @@ final class RecorderModel: ObservableObject {
         }
     }
 
+    /// Flat recordings into their own folders (RecordingsMigration), keeping the last one remembered.
+    func migrateRecordings() {
+        let moves = RecordingsMigration.run(in: folderURL)
+        if let last = lastFile, let move = moves.first(where: { $0.from.path == last.path }) {
+            lastFile = move.to
+        }
+    }
+
+    /// `<folder>/<timestamp>/<timestamp>.mov`, its folder created.
     func nextFileURL() -> URL {
-        folderURL.appendingPathComponent(RecordingFiles.timestamp(Date())).appendingPathExtension("mov")
+        let stem = RecordingFiles.uniqueStem(RecordingFiles.timestamp(Date()), in: folderURL)
+        let file = RecordingFiles.newRecording(stem, in: folderURL)
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        return file
     }
 
 }

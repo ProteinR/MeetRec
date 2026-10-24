@@ -78,11 +78,12 @@ struct Marker: Codable, Equatable {
     }
 }
 
-/// Markers live next to the recording as `<name>.markers.json`, written on every new marker so they
-/// survive a crash like the fragmented video does. `transcribe.py` puts them into the transcript.
+/// Markers live in the recording's folder as `markers.json` (`<name>.markers.json` next to a
+/// recording of the older flat layout), written on every new marker so they survive a crash like the
+/// fragmented video does. `transcribe.py` puts them into the transcript.
 enum MarkerFile {
     static func url(for recording: URL) -> URL {
-        recording.deletingPathExtension().appendingPathExtension("markers.json")
+        RecordingFiles.companion("markers.json", of: recording)
     }
 
     static func load(for recording: URL) -> [Marker] {
@@ -96,7 +97,7 @@ enum MarkerFile {
     }
 }
 
-/// When the microphone was muted during a recording (`<name>.mutes.json`, seconds of the file, `end`
+/// When the microphone was muted during a recording (`mutes.json`, seconds of the file, `end`
 /// nil while still muted), written on every change like the markers. `transcribe.py` writes the longer
 /// ones into the transcript.
 struct MuteSpan: Codable, Equatable {
@@ -106,7 +107,7 @@ struct MuteSpan: Codable, Equatable {
 
 enum MuteFile {
     static func url(for recording: URL) -> URL {
-        recording.deletingPathExtension().appendingPathExtension("mutes.json")
+        RecordingFiles.companion("mutes.json", of: recording)
     }
 
     static func save(_ spans: [MuteSpan], for recording: URL) throws {
@@ -120,7 +121,35 @@ enum MuteFile {
 }
 
 /// Naming, renaming and deleting recordings together with their transcripts and markers.
+///
+/// Each recording has its own folder in the recordings folder: `<stem>/<stem>.mov`, the transcripts
+/// `<stem>.md`, `<stem> (2).md`…, `markers.json`, `mutes.json` and `run.json` (speakers, see
+/// SpeakerNaming). Recordings of the older flat layout (`<stem>.mov` with `<stem>.md`,
+/// `<stem>.markers.json`, `<stem>.mutes.json` next to it, the run in Application Support) still
+/// work; `RecordingsMigration` moves them into folders.
 enum RecordingFiles {
+    /// The recording's own folder, or nil for a recording of the flat layout.
+    static func ownFolder(of recording: URL) -> URL? {
+        let folder = recording.deletingLastPathComponent()
+        return folder.lastPathComponent == recording.deletingPathExtension().lastPathComponent ? folder : nil
+    }
+
+    /// The recordings folder the recording is listed in.
+    static func library(of recording: URL) -> URL {
+        (ownFolder(of: recording) ?? recording).deletingLastPathComponent()
+    }
+
+    /// Where a new recording named `stem` goes: `<library>/<stem>/<stem>.<ext>`.
+    static func newRecording(_ stem: String, in library: URL, ext: String = "mov") -> URL {
+        library.appendingPathComponent(stem, isDirectory: true).appendingPathComponent(stem).appendingPathExtension(ext)
+    }
+
+    /// A file of the recording: `name` in its folder, or `<stem>.<name>` next to a flat recording.
+    static func companion(_ name: String, of recording: URL) -> URL {
+        if let folder = ownFolder(of: recording) { return folder.appendingPathComponent(name) }
+        return recording.deletingPathExtension().appendingPathExtension(name)
+    }
+
     /// Timestamp MeetRec (and OBS) put into file names. It always comes first, so Finder sorts
     /// recordings by time; a title follows it: "2026-10-16 14-03-22 Weekly sync".
     static let timestampPattern = #"\d{4}-\d{2}-\d{2} \d{2}-\d{2}(-\d{2})?"#
@@ -162,13 +191,16 @@ enum RecordingFiles {
         return text
     }
 
-    /// Files that belong to a recording: transcripts (`name.md`, `name (2).md`…), markers and mutes.
+    /// Files that belong to a recording: transcripts (`name.md`, `name (2).md`…), markers and mutes
+    /// (and in its own folder the run file).
     static func companions(of recording: URL) -> [URL] {
         let folder = recording.deletingLastPathComponent()
         let stem = recording.deletingPathExtension().lastPathComponent
         guard !stem.isEmpty else { return [] }
         let names = Set((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [])
+        let own = ownFolder(of: recording) != nil
         return names.filter { name in
+            if own, ["markers.json", "mutes.json", "run.json"].contains(name) { return true }
             guard name.hasPrefix(stem) else { return false }
             let rest = String(name.dropFirst(stem.count))
             if rest == ".md" || rest == ".markers.json" || rest == ".mutes.json" { return true }
@@ -181,6 +213,7 @@ enum RecordingFiles {
 
     /// Renames the recording and its companions to `newStem`; returns the new video URL.
     static func rename(_ recording: URL, to newStem: String) throws -> URL {
+        if let own = ownFolder(of: recording) { return try renameFolder(own, of: recording, to: newStem) }
         let folder = recording.deletingLastPathComponent()
         let oldStem = recording.deletingPathExtension().lastPathComponent
         let target = folder.appendingPathComponent(newStem).appendingPathExtension(recording.pathExtension)
@@ -208,11 +241,44 @@ enum RecordingFiles {
         return target
     }
 
-    /// A stem in `folder` that no `.mov` uses yet: "name", "name (2)"…
+    /// Renames the files named after the recording inside its folder (video, transcripts), then the
+    /// folder itself.
+    private static func renameFolder(_ own: URL, of recording: URL, to newStem: String) throws -> URL {
+        let oldStem = recording.deletingPathExtension().lastPathComponent
+        guard newStem != oldStem else { return recording }
+        let target = own.deletingLastPathComponent().appendingPathComponent(newStem, isDirectory: true)
+        if FileManager.default.fileExists(atPath: target.path) {
+            throw CocoaError(.fileWriteFileExists, userInfo: [NSFilePathErrorKey: target.path])
+        }
+        let named = companions(of: recording).filter { $0.lastPathComponent.hasPrefix(oldStem) }
+        let video = own.appendingPathComponent(newStem).appendingPathExtension(recording.pathExtension)
+        try FileManager.default.moveItem(at: recording, to: video)
+        for file in named {
+            let rest = String(file.lastPathComponent.dropFirst(oldStem.count))
+            do {
+                try FileManager.default.moveItem(at: file, to: own.appendingPathComponent(newStem + rest))
+            } catch {
+                Log.warning("Could not rename \(file.lastPathComponent): \(Log.describe(error))", "files")
+            }
+        }
+        do {
+            try FileManager.default.moveItem(at: own, to: target)
+        } catch {
+            // The files inside already have the new name: the recording stays listed, in a folder
+            // with the old name, until the next rename or the next launch's migration.
+            Log.warning("Could not rename folder \(own.lastPathComponent): \(Log.describe(error))", "files")
+            return video
+        }
+        Log.info("Renamed recording \"\(oldStem)\" → \"\(newStem)\" (folder, +\(named.count) related files)", "files")
+        return target.appendingPathComponent(video.lastPathComponent)
+    }
+
+    /// A stem in `folder` that no `.mov` (or recording folder) uses yet: "name", "name (2)"…
     static func uniqueStem(_ stem: String, in folder: URL, ext: String = "mov") -> String {
         var candidate = stem
         var index = 2
-        while FileManager.default.fileExists(atPath: folder.appendingPathComponent(candidate).appendingPathExtension(ext).path) {
+        while FileManager.default.fileExists(atPath: folder.appendingPathComponent(candidate).appendingPathExtension(ext).path)
+                || FileManager.default.fileExists(atPath: folder.appendingPathComponent(candidate, isDirectory: true).path) {
             candidate = "\(stem) (\(index))"
             index += 1
         }
@@ -221,6 +287,11 @@ enum RecordingFiles {
 
     /// Moves the recording and its companions to the Trash (recoverable from there).
     static func trash(_ recording: URL) throws {
+        if let own = ownFolder(of: recording) {
+            try FileManager.default.trashItem(at: own, resultingItemURL: nil)
+            Log.info("Moved to Trash: folder \(own.lastPathComponent)", "files")
+            return
+        }
         let companions = companions(of: recording)
         try FileManager.default.trashItem(at: recording, resultingItemURL: nil)
         for file in companions {

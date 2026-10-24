@@ -715,10 +715,18 @@ def without_me(names, me):
 PAUSE_NOTE = "Пауза"  # RecorderModel.pauseNote: where a paused recording was joined up
 
 
+def companion(recording, name):
+    """A file of the recording: `name` in its own folder (`<stem>/<stem>.mov`), or `<stem>.<name>`
+    next to a recording of the older flat layout (RecordingFiles.companion in MeetRec)."""
+    if recording.parent.name == recording.stem:
+        return recording.parent / name
+    return recording.with_name(f"{recording.stem}.{name}")
+
+
 def load_markers(recording):
-    """Moments marked during recording (`<name>.markers.json` next to the video) as (seconds, note),
-    note "Пауза" for a cut pause and None for the user's own markers."""
-    path = recording.with_name(recording.stem + ".markers.json")
+    """Moments marked during recording (`markers.json` of the recording) as (seconds, note), note
+    "Пауза" for a cut pause and None for the user's own markers."""
+    path = companion(recording, "markers.json")
     if not path.exists():
         return []
     try:
@@ -734,10 +742,10 @@ MUTE_MIN = 5.0    # shorter mutes (a cough) are left out
 
 
 def load_mutes(recording, total=None, speech=()):
-    """When the microphone was muted (`<name>.mutes.json` next to the video, seconds of the file),
+    """When the microphone was muted (`mutes.json` of the recording, seconds of the file),
     joined when close together (not over the user's `speech` times) and without the short ones, as
     markers (start, ("mute", end))."""
-    path = recording.with_name(recording.stem + ".mutes.json")
+    path = companion(recording, "mutes.json")
     if not path.exists():
         return []
     try:
@@ -882,10 +890,11 @@ def transcribe(args):
             speakers_summary.append({"label": label, "name": names[label], "minutes": round(speaking[label] / 60, 1),
                                      "best": match["name"], "score": match["score"]})
             log(f"{label}: {names[label]} ({speaking[label] / 60:.1f} min; best {match['name']} {match['score']})")
-        if args.runs_dir:
-            runs = Path(args.runs_dir)
-            runs.mkdir(parents=True, exist_ok=True)
-            (runs / f"{recording.stem}.json").write_text(
+        run_file = Path(args.run_file) if args.run_file else \
+            Path(args.runs_dir) / f"{recording.stem}.json" if args.runs_dir else None
+        if run_file:
+            run_file.parent.mkdir(parents=True, exist_ok=True)
+            run_file.write_text(
                 json.dumps({"recording": recording.name, "names": names, "scores": scores, **diarization,
                             "microphoneApart": my_asr is not None}),
                 encoding="utf-8")
@@ -956,6 +965,7 @@ def main():
     t.add_argument("--language", default="")
     t.add_argument("--speakers")
     t.add_argument("--runs-dir")
+    t.add_argument("--run-file", help="where the speakers of this run go (MeetRec: run.json in the recording's folder)")
     t.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD)
     t.add_argument("--me", default="", help="the user's name: whoever speaks into the microphone track")
     t.add_argument("--one-other", action="store_true", help="a one-on-one call: everyone but the user is one person")

@@ -442,7 +442,7 @@ extension RecorderModel {
     func renameWithTitle(_ file: URL, title: String) -> URL {
         let stem = file.deletingPathExtension().lastPathComponent
         let newStem = RecordingFiles.uniqueStem(RecordingFiles.stem(timestamp: stem, title: RecordingFiles.sanitize(title)),
-                                                in: file.deletingLastPathComponent(),
+                                                in: RecordingFiles.library(of: file),
                                                 ext: file.pathExtension)
         do {
             return try RecordingFiles.rename(file, to: newStem)

@@ -14,13 +14,21 @@ struct RecordingItem: Identifiable, Equatable {
 enum RecordingsStore {
     static let limit = 30
 
-    /// The newest `.mov`/`.mp4` files in the output folder; all of them when `limit` is nil.
+    /// The newest recordings in the output folder (`<stem>/<stem>.mov` and flat `.mov`/`.mp4`); all of
+    /// them when `limit` is nil.
     static func load(from folder: URL, limit: Int? = RecordingsStore.limit) -> [RecordingItem] {
-        let keys: [URLResourceKey] = [.creationDateKey, .contentModificationDateKey, .fileSizeKey]
-        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: keys,
-                                                                   options: [.skipsHiddenFiles])) ?? []
+        let keys: [URLResourceKey] = [.creationDateKey, .contentModificationDateKey, .fileSizeKey, .isDirectoryKey]
+        let entries = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: keys,
+                                                                     options: [.skipsHiddenFiles])) ?? []
+        let isVideo = { (url: URL) in url.pathExtension.lowercased() == "mov" || url.pathExtension.lowercased() == "mp4" }
+        let files = entries.flatMap { entry -> [URL] in
+            guard (try? entry.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { return [entry] }
+            // A folder is a recording when it holds a video of its own name (other folders are left alone).
+            return ["mov", "mp4", "MOV", "MP4"].map { entry.appendingPathComponent(entry.lastPathComponent).appendingPathExtension($0) }
+                .filter { FileManager.default.fileExists(atPath: $0.path) }.prefix(1).map { $0 }
+        }
         let items = files
-            .filter { $0.pathExtension.lowercased() == "mov" || $0.pathExtension.lowercased() == "mp4" }
+            .filter(isVideo)
             .compactMap { url -> RecordingItem? in
                 let values = try? url.resourceValues(forKeys: Set(keys))
                 let date = values?.creationDate ?? values?.contentModificationDate ?? .distantPast

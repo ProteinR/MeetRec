@@ -162,7 +162,7 @@ final class Transcriber: ObservableObject {
         var stageProgress: [String: Double] = [:]
         let useDiarization = diarization
         var arguments = ["transcribe", file.path, "--output", output.path,
-                         "--speakers", speakersFile.path, "--runs-dir", runsDir.path]
+                         "--speakers", speakersFile.path, "--run-file", SpeakerNaming.runURL(for: file).path]
         if !diarization { arguments.append("--no-diarization") }
         if !language.isEmpty { arguments += ["--language", language] }
         // Whoever speaks into the microphone track is the user, whatever the voice match says.
@@ -291,12 +291,15 @@ final class Transcriber: ObservableObject {
         return panel.runModal() == .OK ? panel.url?.path : nil
     }
 
-    /// `<recording>.md` next to the video; never overwrites an existing transcript.
+    /// `<recording>.md` next to the video; never overwrites an existing transcript, nor takes the name
+    /// of a separate recording's transcript ("name (2).md" of "name (2).mov" in the flat layout).
     static func transcriptURL(for recording: URL) -> URL {
         let base = recording.deletingPathExtension()
         var candidate = base.appendingPathExtension("md")
         var index = 2
-        while FileManager.default.fileExists(atPath: candidate.path) {
+        let manager = FileManager.default
+        while manager.fileExists(atPath: candidate.path)
+                || (index > 2 && ["mov", "mp4"].contains { manager.fileExists(atPath: candidate.deletingPathExtension().appendingPathExtension($0).path) }) {
             candidate = URL(fileURLWithPath: base.path + " (\(index))").appendingPathExtension("md")
             index += 1
         }
