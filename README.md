@@ -1,8 +1,12 @@
-# MeetRec
+# MeetRec — meeting recorder for Mac with local transcription
 
-A small native macOS menu bar app that records meetings (screen, microphone and the other side's
-audio), transcribes them locally and takes Shottr-style screenshots. Written to replace OBS, which
-was only ever used for "Start Recording" in calls.
+**MeetRec** is a free, open-source macOS menu bar app that **records meetings and calls** — the
+screen, your microphone and the other side's audio — and **transcribes them on your Mac** with
+Whisper and speaker diarization. No bot joins your call and nothing is uploaded. It also takes
+**screenshots with annotations and OCR**, Shottr-style.
+
+It started as a lightweight **OBS alternative** for one job: pressing "record" in Microsoft Teams,
+Google Meet, Zoom (in a browser) or Telegram calls, without scenes, sources and encoder settings.
 
 **English and Russian.** MeetRec follows the system language; to pick one for MeetRec only, use
 System Settings → General → Language & Region → Applications. Translations to other languages are
@@ -37,6 +41,30 @@ welcome (`MeetRec/Localizable.xcstrings`).
   (arrows, boxes, steps, blur, crop), OCR (⇧⌘2) and reverse image search.
 - Window recording, display picker with live thumbnails, a recording island at the notch, a camera
   mirror to check yourself before a call.
+
+## How it compares
+
+MeetRec is small and does one thing end to end: a video of the meeting, both sides' audio and a
+local transcript with names. If you need something else, the others below are good at it.
+
+| | MeetRec | OBS Studio | Otter.ai | Granola | MacWhisper |
+|---|---|---|---|---|---|
+| Records the screen (video) | ✅ | ✅ | — | — | — |
+| Records your mic and the other side | ✅ separate tracks | ✅ with setup | ✅ | ✅ | ✅ |
+| Starts and stops with the meeting | ✅ Teams, browser, Telegram | — | ✅ (calendar bot) | Asks, stops by itself | ✅ |
+| Joins the call as a bot | No | No | Yes (OtterPilot) | No | No |
+| Transcription | On your Mac | — | Cloud | Cloud | On your Mac |
+| Speaker names | ✅ from voice samples | — | ✅ | ✅ | ✅ (Pro) |
+| AI summaries | — | — | ✅ | ✅ | ✅ (your API key) |
+| Screenshots, annotations, OCR | ✅ | — | — | — | — |
+| Price / source | Free, MIT | Free, GPL | Subscription | Subscription | Paid |
+
+Compared with the screenshot apps: like **Shottr** and **CleanShot X**, MeetRec freezes the screen,
+captures an area or a window on its wallpaper, and annotates (arrows, boxes, numbered steps, blur,
+crop) with OCR and reverse image search. It has no scrolling capture, cloud upload or video
+annotations; those apps are the better choice if you need them.
+
+<sub>Based on the vendors' public descriptions as of October 2026; corrections welcome.</sub>
 
 <details>
 <summary>More screenshots</summary>
@@ -93,7 +121,7 @@ tccutil reset Microphone com.dmemruk.MeetRec
    [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
    on Hugging Face.
 2. Log in once in the terminal: `uvx --from huggingface_hub hf auth login` (stores the token in `~/.cache/huggingface`).
-3. In MeetRec: settings → Запись → Транскрибация → «Скачать модели» (~2 GB, once).
+3. In MeetRec: Settings → Recording → Transcription → Download models (~2 GB, once).
 
 Everything then runs locally at background priority.
 
@@ -111,6 +139,20 @@ xcodebuild test -project MeetRec.xcodeproj -scheme MeetRec -destination 'platfor
 python3 -m unittest discover -s Tests
 ```
 
+## FAQ
+
+**Does MeetRec work with Zoom, Google Meet or Slack huddles?** Calls in a browser (Chrome, Safari,
+Arc, Edge, Firefox, Brave and others) are detected and MeetRec asks whether to record; a tab rule
+can record a site without asking. Microsoft Teams and Telegram desktop apps are detected too. The
+Zoom, Slack, Webex and FaceTime apps are not detected yet, but you can always start a recording by
+hand (⌃⌥⌘R).
+
+**Is anything sent to the cloud?** No. Recording and transcription run on your Mac; the only network
+access is the one-time model download from Hugging Face (and image search, when you click it).
+
+**Which Macs?** macOS 15 or later; transcription needs Apple Silicon (MLX). It is built and used on
+Apple Silicon only.
+
 ## Notes
 
 - Image search buttons use the services' public upload pages (no official APIs) and may break
@@ -126,9 +168,12 @@ python3 -m unittest discover -s Tests
 
 ## По-русски
 
-MeetRec — маленькое нативное приложение в строке меню macOS: записывает встречи (экран,
-микрофон и звук собеседников), локально делает транскрипт с именами спикеров и снимает скриншоты
-как Shottr. Сделано вместо OBS, в котором нужна была только кнопка «Начать запись».
+MeetRec — бесплатная программа для записи встреч и звонков на Mac (Microsoft Teams, Google Meet и
+другие звонки в браузере, Telegram): записывает экран, микрофон и звук собеседников, сама
+начинает и заканчивает запись вместе со встречей и локально, без облака и ботов, делает транскрипт
+с именами спикеров (Whisper + pyannote). Ещё снимает скриншоты с пометками и распознаванием текста,
+как Shottr. Сделано как лёгкая замена OBS, в котором нужна была только кнопка «Начать запись».
+Интерфейс на русском и английском.
 
 - Сборка и установка: `./scripts/install.sh` (нужны Xcode и XcodeGen, macOS 15+, Apple Silicon).
 - Чтобы разрешения на запись экрана и микрофон не сбрасывались после каждой пересборки, создайте
