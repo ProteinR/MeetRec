@@ -8,11 +8,14 @@ thing: pressing "record" in a meeting to capture the screen, the microphone and 
 voices. For that job OBS was the wrong tool:
 
 - **Heavy for the task.** About 440 MB installed, a virtual camera system extension, scenes, sources,
-  encoders and streaming settings, of which only "Start Recording" was ever used.
+  encoders and streaming settings, of which only "Start Recording" was ever used. Measured on the
+  same recording job (`PROFILING.md`): 193 MB and 7% of a core idle, 339 MB and 21% recording,
+  against MeetRec's 41 MB / 0.1% and 36–50 MB / 12%.
 - **Manual.** Open OBS, check the scene, start, remember to stop. Nothing tells you mid-meeting that
   the microphone went silent or the wrong device is recording.
-- **Large files.** 143 recordings took 12 GB; a mostly static screen at a few frames per second needs
-  far less.
+- **Fragile output.** The source was bound to one display; with that monitor unplugged OBS recorded
+  an empty frame. File size was not the problem: the owner's OBS profile wrote 0.22–0.40 GB per hour
+  (one audio track), MeetRec writes 0.55–0.65 GB per hour (three audio tracks, more frames).
 - **Not connected to transcription.** Recordings were transcribed afterwards by hand with a
   separate transcription script.
 
