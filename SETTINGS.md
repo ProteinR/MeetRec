@@ -19,7 +19,8 @@ open ~/Applications/MeetRec.app
 
 Read everything at once: `defaults read com.dmemruk.MeetRec`. Remove a key to go back to the
 default: `defaults delete com.dmemruk.MeetRec <key>`. Types matter: use `-int`, `-float`, `-bool`
-as in the tables; strings (also the JSON ones) need no flag.
+as in the tables; JSON values need `-string` (else `defaults` reads `[...]` as its own array
+syntax and fails), plain strings need no flag.
 
 ## Recording
 
@@ -58,7 +59,7 @@ as in the tables; strings (also the JSON ones) need no flag.
 - `oneOther` (optional): a one-on-one call; everyone except you is one speaker in the transcript.
 
 ```bash
-defaults write com.dmemruk.MeetRec browserAutoRules '[{"id":"6F1C2B9E-3D4A-4E5F-8A7B-1C2D3E4F5A6B","keyword":"meet.google.com","title":"Google Meet"}]'
+defaults write com.dmemruk.MeetRec browserAutoRules -string '[{"id":"6F1C2B9E-3D4A-4E5F-8A7B-1C2D3E4F5A6B","keyword":"meet.google.com","title":"Google Meet"}]'
 ```
 
 ## Transcription

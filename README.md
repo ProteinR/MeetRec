@@ -8,6 +8,15 @@ was only ever used for "Start Recording" in calls.
 
 [Русская версия ниже](#по-русски)
 
+<p align="center">
+  <img src="docs/images/recordings.png" width="420" alt="MeetRec menu bar panel: start button, microphone and system audio, recordings with transcripts and markers">
+  <img src="docs/images/settings-meetings.png" width="420" alt="Meeting detection settings: Teams records automatically, Telegram and browser ask first, browser tab rules">
+</p>
+
+<p align="center">
+  <img src="docs/images/editor.gif" width="760" alt="Screenshot editor: arrow, rectangle, numbered steps and blur">
+</p>
+
 ## Features
 
 - **One click or ⌃⌥⌘R** to record the screen, microphone and system audio into a crash-safe
@@ -26,6 +35,16 @@ was only ever used for "Start Recording" in calls.
   (arrows, boxes, steps, blur, crop), OCR (⇧⌘2) and reverse image search.
 - Window recording, display picker with live thumbnails, a recording island at the notch, a camera
   mirror to check yourself before a call.
+
+<details>
+<summary>More screenshots</summary>
+
+<p align="center">
+  <img src="docs/images/screenshots-section.png" width="420" alt="Recent screenshots in the panel with Screenshot and OCR buttons">
+  <img src="docs/images/settings-screenshots.png" width="420" alt="Screenshot settings: clipboard, folder, format, wallpaper margin, image search services">
+  <img src="docs/images/settings-shortcuts.png" width="420" alt="Shortcut settings for recording, markers, pause, screenshot and OCR">
+</p>
+</details>
 
 ## Requirements
 
