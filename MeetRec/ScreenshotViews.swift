@@ -141,16 +141,13 @@ private struct ScreenshotThumbnail: View {
     }
 }
 
-/// Settings page card: hotkey, clipboard, folder, toast.
+/// Settings page tab: clipboard, folder, format, sound, toast, image search (the shortcuts are in "Клавиши").
 struct ScreenshotSettings: View {
     @AppStorage(ImageSearch.enabledKey) private var searchProviders = ImageSearch.enabledByDefault
     @ObservedObject private var shots = Screenshotter.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(ShortcutAction.screenshots) { action in
-                ShortcutRow(action: action)
-            }
             Toggle("Копировать в буфер обмена", isOn: $shots.copyToClipboard)
             Toggle("Сохранять в папку", isOn: $shots.saveToFolder)
             if shots.saveToFolder {
@@ -188,7 +185,7 @@ struct ScreenshotSettings: View {
             }
             HStack(spacing: 8) {
                 Text("Обои вокруг окна")
-                Slider(value: $shots.windowMargin, in: 0...Double(WindowShot.maxMargin), step: 1)
+                LightSlider(value: $shots.windowMargin, range: 0...Double(WindowShot.maxMargin))
                     .frame(width: 120)
                 TextField("", value: Binding(get: { Int(shots.windowMargin) },
                                              set: { shots.windowMargin = Double(min(max($0, 0), Int(WindowShot.maxMargin))) }),
@@ -199,6 +196,8 @@ struct ScreenshotSettings: View {
                 Text("px")
             }
             .help("Снимок окна (клик по заголовку): сколько обоев оставить вокруг него. В редакторе можно поменять для каждого снимка")
+            Toggle("Звук затвора", isOn: $shots.playSound)
+                .help("Щелчок, как у системного скриншота, когда область или окно выбраны")
             Toggle("Сообщение с превью после снимка", isOn: $shots.showToast)
                 .help("Под значком в меню: превью можно перетащить в чат или в поле браузера, клик по нему — редактировать")
             VStack(alignment: .leading, spacing: 6) {
@@ -223,14 +222,5 @@ struct ScreenshotSettings: View {
             }
             .help("Кнопки в сообщении после снимка, в меню снимков и в редакторе; снимок уходит в сервис только по клику")
         }
-    }
-
-    static var summary: String {
-        let shots = Screenshotter.shared
-        var parts = ShortcutAction.screenshots.compactMap { Shortcuts.shared.hint($0) }
-        if parts.isEmpty { parts.append("без сочетаний") }
-        if shots.copyToClipboard { parts.append("копировать") }
-        if shots.saveToFolder { parts.append("сохранять") }
-        return parts.joined(separator: " · ")
     }
 }

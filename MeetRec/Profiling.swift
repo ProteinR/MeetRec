@@ -8,6 +8,7 @@ import AppKit
 /// - `--profile-recording <seconds>`: a manual recording of that length (footprint every minute),
 ///   then the file is moved to the Trash; no transcription.
 /// - `--camera-test`: "Как я выгляжу" opened and closed three times.
+/// - `--settings-test`: the settings page with each tab and section open in turn, three rounds.
 /// - `--stress-test`: three rounds of the panel (10 times, settings every other time), the
 ///   screenshot selection (3 times, cancelled), freezing the screens (5 times) and the screenshot
 ///   editor (5 times). Growing every
@@ -29,6 +30,13 @@ enum Profiling {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(5))
                 await cameraTest()
+            }
+        }
+        if arguments.contains("--settings-test") {
+            isActive = true
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(5))
+                await settingsTest(delegate)
             }
         }
         if arguments.contains("--stress-test") {
@@ -111,6 +119,29 @@ enum Profiling {
     // MARK: - Camera
 
     /// "Как я выгляжу" opened for 5 s and closed, three times (the camera light comes on).
+    /// The settings page with each section open in turn, three rounds; the peak shows what a first
+    /// draw costs (the system switch once took ~100 MB for a moment).
+    private static func settingsTest(_ delegate: AppDelegate) async {
+        log("Settings test start")
+        for round in 1...3 {
+            delegate.showPanel()
+            for (tab, section) in settingsSections {
+                RecorderModel.shared.requestSettings(tab: tab, section: section)
+                try? await Task.sleep(for: .seconds(1.5))
+                log("Settings \(section ?? tab.rawValue)")
+            }
+            delegate.panel.close()
+            try? await Task.sleep(for: .seconds(3))
+            log("Settings round \(round)")
+        }
+        log("Settings test done")
+    }
+
+    static let settingsSections: [(SettingsTab, String?)] = [
+        (.recording, "video"), (.recording, "meetings"), (.recording, "transcription"), (.recording, "appearance"),
+        (.screenshots, nil), (.shortcuts, nil),
+    ]
+
     private static func cameraTest() async {
         log("Camera test start")
         for round in 1...3 {
@@ -127,7 +158,19 @@ enum Profiling {
     // MARK: - Footprint
 
     private static func log(_ what: String) {
-        Log.info("\(what): footprint \(footprintMB()) MB", "profile")
+        Log.info("\(what): footprint \(footprintMB()) MB, peak \(peakMB()) MB", "profile")
+    }
+
+    /// The highest footprint since launch.
+    static func peakMB() -> String {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        return result == KERN_SUCCESS ? String(format: "%.1f", Double(info.ledger_phys_footprint_peak) / 1_048_576) : "?"
     }
 
     /// The memory footprint, as Activity Monitor shows it.

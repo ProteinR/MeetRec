@@ -167,9 +167,9 @@ struct EditorView: View {
     private var blurSlider: some View {
         HStack(spacing: 6) {
             Image(systemName: "square.grid.3x3").font(.caption).foregroundStyle(.secondary)
-            Slider(value: Binding(get: { document.selected?.kind == .blur ? document.selected!.blur : document.blurSize },
-                                  set: { document.setBlurSize($0.rounded(), record: false) }),
-                   in: EditorDocument.blurRange, step: 1) { editing in
+            LightSlider(value: Binding(get: { Double(document.selected?.kind == .blur ? document.selected!.blur : document.blurSize) },
+                                       set: { document.setBlurSize(CGFloat($0.rounded()), record: false) }),
+                        range: Double(EditorDocument.blurRange.lowerBound)...Double(EditorDocument.blurRange.upperBound)) { editing in
                 if editing, document.selected?.kind == .blur { document.recordUndo() }
             }
             .frame(width: 90)
@@ -199,9 +199,9 @@ struct EditorView: View {
         HStack(spacing: 6) {
             Divider().frame(height: 14)
             Text("Обои вокруг окна")
-            Slider(value: Binding(get: { Double(document.margin) },
-                                  set: { document.setMargin(CGFloat($0), record: false) }),
-                   in: 0...Double(WindowShot.maxMargin), step: 1) { editing in
+            LightSlider(value: Binding(get: { Double(document.margin) },
+                                       set: { document.setMargin(CGFloat($0), record: false) }),
+                        range: 0...Double(WindowShot.maxMargin)) { editing in
                 if editing { document.recordUndo() }
             }
             .frame(width: 120)

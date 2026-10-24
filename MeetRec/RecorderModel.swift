@@ -67,9 +67,16 @@ final class RecorderModel: ObservableObject {
     var autoStartedAppID: String?
     /// Shown in the panel after a recording stops ("Запись сохранена · 34:12 · …") until the next start.
     @Published var stopNotice: String?
-    /// Bumped to open the settings page (quick menu "Настройки…").
+    /// Bumped to open the settings page (quick menu "Настройки…"), at `settingsTab` and
+    /// `settingsSection` if set.
     @Published private(set) var settingsRequest = 0
-    func requestSettings() { settingsRequest += 1 }
+    private(set) var settingsTab: SettingsTab?
+    private(set) var settingsSection: String?
+    func requestSettings(tab: SettingsTab? = nil, section: String? = nil) {
+        settingsTab = tab
+        settingsSection = section
+        settingsRequest += 1
+    }
 
     /// Whether the menu panel is on screen; drives the microphone level preview and how often the
     /// recording status refreshes (5×/s for smooth meters while visible, once a second otherwise).

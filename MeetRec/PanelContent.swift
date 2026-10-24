@@ -17,6 +17,15 @@ struct ContentView: View {
     @StateObject private var windowPreview = WindowPreview()
     @State private var openSection: String?
     @State var showingSettings = false
+    /// The settings tab last looked at, kept across openings.
+    @AppStorage(SettingsTab.storageKey) private var settingsTabRaw = SettingsTab.recording.rawValue
+    var settingsTab: SettingsTab { SettingsTab(rawValue: settingsTabRaw) ?? .recording }
+    var settingsTabBinding: Binding<SettingsTab> {
+        Binding(get: { settingsTab }, set: { tab in
+            openSection = nil
+            settingsTabRaw = tab.rawValue
+        })
+    }
     @State private var closeAfterToggle = false
     /// After a click on Start/Stop the layout stays as it was until the panel folds away, so the
     /// button morphs in place instead of jumping.
@@ -63,7 +72,11 @@ struct ContentView: View {
                 frozenLayout = nil
             }
         }
-        .onChange(of: model.settingsRequest) { showingSettings = true }
+        .onChange(of: model.settingsRequest) {
+            showingSettings = true
+            if let tab = model.settingsTab { settingsTabRaw = tab.rawValue }
+            if let section = model.settingsSection { openSection = section }
+        }
         // Every opening starts on the main page with all sections folded; reset while hidden, so
         // nothing animates.
         .onChange(of: model.panelVisible) { _, visible in
@@ -141,8 +154,8 @@ struct ContentView: View {
         let taken = ShortcutAction.recording.filter { Shortcuts.shared.taken.contains($0) }
         if !taken.isEmpty {
             Button {
+                settingsTabRaw = SettingsTab.shortcuts.rawValue
                 showingSettings = true
-                openSection = "shortcuts"
             } label: {
                 WarningLabel(text: "Не работает: " + taken.compactMap { Shortcuts.shared.combo($0)?.text }.joined(separator: ", ")
                              + " — сочетание занято другим приложением. Изменить…")

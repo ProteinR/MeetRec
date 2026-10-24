@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// The settings page behind the gear: general settings and the accordion of sections.
+/// The settings page behind the gear: tabs for recording (general settings and the accordion of
+/// sections), screenshots and shortcuts.
 extension ContentView {
     /// Settings that rarely change, behind the gear button.
     var settingsPage: some View {
@@ -18,27 +19,36 @@ extension ContentView {
                 // Balances the back button so the title stays centred.
                 Label("Назад", systemImage: "chevron.left").hidden()
             }
-            generalSettings
-            // Accordion: one card open at a time keeps the page within the screen height.
-            VStack(spacing: 8) {
-                CollapsibleSection(title: "Видео", icon: "video.fill", summary: videoSummary,
-                                   isExpanded: expanded("video")) { videoSettings }
-                CollapsibleSection(title: "Транскрибация", icon: "text.bubble.fill", summary: transcriptionSummary,
-                                   isExpanded: expanded("transcription")) { TranscriptionSettings() }
-                CollapsibleSection(title: "Встречи и звонки", icon: "person.2.wave.2.fill", summary: meetingSummary,
-                                   isExpanded: expanded("meetings")) { MeetingSettings() }
-                CollapsibleSection(title: "Вид во время записи", icon: "menubar.rectangle", summary: appearanceSummary,
-                                   isExpanded: expanded("appearance")) { AppearanceSettings() }
-                CollapsibleSection(title: "Сочетания клавиш", icon: "keyboard", summary: shortcutsSummary,
-                                   isExpanded: expanded("shortcuts")) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(ShortcutAction.recording) { ShortcutRow(action: $0) }
-                        Text("Скриншот и OCR — в разделе «Скриншоты».").font(.caption).foregroundStyle(.secondary)
-                    }
+            SettingsTabBar(selection: settingsTabBinding)
+            switch settingsTab {
+            case .recording:
+                generalSettings
+                // Accordion: one card open at a time keeps the page within the screen height.
+                VStack(spacing: 8) {
+                    CollapsibleSection(title: "Видео", icon: "video.fill", summary: videoSummary,
+                                       isExpanded: expanded("video")) { videoSettings }
+                    CollapsibleSection(title: "Встречи и звонки", icon: "person.2.wave.2.fill", summary: meetingSummary,
+                                       isExpanded: expanded("meetings")) { MeetingSettings() }
+                    CollapsibleSection(title: "Транскрибация", icon: "text.bubble.fill", summary: transcriptionSummary,
+                                       isExpanded: expanded("transcription")) { TranscriptionSettings() }
+                    CollapsibleSection(title: "Вид во время записи", icon: "menubar.rectangle", summary: appearanceSummary,
+                                       isExpanded: expanded("appearance")) { AppearanceSettings() }
                 }
-                CollapsibleSection(title: "Скриншоты", icon: "camera.viewfinder", summary: ScreenshotSettings.summary,
-                                   isExpanded: expanded("screenshots-settings")) { ScreenshotSettings() }
+            case .screenshots:
+                ScreenshotSettings().settingsCard()
+            case .shortcuts:
+                shortcutSettings.settingsCard()
             }
+        }
+    }
+
+    /// Every shortcut in one place, so a clash between two of them is seen at once.
+    var shortcutSettings: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Запись").font(.caption).foregroundStyle(.secondary)
+            ForEach(ShortcutAction.recording) { ShortcutRow(action: $0) }
+            Text("Скриншоты").font(.caption).foregroundStyle(.secondary).padding(.top, 6)
+            ForEach(ShortcutAction.screenshots) { ShortcutRow(action: $0) }
         }
     }
 
@@ -74,9 +84,7 @@ extension ContentView {
                 Spacer(minLength: 0)
             }
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.08)))
+        .settingsCard()
     }
 
     var meetingSummary: String {
@@ -89,11 +97,6 @@ extension ContentView {
     var appearanceSummary: String {
         let style = (MenuBarStyle(rawValue: menuBarStyle) ?? .full).title
         return hideFromSharing ? "\(style) · скрыт при показе экрана" : style
-    }
-
-    var shortcutsSummary: String {
-        let set = ShortcutAction.recording.compactMap { Shortcuts.shared.hint($0) }
-        return set.isEmpty ? "Не заданы" : set.joined(separator: " · ")
     }
 
     var videoSummary: String {
@@ -138,5 +141,15 @@ extension ContentView {
                 Text("Меняется после записи").font(.caption2).foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+extension View {
+    /// The settings page's plain card (general settings, screenshots, shortcuts).
+    func settingsCard() -> some View {
+        frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.05)))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.08)))
     }
 }

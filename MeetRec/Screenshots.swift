@@ -20,6 +20,7 @@ final class Screenshotter: ObservableObject {
     @AppStorage("screenshotCopy") var copyToClipboard = true
     @AppStorage("screenshotSave") var saveToFolder = true
     @AppStorage("screenshotToast") var showToast = true
+    @AppStorage("screenshotSound") var playSound = true
     /// Wallpaper around a clicked window, points; the editor can change it per shot.
     @AppStorage("screenshotWindowMargin") var windowMargin = Double(WindowShot.defaultMargin)
     /// Empty: `defaultFolder`, where Shottr kept them, so the history stays in one place.
@@ -31,6 +32,9 @@ final class Screenshotter: ObservableObject {
     @Published private(set) var version = 0
 
     private var selector: AreaSelector?
+    /// macOS's own shutter, loaded once so it plays the moment the area is chosen.
+    private lazy var shutter = NSSound(contentsOfFile: "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif",
+                                       byReference: true)
     /// The screens are being captured before the crosshair shows.
     private var freezing = false
 
@@ -111,6 +115,7 @@ final class Screenshotter: ObservableObject {
                         Self.copyRecognized(text, from: "screen")
                     }
                 } else {
+                    if self.playSound { self.shutter?.stop(); self.shutter?.play() }
                     self.deliver(selection.image, scale: selection.scale, windowShot: selection.windowShot)
                 }
             }

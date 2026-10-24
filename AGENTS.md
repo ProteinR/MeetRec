@@ -150,9 +150,11 @@ What MeetRec does instead:
   In settings each rule is a card: "Вкладка называется" (several, comma-separated), "Название
   записи", the file name it gives ("Файл будет: 2026-10-17 14-03-22 Skyeng.mov"), "Собеседник один",
   "Удалить правило" (an arrow between the fields read as "rename A to B").
-- Settings live on a separate page behind the gear (general: folder, log, launch at login,
-  watchdog; video; transcription incl. copy rules; "Встречи и звонки" incl. browser rules; "Вид во
-  время записи" with a preview; "Сочетания клавиш"; "Скриншоты"). They open during a recording too;
+- Settings live on a separate page behind the gear, in three tabs (`SettingsTabs.swift`, drawn by
+  SwiftUI, not the glass segmented control; the last tab is remembered): "Запись" (general: folder,
+  log, launch at login, watchdog; then an accordion: video; "Встречи и звонки" incl. browser rules;
+  transcription incl. copy rules; "Вид во время записи" with a preview), "Скриншоты" (only the
+  screenshot settings) and "Клавиши" (every shortcut, grouped "Запись" / "Скриншоты"). They open during a recording too;
   only "Видео" and the recordings folder are locked then. The main page keeps the daily things: no transcription block (progress is per recording in
   the list, cancel in its right-click menu) no Quit button (it is in the item's right-click menu) and no folder row (the folder
   button is next to the search field in "Записи").
@@ -184,7 +186,7 @@ What MeetRec does instead:
   notification, every 30 min one with "Сохранить и остановить" / "Снять с паузы" / "Оставить на
   паузе" (it never stops by itself). The automatic stop after a meeting works as usual.
 - Shortcuts (`Shortcuts.swift`): record ⌃⌥⌘R, marker ⌃⌥⌘M, pause (none), screenshot ⇧⌘4, OCR ⇧⌘2;
-  each changeable (settings → "Сочетания клавиш" / "Скриншоты": click, press keys with ⌘/⌥/⌃, Esc
+  each changeable (settings → "Клавиши": click, press keys with ⌘/⌥/⌃, Esc
   cancels, ↺ restores or ✕ clears; the same keys twice are refused). One that cannot be registered
   (another app has it) shows a warning with "Повторить" in settings and, for the recording ones, a
   line in the panel.
@@ -248,7 +250,7 @@ What MeetRec does instead:
   scale in its DPI (format "Авто (PNG/JPEG)", the default: JPEG q 0.9 when it is ≤ 40 % of the PNG,
   i.e. photos and gradients; text stays PNG; edits keep the file's format; the clipboard always gets
   PNG), to `~/Pictures/screenshots` (Shottr's folder, so the history stays in one place; changeable);
-  copy, save and the toast are switchable (with both off it is still copied). The toast says
+  macOS's own shutter sound ("Screen Capture.aif") plays the moment an area or window is chosen (not for OCR; "Звук затвора"); copy, save, sound and the toast are switchable (with both off it is still copied). The toast says
   "Скопирован и сохранён" (the owner used to press "copy" in Shottr anyway) and shows a preview:
   drag it into a chat or a browser's upload field (the file itself; unsaved shots get a temporary
   copy in `$TMPDIR/MeetRec Screenshots`, cleared at launch); it stays while dragging and goes after
@@ -396,12 +398,12 @@ Profiling (as in Genius Switcher and MXCtl): `PROFILE=1 scripts/install.sh` sign
 get-task-allow so `leaks`/`heap`/`xctrace` can attach; `Profiling.swift` adds launch arguments
 `--profile-recording <s>` (a recording, then Trash, no transcription), `--stress-test` (panel,
 screenshot selection, editor; footprint per round: growing every round = a leak) and
-`--camera-test`; add `--background` so the panel does not open at launch. `scripts/profile.py`
+`--camera-test`, `--settings-test` (every settings tab and section in turn, footprint and peak); add `--background` so the panel does not open at launch. `scripts/profile.py`
 measures memory/CPU/wake-ups from outside. Results and lessons: `PROFILING.md`. Lessons: AppKit
 keeps the last key window after it closes (drop a closed window's content); an animation in the
 panel redraws the whole card with its shadows every display frame; keep the 1 Hz tick cheap; the
-system switch (`.toggleStyle(.switch)`) costs ~100 MB for a moment on first draw (use
-`LightSwitchStyle`); give a `ProgressView` inside a button a fixed size.
+system switch (`.toggleStyle(.switch)`) and the system `Slider` each cost ~100 MB for a moment on
+first draw (use `LightSwitchStyle` / `LightSlider`; `--settings-test` shows such peaks); give a `ProgressView` inside a button a fixed size.
 
 `Tests/MeetRecTests` covers file names and companions, tags, transcript speaker renaming, meeting
 apps and rules, the health tracker, and screenshot coordinates and files. The app is the test host but starts empty under XCTest
