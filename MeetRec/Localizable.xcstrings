@@ -1938,6 +1938,16 @@
         }
       }
     },
+    "Как в системе" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As in the system"
+          }
+        }
+      }
+    },
     "Как у монитора" : {
       "localizations" : {
         "en" : {
@@ -3428,6 +3438,16 @@
         }
       }
     },
+    "Перезапустить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restart"
+          }
+        }
+      }
+    },
     "Переименовать…" : {
       "localizations" : {
         "en" : {
@@ -4786,6 +4806,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Language"
+          }
+        }
+      }
+    },
+    "Язык сменится после перезапуска" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The language changes after a restart"
+          }
+        }
+      }
+    },
+    "Язык сменится после перезапуска — сейчас идёт запись или транскрибация" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The language changes after a restart — a recording or transcription is running now"
           }
         }
       }

@@ -10,8 +10,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.8.2"
-    CURRENT_PROJECT_VERSION: "23"
+    MARKETING_VERSION: "0.9.0"
+    CURRENT_PROJECT_VERSION: "24"
     # No Apple Developer account: ad-hoc signing, no hardened runtime.
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Manual

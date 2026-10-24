@@ -36,6 +36,17 @@ syntax and fails), plain strings need no flag.
 | `microphoneID` | string | empty | CoreAudio device UID of a fixed microphone; empty = follow the system default and the call app. |
 | `crashWatchdog` | bool | `true` | Relaunch MeetRec if it crashes (launchd agent). |
 
+## Language
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `AppleLanguages` | array | not set | MeetRec's own language: `(en)` or `(ru)`; not set = as the system. Applied at launch. |
+
+```bash
+defaults write com.dmemruk.MeetRec AppleLanguages -array en
+defaults delete com.dmemruk.MeetRec AppleLanguages   # back to the system's language
+```
+
 ## Meetings and calls
 
 | Key | Type | Default | Meaning |

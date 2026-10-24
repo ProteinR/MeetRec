@@ -52,7 +52,7 @@ extension ContentView {
         }
     }
 
-    /// Folder, launch at login, crash watchdog.
+    /// Folder, log, language, launch at login, crash watchdog.
     var generalSettings: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
@@ -76,6 +76,7 @@ extension ContentView {
                 Spacer(minLength: 4)
                 Button("Открыть") { model.openLog() }
             }
+            LanguagePicker()
             HStack(alignment: .top, spacing: 20) {
                 LoginItemToggle()
                 Toggle("Перезапуск после сбоя", isOn: Binding(get: { model.crashWatchdog },

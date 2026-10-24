@@ -10,8 +10,8 @@ Whisper and speaker diarization. No bot joins your call and nothing is uploaded.
 It started as a lightweight **OBS alternative** (13 MB, ~40 MB of memory) for one job: pressing "record" in Microsoft Teams,
 Google Meet, Zoom (in a browser) or Telegram calls, without scenes, sources and encoder settings.
 
-**English and Russian.** MeetRec follows the system language; to pick one for MeetRec only, use
-System Settings → General → Language & Region → Applications. Translations to other languages are
+**English and Russian.** MeetRec follows the system language; another one can be chosen in Settings →
+Recording → Language. Translations to other languages are
 welcome (`MeetRec/Localizable.xcstrings`).
 
 <p align="center">
