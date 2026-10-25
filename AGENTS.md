@@ -415,6 +415,11 @@ rm -rf build/dd-test/Build/Products/Debug/MeetRec.app   # else it shows up as a 
 python3 -m unittest discover -s Tests   # transcribe.py helpers, no models needed
 ```
 
+Use `build/dd-test` for tests, not a new `build/dd-<name>` per session: every such folder keeps a
+Debug `MeetRec.app` that Spotlight and Launchpad list as another MeetRec (the
+`.metadata_never_index` file in `build/` does not stop it). If you had to use another folder,
+delete it when done.
+
 Profiling (as in Genius Switcher and MXCtl): `PROFILE=1 scripts/install.sh` signs with
 get-task-allow so `leaks`/`heap`/`xctrace` can attach; `Profiling.swift` adds launch arguments
 `--profile-recording <s>` (a recording, then Trash, no transcription), `--stress-test` (panel,
