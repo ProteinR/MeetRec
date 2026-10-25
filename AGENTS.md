@@ -118,9 +118,14 @@ What MeetRec does instead:
 - "Встреча идёт, а запись не ведётся": the detector also runs with auto-recording off and reminds
   once per meeting (also after a failed auto-start or a manual stop mid-meeting), with a start button.
 - Permissions (screen, microphone) are checked at launch and every 30 min, with a notification.
-- Crash watchdog (`Watchdog.swift`): a `running` flag file plus a launchd agent
-  `~/Library/LaunchAgents/com.dmemruk.MeetRec.watchdog.plist` that reopens MeetRec within ~10 s if
-  it died. `recording.json` remembers the file being written; after a crash the file is reported and
+- Crash watchdog (`Watchdog.swift`): a `running` flag file (pid, then the app's path) plus a
+  launchd agent that reopens that copy of MeetRec within ~10 s if it died. The agent's plist is
+  `LaunchAgents/com.dmemruk.MeetRec.crashwatchdog.plist`, copied into
+  `Contents/Library/LaunchAgents` and registered with `SMAppService.agent`, so Login Items lists it
+  under MeetRec. Older versions wrote `~/Library/LaunchAgents/com.dmemruk.MeetRec.watchdog.plist`,
+  which macOS showed as an unknown "sh" (an `AssociatedBundleIdentifiers` key does not help without
+  a Team ID); it is removed at launch. The new label differs on purpose: with the old one,
+  SMAppService reported the old agent as its own, enabled, and never registered the bundled one. `recording.json` remembers the file being written; after a crash the file is reported and
   transcribed, a manual recording continues in a new file (a meeting one is restarted by the
   detector), but not after a second crash within 3 minutes. Quitting while recording finishes the
   file first; `install.sh` quits gracefully so the watchdog does not relaunch the old copy.

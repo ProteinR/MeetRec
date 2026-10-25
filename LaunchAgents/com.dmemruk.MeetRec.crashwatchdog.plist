@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+Crash watchdog (see Watchdog.swift). Copied into MeetRec.app/Contents/Library/LaunchAgents and
+registered with SMAppService.agent, so Login Items lists it under MeetRec, not as "sh".
+Every 10 s: the `running` flag exists but no MeetRec process → MeetRec died → open it again.
+The flag's second line is the app's path (written at launch); without it, open by bundle ID.
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.dmemruk.MeetRec.crashwatchdog</string>
+	<key>AssociatedBundleIdentifiers</key>
+	<array>
+		<string>com.dmemruk.MeetRec</string>
+	</array>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/sh</string>
+		<string>-c</string>
+		<string>F="$HOME/Library/Application Support/MeetRec/running"; [ -f "$F" ] &amp;&amp; ! /usr/bin/pgrep -qx MeetRec &amp;&amp; { echo "$(date '+%Y-%m-%d %H:%M:%S.000') WARN  [watchdog] MeetRec is not running, relaunching" &gt;&gt; "$HOME/Library/Logs/MeetRec/meetrec.log"; app=$(/usr/bin/sed -n 2p "$F"); if [ -d "$app" ]; then /usr/bin/open -g "$app" --args --background; else /usr/bin/open -g -b com.dmemruk.MeetRec --args --background; fi; }; exit 0</string>
+	</array>
+	<key>StartInterval</key>
+	<integer>10</integer>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>ProcessType</key>
+	<string>Background</string>
+</dict>
+</plist>

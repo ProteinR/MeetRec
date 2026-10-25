@@ -1,17 +1,24 @@
 import AppKit
+import ServiceManagement
 import SwiftUI
 
 /// Relaunches MeetRec if it crashes, and tells the app on the next launch that a recording was cut.
 ///
-/// - While MeetRec runs, a `running` flag file exists; a normal quit removes it.
-/// - A small launchd agent (`~/Library/LaunchAgents/com.dmemruk.MeetRec.watchdog.plist`) checks every
-///   10 s: flag present but no MeetRec process → MeetRec crashed → `open` it again.
+/// - While MeetRec runs, a `running` flag file exists (pid, then the app's path); a normal quit
+///   removes it.
+/// - A small launchd agent checks every 10 s: flag present but no MeetRec process → MeetRec crashed →
+///   `open` it again. Its plist is inside the app (`Contents/Library/LaunchAgents`, from
+///   `LaunchAgents/` in the repository) and registered with `SMAppService.agent`, so Login Items
+///   lists it under MeetRec; a plist written to `~/Library/LaunchAgents` showed up as an unknown "sh".
 /// - While recording, `recording.json` names the file. If it is still there on launch, the previous
 ///   run died mid-recording: the file (fragmented, so readable) is reported and the recording resumes.
 @MainActor
 enum Watchdog {
-    static let label = "com.dmemruk.MeetRec.watchdog"
-    static let checkInterval = 10
+    /// Not the old agent's label: with the same one, SMAppService took the old agent for its own and
+    /// reported it as enabled, so the bundled one was never registered.
+    static let label = "com.dmemruk.MeetRec.crashwatchdog"
+    private static let legacyLabel = "com.dmemruk.MeetRec.watchdog"
+    private static let agent = SMAppService.agent(plistName: "\(label).plist")
 
     /// What the previous run was recording when it died.
     struct InterruptedRecording: Codable {
@@ -26,8 +33,9 @@ enum Watchdog {
     }
     private static var runningFlag: URL { stateDir.appendingPathComponent("running") }
     private static var recordingState: URL { stateDir.appendingPathComponent("recording.json") }
-    private static var agentPlist: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/LaunchAgents/\(label).plist")
+    /// Where versions before 0.9.1 wrote the agent themselves; removed on launch.
+    private static var legacyAgentPlist: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/LaunchAgents/\(legacyLabel).plist")
     }
 
     /// Call once at launch. Returns the recording the previous run was writing if it crashed.
@@ -41,7 +49,9 @@ enum Watchdog {
             interrupted = try? JSONDecoder().decode(InterruptedRecording.self, from: data)
             try? FileManager.default.removeItem(at: recordingState)
         }
-        FileManager.default.createFile(atPath: runningFlag.path, contents: Data("\(getpid())".utf8))
+        // The agent reads the second line to reopen exactly this copy.
+        FileManager.default.createFile(atPath: runningFlag.path,
+                                       contents: Data("\(getpid())\n\(Bundle.main.bundleURL.path)\n".utf8))
         setAgent(enabled: enabled)
         return interrupted
     }
@@ -65,43 +75,40 @@ enum Watchdog {
         try? FileManager.default.removeItem(at: recordingState)
     }
 
-    /// Installs (or removes) the launchd agent that relaunches MeetRec after a crash.
+    /// Registers (or unregisters) the launchd agent that relaunches MeetRec after a crash.
     static func setAgent(enabled: Bool) {
-        let uid = getuid()
-        if !enabled {
-            guard FileManager.default.fileExists(atPath: agentPlist.path) else { return }
-            launchctl(["bootout", "gui/\(uid)/\(label)"])
-            try? FileManager.default.removeItem(at: agentPlist)
-            Log.info("Crash watchdog removed")
-            return
-        }
-        let app = Bundle.main.bundleURL.path
-        let log = Log.fileURL.path
-        // Paths are single-quoted for sh; none of them contain a single quote.
-        let script = "[ -f '\(runningFlag.path)' ] && ! /usr/bin/pgrep -qx MeetRec && "
-            + "{ echo \"$(date '+%Y-%m-%d %H:%M:%S.000') WARN  [watchdog] MeetRec is not running, relaunching\" >> '\(log)'; "
-            + "/usr/bin/open -g '\(app)' --args --background; }; exit 0"
-        let plist: [String: Any] = [
-            "Label": label,
-            "ProgramArguments": ["/bin/sh", "-c", script],
-            "StartInterval": checkInterval,
-            "RunAtLoad": true,
-            "ProcessType": "Background",
-        ]
-        guard let data = try? PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0) else { return }
-        if (try? Data(contentsOf: agentPlist)) == data, launchctl(["print", "gui/\(uid)/\(label)"], quiet: true) == 0 {
-            return // already installed and loaded
-        }
+        removeLegacyAgent()
         do {
-            try FileManager.default.createDirectory(at: agentPlist.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try data.write(to: agentPlist, options: .atomic)
+            if enabled {
+                guard agent.status != .enabled else { return }
+                try agent.register()
+            } else {
+                guard agent.status != .notRegistered else { return }
+                try agent.unregister()
+            }
+            Log.info("Crash watchdog \(enabled ? "registered" : "unregistered"): \(describe(agent.status))")
         } catch {
-            Log.error("Could not write watchdog agent: \(Log.describe(error))")
-            return
+            Log.error("Crash watchdog \(enabled ? "register" : "unregister") failed: \(Log.describe(error)); "
+                + "status \(describe(agent.status))")
         }
-        launchctl(["bootout", "gui/\(uid)/\(label)"], quiet: true)
-        let status = launchctl(["bootstrap", "gui/\(uid)", agentPlist.path])
-        Log.info("Crash watchdog \(status == 0 ? "installed" : "failed to load (launchctl \(status))"): \(agentPlist.path)")
+    }
+
+    /// Unloads and removes the agent older versions wrote to `~/Library/LaunchAgents`.
+    private static func removeLegacyAgent() {
+        guard FileManager.default.fileExists(atPath: legacyAgentPlist.path) else { return }
+        launchctl(["bootout", "gui/\(getuid())/\(legacyLabel)"], quiet: true)
+        try? FileManager.default.removeItem(at: legacyAgentPlist)
+        Log.info("Crash watchdog: removed the old agent \(legacyAgentPlist.path)")
+    }
+
+    private static func describe(_ status: SMAppService.Status) -> String {
+        switch status {
+        case .notRegistered: "not registered"
+        case .enabled: "enabled"
+        case .requiresApproval: "requires approval in System Settings → Login Items"
+        case .notFound: "not found (plist missing from the app)"
+        @unknown default: "unknown (\(status.rawValue))"
+        }
     }
 
     @discardableResult
