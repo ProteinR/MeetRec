@@ -287,6 +287,29 @@ class MicrophoneTests(unittest.TestCase):
         self.assertEqual([s["text"] for s in result], ["tabs star STLV The", "Okay. Okay. Okay.", "the in"])
         self.assertEqual([transcribe.has_loop(s) for s in segments], [True, False, True])
 
+    def test_mixed_writing_systems(self):
+        def mixed(text):
+            return transcribe.has_script_mix({"text": text})
+        # Russian with English terms, English, German, Japanese: not mixed.
+        self.assertFalse(mixed("Дима, а при чём здесь этот RFID префикс, если она сканирует QR -код?"))
+        self.assertFalse(mixed("сканирует QR-код через iPhone, e-mail 00001"))
+        self.assertFalse(mixed("Du musst also diese fünf Nummern vergeben."))
+        self.assertFalse(mixed("今日はいい天気ですね"))
+        # Today's meeting: German recognised as Russian.
+        self.assertTrue(mixed("Г찰� тренировка за привязку а то есть когда ты добир到 чем он нашел"))
+        self.assertTrue(mixed("jusquже Horthey живут на земле"))
+        self.assertTrue(mixed("Да ты рыga была прослав measuring"))
+        self.assertTrue(mixed("на земле илиیں армией"))
+
+    def test_unclear_passages(self):
+        def seg(start, text, logprob):
+            return {"start": start, "end": start + 1.0, "text": text, "logprob": logprob}
+        segments = [seg(0, "Подожди, стой.", -0.3),
+                    seg(20, "address 1?", -1.7), seg(21.5, "Г찰� тренировка", -1.7), seg(23, "это то.", -1.7),
+                    seg(30, "Хорошо?", -0.9),
+                    seg(40, "address 2?", -1.7)]
+        self.assertEqual(transcribe.unclear_passages(segments), [(1, 3), (5, 5)])
+
     def test_my_voice_on_the_other_side_is_not_me(self):
         self.assertEqual(transcribe.without_me({"A": "Dima", "B": "Falk"}, "Dima"), {"A": "Speaker 1", "B": "Falk"})
 

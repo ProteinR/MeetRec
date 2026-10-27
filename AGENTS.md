@@ -388,6 +388,14 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
   the same word more than 5 times in a row, or a word that is one short piece repeated, is recognised
   again on its own stretch with some temperature (usually fine then); if it still loops, the loop is
   left out. Both are logged.
+  Speech in another language (a colleague in the room speaking German) comes out as gibberish in the
+  recording's language, often in mixed writing systems (Cyrillic and Latin in one word, CJK or Arabic
+  next to them; Russian with English terms is not a mix). Such a passage, with the unsure segments
+  around it (avg_logprob < −1, < 5 s apart), or a longer (≥ 3 s) unsure passage where Whisper hears
+  another language (≥ 50 %), is recognised again in the two likeliest languages Whisper hears on that
+  stretch and replaced by the unmixed result Whisper is surest of (German forced into English comes
+  out translated, with less confidence). The log says "Mixed scripts at … heard de 99 %; recognised
+  again in de …" (or "kept as it was"). Whisper is random on such audio; short pieces stay as they are.
   Gentle on the Mac: the helper runs at Darwin background priority (`taskpolicy -b`: efficiency
   cores, low GPU/disk priority), recognition and diarization one after the other, each in its own
   process (they ran in parallel and kept the GPU at ~98 %, fans on); slower, nothing waits for it.

@@ -28,6 +28,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
@@ -246,12 +247,13 @@ def run_asr(wav_path, language):
         condition_on_previous_text=False,
         language=language or None,
     )
-    segments = without_loops(retry_loops([
-        {"start": s["start"], "end": s["end"], "text": s["text"].strip(),
+    language = language or result.get("language")
+    segments = without_loops(retry_other_languages(retry_loops([
+        {"start": s["start"], "end": s["end"], "text": s["text"].strip(), "logprob": s.get("avg_logprob", 0.0),
          "words": [{"start": w["start"], "end": w["end"], "text": w["word"]} for w in s.get("words", [])]}
         for s in result["segments"]
         if s["text"].strip()
-    ], audio, language or result.get("language")))
+    ], audio, language), audio, language))
     return {"language": result.get("language"), "segments": segments, "seconds": time.time() - t0}
 
 
@@ -366,31 +368,52 @@ def has_loop(segment):
     return any(_looping_word(word["text"]) for word in words)
 
 
+def _stretch(segment, audio):
+    """The segment's own stretch of audio, with half a second to spare: (start, end) in seconds."""
+    return max(segment["start"] - 0.5, 0.0), min(segment["end"] + 0.5, len(audio) / SAMPLE_RATE)
+
+
+def recognise_stretch(audio, start, end, language, **options):
+    """Recognises audio[start:end] again; segments in recording time, and the language used."""
+    import mlx_whisper
+
+    sys.modules["mlx_whisper.transcribe"].tqdm.tqdm = _SilentProgress
+    again = mlx_whisper.transcribe(
+        audio[int(start * SAMPLE_RATE):int(end * SAMPLE_RATE)],
+        path_or_hf_repo=ASR_MODEL,
+        word_timestamps=True,
+        condition_on_previous_text=False,
+        language=language or None,
+        **options,
+    )
+    return [{"start": start + n["start"], "end": start + n["end"], "text": n["text"].strip(), "logprob": n.get("avg_logprob", 0.0),
+             "words": [{"start": start + w["start"], "end": start + w["end"], "text": w["word"]} for w in n.get("words", [])]}
+            for n in again["segments"] if n["text"].strip()], again.get("language")
+
+
+def stretch_languages(audio, start, end):
+    """Whisper's language guess for audio[start:end] (its first 30 s): [(language, probability)],
+    most likely first."""
+    import mlx.core as mx
+    from mlx_whisper.audio import N_FRAMES, N_SAMPLES, log_mel_spectrogram, pad_or_trim
+
+    model = sys.modules["mlx_whisper.transcribe"].ModelHolder.get_model(ASR_MODEL, mx.float16)
+    mel = log_mel_spectrogram(audio[int(start * SAMPLE_RATE):int(end * SAMPLE_RATE)], n_mels=model.dims.n_mels, padding=N_SAMPLES)
+    _, probs = model.detect_language(pad_or_trim(mel, N_FRAMES, axis=-2).astype(mx.float16))
+    return sorted(probs.items(), key=lambda item: -item[1])
+
+
 def retry_loops(segments, audio, language):
     """Whisper loops at random (the same audio recognised again is usually fine): a segment that loops
     is recognised once more, its own stretch of audio with some randomness (temperature), and replaced
     when the new text does not loop. Otherwise `without_loops` leaves the loop out."""
-    import mlx_whisper
-
-    sys.modules["mlx_whisper.transcribe"].tqdm.tqdm = _SilentProgress
     result = []
     for s in segments:
         if not has_loop(s):
             result.append(s)
             continue
-        start = max(s["start"] - 0.5, 0.0)
-        end = min(s["end"] + 0.5, len(audio) / SAMPLE_RATE)
-        again = mlx_whisper.transcribe(
-            audio[int(start * SAMPLE_RATE):int(end * SAMPLE_RATE)],
-            path_or_hf_repo=ASR_MODEL,
-            word_timestamps=True,
-            condition_on_previous_text=False,
-            temperature=(0.2, 0.4, 0.6, 0.8),
-            language=language or None,
-        )
-        new = [{"start": start + n["start"], "end": start + n["end"], "text": n["text"].strip(),
-                "words": [{"start": start + w["start"], "end": start + w["end"], "text": w["word"]} for w in n.get("words", [])]}
-               for n in again["segments"] if n["text"].strip()]
+        start, end = _stretch(s, audio)
+        new, _ = recognise_stretch(audio, start, end, language, temperature=(0.2, 0.4, 0.6, 0.8))
         if new and not any(has_loop(n) for n in new):
             log(f"Whisper looped at {format_time(s['start'])}; recognised again: {' '.join(n['text'] for n in new)[:120]}")
             result += new
@@ -398,6 +421,100 @@ def retry_loops(segments, audio, language):
             log(f"Whisper looped at {format_time(s['start'])} and again on a retry; the loop is left out")
             result.append(s)
     return result
+
+
+def _script(char):
+    """The writing system of a letter: "LATIN", "CYRILLIC", "CJK" (Chinese, Japanese and Korean
+    together), "ARABIC"…"""
+    name = unicodedata.name(char, "")
+    if name.startswith(("CJK", "HIRAGANA", "KATAKANA", "HANGUL")):
+        return "CJK"
+    return name.split(" ")[0]
+
+
+def has_script_mix(segment):
+    """Whisper writes speech in a language other than the one it recognises as gibberish in several
+    writing systems ("Г찰� тренировка… strongly transmагает"). Russian with English terms ("RFID",
+    "QR-код") is not a mix; a word that mixes writing systems is, and so is a third one besides Latin
+    and Cyrillic, or CJK/Arabic/… next to either."""
+    scripts = set()
+    for word in re.findall(r"[^\W\d_]+", segment["text"]):
+        own = {_script(c) for c in word}
+        if len(own) > 1:
+            return True
+        scripts |= own
+    return len(scripts) > 1 and not scripts <= {"LATIN", "CYRILLIC"}
+
+
+UNSURE = -1.0  # Whisper's own threshold (avg_logprob): below it a window is decoded again with temperature
+
+
+def unclear_passages(segments, gap=5.0):
+    """Runs of segments (first, last index) Whisper may have got wrong: segments in mixed writing
+    systems or unsure ones, less than `gap` s apart. Whisper cuts speech in another language into
+    pieces, some mixed, some just wrong ("address 1?") or dots, and a piece of a second or two is too
+    short to tell its language."""
+    passages, i = [], 0
+    unclear = [has_script_mix(s) or s.get("logprob", 0.0) < UNSURE for s in segments]
+    while i < len(segments):
+        j = i
+        if unclear[i]:
+            while j + 1 < len(segments) and unclear[j + 1] and segments[j + 1]["start"] - segments[j]["end"] < gap:
+                j += 1
+            passages.append((i, j))
+        i = j + 1
+    return passages
+
+
+def _confidence(segments):
+    """Whisper's own confidence in a result: avg_logprob weighted by duration."""
+    total = sum(s["end"] - s["start"] for s in segments)
+    return sum(s.get("logprob", 0.0) * (s["end"] - s["start"]) for s in segments) / total if total else -math.inf
+
+
+OTHER_LANGUAGE = 0.5  # an unsure passage is recognised again when Whisper hears another language there this surely
+MIN_PASSAGE = 3.0  # seconds: shorter unsure passages without mixed writing are left alone
+
+
+def retry_other_languages(segments, audio, language):
+    """Speech in another language (a colleague in the room, a few words in German) comes out as
+    gibberish in the recording's language, often in mixed writing systems ("Г찰� тренировка…
+    strongly transmагает"). An unclear passage (`unclear_passages`) with mixed writing, or a longer
+    unsure one where Whisper hears another language, is recognised once more in each language Whisper
+    hears there (the two likeliest, at least 10 %), and replaced by the result Whisper is surest of
+    among those that are not mixed. Whisper made to recognise German as English translates it
+    instead, with less confidence. Without such a result the passage stays as it was."""
+    result, done = [], 0
+    for first, last in unclear_passages(segments):
+        old = segments[first:last + 1]
+        mixed = any(has_script_mix(s) for s in old)
+        if not mixed and old[-1]["end"] - old[0]["start"] < MIN_PASSAGE:
+            log(f"Unsure passage at {format_time(old[0]['start'])}–{format_time(old[-1]['end'])}: too short to check")
+            continue
+        start, end = _stretch({"start": old[0]["start"], "end": old[-1]["end"]}, audio)
+        guesses = [(lang, p) for lang, p in stretch_languages(audio, start, end) if p >= 0.1][:2]
+        heard = ", ".join(f"{lang} {p:.0%}" for lang, p in guesses)
+        where = (f"{'Mixed scripts' if mixed else 'Unsure passage'} at {format_time(old[0]['start'])}–"
+                 f"{format_time(old[-1]['end'])} ({language}; heard {heard})")
+        if not mixed and (not guesses or guesses[0][0] == language or guesses[0][1] < OTHER_LANGUAGE):
+            log(f"{where}: left as it is")
+            continue
+        result += segments[done:first]
+        done = last + 1
+        tries = []
+        for lang, _ in guesses:
+            new, _ = recognise_stretch(audio, start, end, lang)
+            if new and not any(has_script_mix(n) for n in new):
+                tries.append((_confidence(new), lang, new))
+        if tries:
+            confidence, lang, new = max(tries, key=lambda t: t[0])
+            log(f"{where}; recognised again in {lang} (confidence {confidence:.2f}, "
+                f"{', '.join(f'{l} {c:.2f}' for c, l, _ in tries)}): {' '.join(n['text'] for n in new)[:160]}")
+            result += new
+        else:
+            log(f"{where}; kept as it was: {' '.join(s['text'] for s in old)[:80]}")
+            result += old
+    return result + segments[done:]
 
 
 def without_loops(segments):
