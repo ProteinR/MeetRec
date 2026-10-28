@@ -327,6 +327,21 @@ class MicrophoneTests(unittest.TestCase):
         names = {"S0": "Speaker 1", "S2": "Dima"}
         self.assertEqual(transcribe.merge_other_side(names, {}, "Dima"), names)
 
+    def test_a_small_unnamed_voice_goes_to_the_one_recognised_person(self):
+        # One voice split in two (2026-10-28): 183 s recognised, 29 s of short pieces unmatched.
+        names = {"S0": "Speaker 1", "S1": "Anna", "S2": "Dima"}
+        speaking = {"S0": 29.0, "S1": 183.0, "S2": 120.0}
+        self.assertEqual(transcribe.merge_stray_voices(names, speaking, "Dima"),
+                         {"S0": "Anna", "S1": "Anna", "S2": "Dima"})
+        # Someone who speaks a lot is a person of their own.
+        self.assertEqual(transcribe.merge_stray_voices(names, {"S0": 60.0, "S1": 183.0}, "Dima"), names)
+        # Two recognised people: an unnamed voice could be either.
+        names = {"S0": "Speaker 1", "S1": "Anna", "S3": "Ben"}
+        self.assertEqual(transcribe.merge_stray_voices(names, {"S0": 5.0, "S1": 100.0, "S3": 100.0}, "Dima"), names)
+        # Nobody recognised: nothing to merge into.
+        names = {"S0": "Speaker 1", "S1": "Speaker 2"}
+        self.assertEqual(transcribe.merge_stray_voices(names, {"S0": 5.0, "S1": 100.0}, "Dima"), names)
+
     def test_without_my_name_nothing_changes(self):
         names = {"A": "Speaker 1"}
         self.assertEqual(transcribe.name_microphone_speakers(names, {"A": (1.0, 5.0)}, "")[0], names)

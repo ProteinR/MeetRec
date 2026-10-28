@@ -799,6 +799,22 @@ def merge_other_side(names, speaking, me):
     return {label: (name if label in others else value) for label, value in names.items()}
 
 
+def merge_stray_voices(names, speaking, me, max_share=0.2):
+    """Diarization sometimes splits one voice: a second cluster made of short pieces, often where the
+    user talks over them and the call app changes their sound, matches nobody. When exactly one
+    person of the other side was recognised by voice, an unnamed speaker with less than max_share
+    of the other side's speech is taken as that person (a Teams one-on-one, 2026-10-28)."""
+    others = [label for label in names if not (me and names[label] == me)]
+    known = {names[label] for label in others if not names[label].startswith("Speaker ")}
+    if len(known) != 1:
+        return names
+    total = sum(speaking.get(label, 0.0) for label in others)
+    name = known.pop()
+    return {label: (name if label in others and value.startswith("Speaker ")
+                    and speaking.get(label, 0.0) < max_share * total else value)
+            for label, value in names.items()}
+
+
 def assign_speaker(segment, turns):
     best, overlap = None, 0.0
     for turn in turns:
@@ -1106,6 +1122,11 @@ def transcribe(args):
             merged = merge_other_side(names, speaking, args.me)
             if merged != names:
                 log(f"One other person: {', '.join(sorted(l for l in names if merged[l] != names[l]))} → {merged}")
+            names = merged
+        else:
+            merged = merge_stray_voices(names, speaking, args.me)
+            if merged != names:
+                log(f"Stray voice: {', '.join(f'{l} ({speaking.get(l, 0.0):.0f}s)' for l in sorted(names) if merged[l] != names[l])} → {merged}")
             names = merged
         if my_asr is not None:
             lines, dropped = build_split_lines(asr["segments"], my_asr["segments"], diarization["turns"], names, args.me)

@@ -384,7 +384,10 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
   older [system, mic]; the player mix is not used). Whoever speaks into the microphone is the user
   (`--me`, "Моё имя"): a phrase heard mostly through the microphone track is theirs, and a diarized
   speaker with ≥60% of speech there gets the name, whatever the voice match says; voice samples name
-  only the other side. Speakers are assigned per word (Whisper word timestamps), not per Whisper
+  only the other side. When exactly one person of the other side is recognised by voice, an unnamed
+  speaker with < 20 % of the other side's speech is taken as that person (`merge_stray_voices`, log
+  "Stray voice: …"): pyannote split a Teams one-on-one partner in two on 2026-10-28, the small
+  cluster being short pieces, many while the user talked over them, which matched nobody. Speakers are assigned per word (Whisper word timestamps), not per Whisper
   segment: one segment often holds several people ("Hi. Hi, Dima. Hi."), and a short "Bye" of the
   user inside the other side's segment used to go to them. A word counts as the user's when the
   microphone dominates its audible frames (Whisper pads short words). One or two words that
