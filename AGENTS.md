@@ -37,7 +37,7 @@ What MeetRec does instead:
   double them. In the mix the microphone is raised once per recording to the other side's speech
   level (ScreenCaptureKit gives the raw mic, the call app's side comes processed and ~10 dB louder),
   max +18 dB, soft limiter; the separate tracks stay as recorded. On failure the file stays as written.
-- Optional local transcription after each recording (mlx-whisper + pyannote, nothing leaves the Mac),
+- Optional local transcription after each recording (Parakeet Ultra + pyannote, nothing leaves the Mac),
   speaker names from enrolled voices including the owner's own voice sample, and a recordings list
   showing which videos are transcribed or how far a running transcription is.
 - Detailed logs, so problems in a long meeting can be traced afterwards.
@@ -362,9 +362,24 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
 - `MeetRec/RecordingHealth.swift`: live status while recording (mic/system levels, screen, file);
   red "no signal" turns the menu bar icon into ⚠️.
 - Transcription (`Transcriber.swift`, `TranscriptionViews.swift`, `VoiceSampleRecorder.swift`,
-  `Resources/transcribe.py`): after a recording, optionally runs the bundled helper with `uv run`
-  (mlx-whisper large-v3-turbo + pyannote speaker-diarization-community-1, adapted from
-  the owner's earlier transcription script). Both audio tracks are mixed before
+  `Resources/transcribe.py`, `MeetRecASR/main.swift`): after a recording, optionally runs the bundled
+  helper with `uv run` (speech recognition + pyannote speaker-diarization-community-1, adapted from
+  the owner's earlier transcription script).
+  **Recognition engine** (`transcriptionEngine`, no switch in the settings): **Parakeet Ultra** by
+  default since 0.10.0 (2026-10-28) — `Contents/MacOS/MeetRecASR`, a Swift tool linking FluidAudio
+  (CoreML, Neural Engine), the same model as Genius Typer's dictation and the same cache
+  (`~/Library/Application Support/FluidAudio/Models/parakeet-ultra`); `transcribe.py` runs it on a WAV
+  and gets words with times, punctuation and capitals; hesitations ("uh", "um", "эм") are left out,
+  words are cut into phrases at sentence ends and pauses > 0.8 s (the segments below). It detects
+  the language itself (25 European languages), so `--language` is ignored and the header's language
+  is guessed from the letters. `MEETREC_ASR` points `transcribe.py` at another build. Or
+  **mlx-whisper large-v3-turbo** (`--engine whisper`, the engine before). Why Parakeet (compared on
+  three meetings, English/German/Russian, 2026-10-28): Whisper translated German speech into English
+  instead of writing it down (even with the other-language retry), dropped words and wrote text
+  into silence ("Продолжение следует..."); Parakeet keeps the language spoken and every word,
+  recognition took ~20 s instead of ~400 s for 83 minutes, without the GPU. Its slips: a rare
+  phrase in a wrong language (Dutch for English), more lower case and fewer commas. The Whisper-only steps below (loops, other languages,
+  `no_speech_prob`) run only with Whisper. Both audio tracks are mixed before
   recognition. The helper finds them by the default flag ([mix, mic, system] or
   older [system, mic]; the player mix is not used). Whoever speaks into the microphone is the user
   (`--me`, "Моё имя"): a phrase heard mostly through the microphone track is theirs, and a diarized

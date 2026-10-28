@@ -26,6 +26,9 @@ final class Transcriber: ObservableObject {
     @AppStorage("diarization") var diarization = true
     @AppStorage("transcriptionLanguage") var language = ""
     @AppStorage("myName") var myName = ""
+    /// Speech recognition: "parakeet" (Parakeet Ultra in MeetRecASR, the default) or "whisper"
+    /// (mlx-whisper large-v3-turbo, the engine before 0.10.0). No switch in the settings yet.
+    @AppStorage("transcriptionEngine") var engine = "parakeet"
     /// JSON of `copyRules`.
     @AppStorage("transcriptCopyRules") private var copyRulesJSON = ""
 
@@ -48,6 +51,9 @@ final class Transcriber: ObservableObject {
     @Published private(set) var transcriptsVersion = 0
 
     static let asrRepo = "models--mlx-community--whisper-large-v3-turbo"
+    /// Parakeet Ultra in FluidAudio's cache, shared with Genius Typer's dictation.
+    static let parakeetDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("FluidAudio/Models/parakeet-ultra", isDirectory: true)
     static let diarizationRepo = "models--pyannote--speaker-diarization-community-1"
 
     let stateDir: URL
@@ -72,7 +78,10 @@ final class Transcriber: ObservableObject {
 
     func refreshModels() {
         if case .downloading = modelsState { return }
-        let ready = Self.modelCached(Self.asrRepo, marker: { $0.hasSuffix(".safetensors") || $0.hasSuffix(".npz") })
+        let asrReady = engine == "whisper"
+            ? Self.modelCached(Self.asrRepo, marker: { $0.hasSuffix(".safetensors") || $0.hasSuffix(".npz") })
+            : FileManager.default.fileExists(atPath: Self.parakeetDir.appendingPathComponent("Encoder.mlmodelc").path)
+        let ready = asrReady
             && Self.modelCached(Self.diarizationRepo, marker: { $0 == "config.yaml" })
         modelsState = ready ? .ready : .missing
         Log.info("Transcription models: \(ready ? "ready" : "missing") (cache \(Self.hubDir.path))", "transcribe")
@@ -83,7 +92,7 @@ final class Transcriber: ObservableObject {
         modelsState = .downloading(String(localized: "Подготовка окружения…"))
         Log.info("Model download started", "transcribe")
         Task {
-            let result = await runScript(["download"]) { [weak self] event in
+            let result = await runScript(["download", "--engine", engine]) { [weak self] event in
                 if event["event"] as? String == "phase", let name = event["name"] as? String {
                     self?.modelsState = .downloading(name + "…")
                 }
@@ -161,7 +170,7 @@ final class Transcriber: ObservableObject {
         progress = nil
         var stageProgress: [String: Double] = [:]
         let useDiarization = diarization
-        var arguments = ["transcribe", file.path, "--output", output.path,
+        var arguments = ["transcribe", file.path, "--output", output.path, "--engine", engine,
                          "--speakers", speakersFile.path, "--run-file", SpeakerNaming.runURL(for: file).path]
         if !diarization { arguments.append("--no-diarization") }
         if !language.isEmpty { arguments += ["--language", language] }

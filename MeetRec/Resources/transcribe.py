@@ -6,17 +6,23 @@
 #     "librosa==0.11.0",
 # ]
 # ///
-"""MeetRec transcription helper: mlx-whisper large-v3-turbo + pyannote speaker diarization.
+"""MeetRec transcription helper: Parakeet Ultra (or mlx-whisper large-v3-turbo) + pyannote speaker
+diarization.
 
 Adapted from the author's earlier meeting transcription script. Runs locally on Apple Silicon;
-the only network access is the model download from Hugging Face.
+the only network access is the model download (Hugging Face).
+
+Speech recognition: Parakeet Ultra by default (`MeetRecASR`, a Swift helper next to MeetRec's
+executable: FluidAudio, Neural Engine; the models are shared with Genius Typer's dictation), or
+Whisper with `--engine whisper`. Parakeet was more accurate on the author's meetings and does not
+invent text in silence or translate German into English, as Whisper did (2026-10-28).
 
 Talks to the app through JSON lines on stdout: {"event": "phase"|"progress"|"done"|"error", ...}.
 Human-readable diagnostics go to stderr, which the app writes to its log.
 
 Commands:
-  download                         fetch both models (and build the uv environment)
-  transcribe <recording> --output <md> [--no-diarization] [--language xx] [--speakers file] [--me Name] [--one-other] [--mixed]
+  download [--engine e]            fetch both models (and build the uv environment)
+  transcribe <recording> --output <md> [--engine parakeet|whisper] [--no-diarization] [--language xx] [--speakers file] [--me Name] [--one-other] [--mixed]
   enroll-sample <wav> --name <Name> --speakers <file>
 """
 import argparse
@@ -35,7 +41,7 @@ from pathlib import Path
 
 ASR_MODEL = "mlx-community/whisper-large-v3-turbo"
 DIARIZATION_MODEL = "pyannote/speaker-diarization-community-1"
-ENGINE = "mlx-whisper large-v3-turbo"
+ENGINES = {"parakeet": "Parakeet Ultra", "whisper": "mlx-whisper large-v3-turbo"}
 SAMPLE_RATE = 16000
 DEFAULT_THRESHOLD = 0.7
 
@@ -230,7 +236,96 @@ def speech_chunks(microphone_db, frame=0.05, threshold=-45.0, gap=1.5, pad=0.3, 
 
 # ── Engines ──────────────────────────────────────────────────────────────────────────────────────
 
-def run_asr(wav_path, language):
+def asr_helper():
+    """MeetRecASR: next to MeetRec's executable (`Contents/MacOS`), this script being in
+    `Contents/Resources`; `MEETREC_ASR` points elsewhere (a development build)."""
+    path = os.environ.get("MEETREC_ASR") or str(Path(__file__).resolve().parent.parent / "MacOS" / "MeetRecASR")
+    if not os.access(path, os.X_OK):
+        fail("no_asr", tr(f"Не найден MeetRecASR: {path}", f"MeetRecASR not found: {path}"))
+    return path
+
+
+def run_asr_helper(arguments, report=None):
+    """Runs MeetRecASR, forwards its progress to `report`; its last JSON line."""
+    process = subprocess.Popen([asr_helper(), *arguments], stdout=subprocess.PIPE, text=True)
+    last = {}
+    for line in process.stdout:
+        try:
+            last = json.loads(line)
+        except ValueError:
+            continue
+        if "progress" in last and report:
+            report(last["progress"])
+    process.wait()
+    if "error" in last or process.returncode:
+        raise RuntimeError(f"MeetRecASR: {last.get('error', f'exit {process.returncode}')}")
+    return last
+
+
+FILLERS = {"uh", "um", "uhm", "umm", "erm", "eh", "ah", "э", "ээ", "эм", "эээ"}
+
+
+def is_filler(text):
+    """Hesitations Parakeet writes down ("uh", "um", "эм"); Whisper left them out."""
+    return re.sub(r"[^\w]+", "", text.lower()) in FILLERS
+
+
+def parakeet_words(wav_path, report=None):
+    """Words of a WAV with Parakeet: [{"start", "end", "text"}], without hesitations."""
+    return without_fillers(run_asr_helper(["transcribe", str(wav_path)], report)["words"])
+
+
+def without_fillers(raw):
+    """MeetRecASR's [text, start, end, confidence] as words, hesitations left out (a sentence end or
+    comma they carried goes to the word before), and "<unk>": a character missing from Parakeet's
+    vocabulary, mostly quotes («сохранить»)."""
+    words = []
+    for text, start, end, _ in raw:
+        text = text.replace("<unk>", "")
+        if not text:
+            continue
+        if is_filler(text):
+            ending = re.sub(r"^[\w'’-]+", "", text)
+            if words and ending and not re.search(r"[.,?!…]$", words[-1]["text"]):
+                words[-1]["text"] += ending
+            continue
+        words.append({"start": start, "end": end, "text": text})
+    return words
+
+
+def phrases(words, pause=0.8, longest=30.0):
+    """Parakeet's words in phrases, as Whisper's segments: a new one after a sentence end or a pause."""
+    segments = []
+    for word in words:
+        last = segments[-1] if segments else None
+        if last is None or word["start"] - last["end"] > pause or word["start"] - last["start"] > longest \
+                or re.search(r"[.?!…]$", last["words"][-1]["text"].strip()):
+            segments.append({"start": word["start"], "end": word["end"], "words": []})
+            last = segments[-1]
+        last["words"].append({**word, "text": " " + word["text"]})
+        last["end"] = word["end"]
+    for s in segments:
+        s["text"] = "".join(w["text"] for w in s["words"]).strip()
+    return segments
+
+
+def guess_language(segments):
+    """Parakeet does not say which language it heard: "ru" when most letters are Cyrillic, else "en"."""
+    text = " ".join(s["text"] for s in segments)
+    cyrillic = sum(1 for c in text if "а" <= c.lower() <= "я" or c.lower() == "ё")
+    latin = sum(1 for c in text if "a" <= c.lower() <= "z")
+    return "ru" if cyrillic > latin else "en"
+
+
+def run_parakeet(wav_path):
+    t0 = time.time()
+    segments = phrases(parakeet_words(wav_path, _Throttle("asr")))
+    return {"language": guess_language(segments), "segments": without_loops(segments), "seconds": time.time() - t0}
+
+
+def run_asr(wav_path, language, engine="parakeet"):
+    if engine == "parakeet":
+        return run_parakeet(wav_path)
     import mlx_whisper
 
     # `mlx_whisper.transcribe` is shadowed by the function of the same name; patch the module's tqdm
@@ -308,14 +403,12 @@ def split_by_piece(segments, places):
              "text": " ".join("".join(w["text"] for w in group).split()), "words": group} for _, group in groups]
 
 
-def run_chunks_asr(wav_path, chunks, language):
+def run_chunks_asr(wav_path, chunks, language, engine="parakeet"):
     """Recognises the user's pieces of the microphone track, put one after another with short pauses:
-    one pass (Whisper hears the context, the language is found from the user's own speech), times
+    one pass (the engine hears the context, the language is found from the user's own speech), times
     mapped back to the recording."""
-    import mlx_whisper
     import numpy as np
 
-    sys.modules["mlx_whisper.transcribe"].tqdm.tqdm = _SilentProgress
     t0 = time.time()
     audio = load_audio(wav_path)
     places = joined_chunks(chunks)
@@ -325,6 +418,20 @@ def run_chunks_asr(wav_path, chunks, language):
         pieces += [audio[int(start * SAMPLE_RATE):int(end * SAMPLE_RATE)], pause]
     if not pieces:
         return {"segments": [], "language": None, "seconds": 0.0}
+    if engine == "parakeet":
+        import soundfile
+
+        joined = Path(wav_path).with_name("microphone-joined.wav")
+        soundfile.write(joined, np.concatenate(pieces), SAMPLE_RATE)
+        found = phrases(parakeet_words(joined))
+        segments = without_loops(split_by_piece(
+            [{**s, "words": [{**w, "word": w["text"]} for w in s["words"]]} for s in found], places))
+        for s in segments:
+            log(f"microphone [{format_time(s['start'])}]: {s['text']}")
+        return {"segments": segments, "language": guess_language(found), "seconds": time.time() - t0}
+    import mlx_whisper
+
+    sys.modules["mlx_whisper.transcribe"].tqdm.tqdm = _SilentProgress
     result = mlx_whisper.transcribe(
         np.concatenate(pieces),
         path_or_hf_repo=ASR_MODEL,
@@ -811,7 +918,12 @@ def join_lines(words):
             lines[-1][2] += " " + text
         else:
             lines.append([start, name, text])
-    return [(start, f"[{format_time(start)}] {name}: {' '.join(text.split())}") for start, name, text in lines]
+    # A line starts with a capital: a phrase cut by a pause goes on in lower case ("then I have to…").
+    return [(start, f"[{format_time(start)}] {name}: {capitalized(' '.join(text.split()))}") for start, name, text in lines]
+
+
+def capitalized(text):
+    return text[:1].upper() + text[1:]
 
 
 def without_me(names, me):
@@ -921,7 +1033,10 @@ def download(args):
 
     emit("phase", name=tr("Скачивание модели распознавания речи", "Downloading the speech recognition model"))
     t0 = time.time()
-    snapshot_download(ASR_MODEL)
+    if args.engine == "parakeet":
+        run_asr_helper(["download"], _Throttle("download"))
+    else:
+        snapshot_download(ASR_MODEL)
     log(f"ASR model ready in {time.time() - t0:.0f}s")
     emit("phase", name=tr("Скачивание модели разбивки по ролям", "Downloading the speaker diarization model"))
     t0 = time.time()
@@ -956,7 +1071,7 @@ def transcribe(args):
         my_asr = None
         if args.no_diarization:
             emit("phase", name=tr("Распознавание речи", "Recognizing speech"))
-            asr = run_asr(str(wav), args.language)
+            asr = run_asr(str(wav), args.language, args.engine)
             diarization = None
         else:
             emit("phase", name=tr("Распознавание речи и разбивка по ролям", "Recognizing speech and speakers"))
@@ -964,10 +1079,11 @@ def transcribe(args):
             # the Mac cooler (and quieter) at the cost of a longer run; nothing waits for the transcript.
             others = str(separate["system"]) if chunks is not None else str(wav)
             with ProcessPoolExecutor(max_workers=1) as pool:
-                asr = pool.submit(run_asr, others, args.language).result()
+                asr = pool.submit(run_asr, others, args.language, args.engine).result()
             if chunks is not None:
                 with ProcessPoolExecutor(max_workers=1) as pool:
-                    my_asr = pool.submit(run_chunks_asr, str(separate["microphone"]), chunks, args.language).result()
+                    my_asr = pool.submit(run_chunks_asr, str(separate["microphone"]), chunks, args.language,
+                                         args.engine).result()
             with ProcessPoolExecutor(max_workers=1) as pool:
                 diarization = pool.submit(run_diarization, others).result()
 
@@ -995,7 +1111,7 @@ def transcribe(args):
             lines, dropped = build_split_lines(asr["segments"], my_asr["segments"], diarization["turns"], names, args.me)
         else:
             lines, dropped = build_lines(asr["segments"], diarization["turns"], names, args.me, levels)
-        engine = f"{ENGINE} + pyannote community-1"
+        engine = f"{ENGINES[args.engine]} + pyannote community-1"
         if my_asr is not None:
             mine_seconds = sum(end - start for start, end in chunks)
             speakers_summary.append({"label": "microphone", "name": args.me, "minutes": round(mine_seconds / 60, 1),
@@ -1018,7 +1134,7 @@ def transcribe(args):
     else:
         lines = [(s["start"], f"[{format_time(s['start'])}] {s['text']}") for s in asr["segments"]]
         dropped = 0
-        engine = ENGINE
+        engine = ENGINES[args.engine]
 
     markers = load_markers(recording)
     mutes = load_mutes(recording, speech=[s["start"] for s in my_asr["segments"]] if my_asr else ())
@@ -1073,11 +1189,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
 
-    commands.add_parser("download").set_defaults(handler=download)
+    d = commands.add_parser("download")
+    d.add_argument("--engine", choices=sorted(ENGINES), default="parakeet")
+    d.set_defaults(handler=download)
 
     t = commands.add_parser("transcribe")
     t.add_argument("recording")
     t.add_argument("--output", required=True)
+    t.add_argument("--engine", choices=sorted(ENGINES), default="parakeet",
+                   help="speech recognition: Parakeet Ultra (MeetRecASR) or mlx-whisper")
     t.add_argument("--no-diarization", action="store_true")
     t.add_argument("--language", default="")
     t.add_argument("--speakers")

@@ -4,7 +4,7 @@
 
 **MeetRec** is a free, open-source macOS menu bar app that **records meetings and calls** — the
 screen, your microphone and the other side's audio — and **transcribes them on your Mac** with
-Whisper and speaker diarization. No bot joins your call and nothing is uploaded. It also takes
+Parakeet and speaker diarization. No bot joins your call and nothing is uploaded. It also takes
 **screenshots with annotations and OCR**, Shottr-style.
 
 It started as a lightweight **OBS alternative** (13 MB, ~40 MB of memory) for one job: pressing "record" in Microsoft Teams,
@@ -34,7 +34,8 @@ welcome (`MeetRec/Localizable.xcstrings`).
   space guard, crash watchdog.
 - **Markers, pause and chapters**: ⭐ markers become chapters in the video and lines in the
   transcript; pause works like in OBS.
-- **Local transcription** with speaker names (mlx-whisper + pyannote, nothing leaves the Mac):
+- **Local transcription** with speaker names (Parakeet Ultra on the Neural Engine + pyannote,
+  nothing leaves the Mac; Whisper as an option):
   your own speech is found through the microphone track, other voices are recognised from enrolled
   samples.
 - **Screenshots** (⇧⌘4) with a frozen screen, window shots on wallpaper, an annotation editor

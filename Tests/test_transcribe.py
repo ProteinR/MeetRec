@@ -105,7 +105,7 @@ class SpeakerTests(unittest.TestCase):
         ]
         turns = [{"start": 0.0, "end": 4.5, "speaker": "S0"}, {"start": 4.5, "end": 7.0, "speaker": "S1"}]
         lines, dropped = transcribe.build_lines(segments, turns, {"S0": "Dima", "S1": "Speaker 1"})
-        self.assertEqual([text for _, text in lines], ["[00:00:00] Dima: hello there", "[00:00:05] Speaker 1: hi"])
+        self.assertEqual([text for _, text in lines], ["[00:00:00] Dima: Hello there", "[00:00:05] Speaker 1: Hi"])
         self.assertEqual(dropped, 1)
 
 
@@ -137,7 +137,7 @@ class MicrophoneTests(unittest.TestCase):
         segments = [{"start": 0.0, "end": 2.0, "text": "test"}, {"start": 2.0, "end": 4.0, "text": "test"}]
         turns = [{"start": 0.0, "end": 4.0, "speaker": "A"}]
         lines, _ = transcribe.build_lines(segments, turns, {"A": "Speaker 1"}, "Dima", (microphone, system))
-        self.assertEqual([text for _, text in lines], ["[00:00:00] Dima: test", "[00:00:02] Speaker 1: test"])
+        self.assertEqual([text for _, text in lines], ["[00:00:00] Dima: Test", "[00:00:02] Speaker 1: Test"])
 
     def test_my_word_inside_someone_elses_segment_is_mine(self):
         # One Whisper segment "Thanks. Bye. Have a nice day." over 0-3 s: the user's "Bye." (1-2 s)
@@ -179,7 +179,7 @@ class MicrophoneTests(unittest.TestCase):
         turns = [{"start": 0.0, "end": 0.5, "speaker": "A"}, {"start": 0.5, "end": 0.9, "speaker": "B"},
                  {"start": 0.9, "end": 1.5, "speaker": "A"}]
         lines, _ = transcribe.build_lines(segments, turns, {"A": "Falk", "B": "Julius"})
-        self.assertEqual([text for _, text in lines], ["[00:00:00] Falk: we can go"])
+        self.assertEqual([text for _, text in lines], ["[00:00:00] Falk: We can go"])
 
     def test_a_slip_mid_sentence_goes_back_but_a_reply_stays(self):
         def words(*items):
@@ -190,7 +190,7 @@ class MicrophoneTests(unittest.TestCase):
         turns = [{"start": 0.0, "end": 3.0, "speaker": "A"}, {"start": 3.0, "end": 5.0, "speaker": "B"},
                  {"start": 5.0, "end": 7.0, "speaker": "A"}]
         lines, _ = transcribe.build_lines(segments, turns, names)
-        self.assertEqual([text for _, text in lines], ["[00:00:00] Julius: ok but are you finished in branch?"])
+        self.assertEqual([text for _, text in lines], ["[00:00:00] Julius: Ok but are you finished in branch?"])
         # "Is it done? | Yes. | Good.": a reply of its own stays.
         segments = [{"start": 0.0, "end": 5.0, "text": "", "words": words("Is", "it", "done?", "Yes.", "Good.")}]
         turns = [{"start": 0.0, "end": 3.0, "speaker": "A"}, {"start": 3.0, "end": 4.0, "speaker": "B"},
@@ -235,7 +235,7 @@ class MicrophoneTests(unittest.TestCase):
         turns = [{"start": 0.0, "end": 4.0, "speaker": "A"}]
         lines, dropped = transcribe.build_split_lines(others, mine, turns, {"A": "Falk"}, "Dima")
         self.assertEqual([text for _, text in lines],
-                         ["[00:00:00] Falk: So the scanner", "[00:00:01] Dima: In the web?", "[00:00:03] Falk: works."])
+                         ["[00:00:00] Falk: So the scanner", "[00:00:01] Dima: In the web?", "[00:00:03] Falk: Works."])
         self.assertEqual(dropped, 0)
 
     def test_my_phrase_stays_whole_when_someone_speaks_at_once(self):
@@ -330,6 +330,32 @@ class MicrophoneTests(unittest.TestCase):
     def test_without_my_name_nothing_changes(self):
         names = {"A": "Speaker 1"}
         self.assertEqual(transcribe.name_microphone_speakers(names, {"A": (1.0, 5.0)}, "")[0], names)
+
+
+class ParakeetTests(unittest.TestCase):
+    def test_hesitations_are_left_out_and_give_their_punctuation_to_the_word_before(self):
+        raw = [["So", 0.0, 0.2, 1.0], ["um,", 0.3, 0.5, 1.0], ["hi", 0.6, 0.8, 1.0], ["Эм.", 0.9, 1.0, 1.0]]
+        self.assertEqual([w["text"] for w in transcribe.without_fillers(raw)], ["So,", "hi."])
+
+    def test_unknown_characters_are_left_out(self):
+        raw = [["на", 0.0, 0.2, 1.0], ["<unk>сохранить<unk>,", 0.3, 0.8, 1.0], ["<unk>", 0.9, 1.0, 1.0]]
+        self.assertEqual([w["text"] for w in transcribe.without_fillers(raw)], ["на", "сохранить,"])
+
+    def test_phrases_end_at_sentence_ends_and_pauses(self):
+        words = [{"start": 0.0, "end": 0.3, "text": "Hi."}, {"start": 0.4, "end": 0.6, "text": "How"},
+                 {"start": 0.7, "end": 0.9, "text": "are"}, {"start": 2.0, "end": 2.2, "text": "you"}]
+        segments = transcribe.phrases(words)
+        self.assertEqual([s["text"] for s in segments], ["Hi.", "How are", "you"])
+        self.assertEqual((segments[1]["start"], segments[1]["end"]), (0.4, 0.9))
+        self.assertEqual(segments[1]["words"][0]["text"], " How")
+
+    def test_language_is_guessed_from_the_letters(self):
+        self.assertEqual(transcribe.guess_language([{"text": "Давай откроем Excel"}]), "ru")
+        self.assertEqual(transcribe.guess_language([{"text": "Kannst du das prüfen? Ок"}]), "en")
+
+    def test_lines_start_with_a_capital(self):
+        self.assertEqual(transcribe.join_lines([[5, "Elena", "then I have to", False, 0]]),
+                         [(5, "[00:00:05] Elena: Then I have to")])
 
 
 if __name__ == "__main__":

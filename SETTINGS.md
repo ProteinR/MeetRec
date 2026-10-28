@@ -81,7 +81,8 @@ Needs `uv` and a Hugging Face token with the pyannote conditions accepted (see R
 |---|---|---|---|
 | `transcribeAfterRecording` | bool | `false` | Transcribe every recording when it stops. |
 | `diarization` | bool | `true` | Tell speakers apart (pyannote). |
-| `transcriptionLanguage` | string | empty | Empty = detect; or `en`, `ru`, `de`. |
+| `transcriptionEngine` | string | `parakeet` | Speech recognition: `parakeet` (Parakeet Ultra, the bundled MeetRecASR helper; model in `~/Library/Application Support/FluidAudio/Models/parakeet-ultra`, shared with Genius Typer) or `whisper` (mlx-whisper large-v3-turbo). |
+| `transcriptionLanguage` | string | empty | Empty = detect; or `en`, `ru`, `de`. Whisper only: Parakeet always detects. |
 | `myName` | string | your first name | Your name in transcripts: whoever speaks into the microphone. |
 | `transcriptCopyRules` | JSON string | empty | Also copy transcripts of meeting recordings to folders, see below. |
 
