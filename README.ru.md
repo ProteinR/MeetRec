@@ -102,11 +102,32 @@ MeetRec маленький и делает одно дело от начала �
 ## Что нужно
 
 - macOS 15 или новее, Apple Silicon (транскрибация работает на MLX).
-- Xcode и [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
+- Только для сборки из исходников: Xcode и [XcodeGen](https://github.com/yonaskolb/XcodeGen)
+  (`brew install xcodegen`).
 - Для транскрибации: [uv](https://docs.astral.sh/uv/) (`brew install uv`) и аккаунт Hugging Face
   (ниже).
 
-## Сборка и установка
+## Установка
+
+Скачайте `MeetRec-<версия>.dmg` в [Releases](https://github.com/ProteinR/MeetRec/releases/latest),
+откройте и перетащите MeetRec в «Программы». Xcode не нужен.
+
+Приложение не нотаризовано (нет аккаунта Apple Developer), поэтому первый запуск macOS заблокирует:
+откройте MeetRec один раз, затем «Системные настройки → Конфиденциальность и безопасность → Всё
+равно открыть». Или в Терминале:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/MeetRec.app
+```
+
+При первом запуске macOS спросит доступ к записи экрана и микрофону; после разрешения записи экрана
+перезапустите MeetRec. Все релизы подписаны одним сертификатом, поэтому при установке новой версии
+разрешения сохраняются.
+
+Релизы собирает GitHub Actions (`.github/workflows/release.yml`, `scripts/make-release.sh`), когда
+пушится тег `vX.Y.Z`, совпадающий с `MARKETING_VERSION`.
+
+## Сборка из исходников
 
 ```bash
 git clone https://github.com/ProteinR/MeetRec.git
@@ -120,7 +141,7 @@ cd MeetRec
 
 ### Подпись (чтобы разрешения не сбрасывались)
 
-Подписанных готовых сборок нет (нет аккаунта Apple Developer). Без постоянной подписи каждая
+Сборка из исходников подписывается на вашем Mac (нет аккаунта Apple Developer). Без постоянной подписи каждая
 пересборка для macOS — новое приложение, и разрешения приходится выдавать заново. Чтобы этого не
 было, один раз создайте самоподписанный сертификат для подписи кода:
 

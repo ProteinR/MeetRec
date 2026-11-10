@@ -102,11 +102,31 @@ annotations; those apps are the better choice if you need them.
 ## Requirements
 
 - macOS 15 or later, Apple Silicon (transcription uses MLX).
-- Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
+- To build from source only: Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen)
+  (`brew install xcodegen`).
 - For transcription: [uv](https://docs.astral.sh/uv/) (`brew install uv`) and a Hugging Face
   account (below).
 
-## Build and install
+## Install
+
+Download `MeetRec-<version>.dmg` from [Releases](https://github.com/ProteinR/MeetRec/releases/latest),
+open it and drag MeetRec to Applications. No Xcode needed.
+
+MeetRec is not notarized (no Apple Developer account), so macOS blocks the first launch: open it
+once, then System Settings → Privacy & Security → "Open Anyway". Or in Terminal:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/MeetRec.app
+```
+
+On first start macOS asks for Screen Recording and Microphone access; start MeetRec again after
+granting Screen Recording. Releases are all signed with the same certificate, so the permissions
+are kept when you install a newer one.
+
+Releases are built by GitHub Actions (`.github/workflows/release.yml`, `scripts/make-release.sh`)
+when a tag `vX.Y.Z` matching `MARKETING_VERSION` is pushed.
+
+## Build from source
 
 ```bash
 git clone https://github.com/ProteinR/MeetRec.git
@@ -120,7 +140,7 @@ granting Screen Recording.
 
 ### Signing (keeps permissions across rebuilds)
 
-There are no signed binary releases (no Apple Developer account). Without a stable signature every
+Builds from source are signed on your Mac (no Apple Developer account). Without a stable signature every
 rebuild looks like a new app to macOS and the permissions have to be granted again. To avoid that,
 create a self-signed code signing certificate once:
 

@@ -1,0 +1,70 @@
+# Builds MeetRec on a GitHub macOS runner and publishes MeetRec-<version>.dmg / .zip as a release, so
+# installing needs no Xcode. Runs on a pushed tag vX.Y.Z (must match MARKETING_VERSION in
+# project.yml) or by hand (Actions → Release → Run workflow: tags the commit v<MARKETING_VERSION>).
+#
+# Signing: the self-signed release certificate in the secrets MEETREC_CERT_P12 (base64 .p12) and
+# MEETREC_CERT_PASSWORD. Every release is signed with the same certificate, so macOS keeps the Screen
+# Recording / Microphone permissions across updates. Without the secrets the build is ad-hoc signed.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: version
+        run: |
+          version=$(sed -nE 's/^ *MARKETING_VERSION: *"?([0-9.]+)"?.*/\1/p' project.yml)
+          tag="v$version"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "$tag" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match MARKETING_VERSION $version"; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          xcodebuild -version
+
+      - name: Tools
+        run: brew install xcodegen
+
+      - name: Signing certificate
+        env:
+          CERT_P12: ${{ secrets.MEETREC_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.MEETREC_CERT_PASSWORD }}
+        run: |
+          if [ -z "$CERT_P12" ]; then echo "No certificate secret: ad-hoc signing"; exit 0; fi
+          keychain="$RUNNER_TEMP/release.keychain-db"
+          kc_password=$(uuidgen)
+          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$kc_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$kc_password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$kc_password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+          echo "MEETREC_SIGN_IDENTITY=MeetRec Release Signing" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: ./scripts/make-release.sh
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" build/release/* --clobber
+          else
+            gh release create "$TAG" build/release/* --target "$GITHUB_SHA" --title "MeetRec ${TAG#v}" \
+              --notes-file .github/release-notes.md
+          fi

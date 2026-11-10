@@ -438,6 +438,15 @@ Requires Xcode and XcodeGen. `project.yml` is the source of truth; the `.xcodepr
 ./scripts/install.sh   # build Release, re-sign, install to ~/Applications, relaunch
 ```
 
+Releases for others (no Xcode on their Mac): `.github/workflows/release.yml` runs on a pushed tag
+`vX.Y.Z` (must equal `MARKETING_VERSION`) or by hand, builds with `scripts/make-release.sh` on a
+`macos-26` runner and publishes `MeetRec-<version>.dmg` / `.zip` to GitHub Releases. It signs with
+the self-signed "MeetRec Release Signing" certificate from the secrets `MEETREC_CERT_P12` (base64
+.p12) and `MEETREC_CERT_PASSWORD`; the same certificate for every release keeps the users' Screen
+Recording / Microphone permissions across updates, so never replace it. The owner keeps the
+.p12 and its password outside the repository. Not notarized: users allow the first launch in
+Privacy & Security (README).
+
 ## Tests
 
 ```bash
