@@ -131,6 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !launchedInBackground {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.showPanel() }
         }
+        Updater.shared.start()
         Profiling.start(delegate: self)
     }
 

@@ -249,3 +249,125 @@ extension View {
             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.orange.opacity(0.55), lineWidth: 1))
     }
 }
+
+/// "Доступна версия 0.11.0 · Обновить" at the bottom of the main page (see `Updater`).
+struct UpdateBanner: View {
+    @ObservedObject private var updater = Updater.shared
+    @EnvironmentObject private var model: RecorderModel
+    @EnvironmentObject private var transcriber: Transcriber
+
+    var body: some View {
+        if let release = updater.bannerRelease {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "arrow.down.circle.fill").foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Доступна версия \(release.version)").font(.callout.weight(.semibold))
+                    UpdateStatusLine(release: release)
+                }
+                Spacer(minLength: 0)
+                if !updater.isInstalling {
+                    Button { updater.dismissedVersion = release.version } label: {
+                        Image(systemName: "xmark").font(.caption2)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Скрыть до следующей версии")
+                }
+            }
+            .font(.caption)
+            .padding(8)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.12)))
+        }
+    }
+}
+
+/// What can be done with an available release: install, wait, or why not; shared by the banner and settings.
+struct UpdateStatusLine: View {
+    let release: Updater.Release
+    @ObservedObject private var updater = Updater.shared
+    @EnvironmentObject private var model: RecorderModel
+    @EnvironmentObject private var transcriber: Transcriber
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            switch updater.state {
+            case .downloading:
+                progress("Скачиваю обновление…")
+            case .installing:
+                progress("Устанавливаю, MeetRec перезапустится…")
+            default:
+                if case .failed(let message) = updater.state {
+                    WarningLabel(text: message)
+                }
+                if let blocker = updater.blocker {
+                    Text(blocker.message).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                HStack(spacing: 10) {
+                    if updater.blocker == nil {
+                        let busy = Updater.busyReason(model: model, transcriber: transcriber)
+                        Button("Обновить") { updater.install() }
+                            .controlSize(.small)
+                            .buttonStyle(.borderedProminent)
+                            .disabled(busy != nil)
+                        if let busy {
+                            Text(busy).foregroundStyle(.secondary)
+                        }
+                    }
+                    Button("Что нового") { NSWorkspace.shared.open(release.page) }
+                        .buttonStyle(.link)
+                }
+            }
+        }
+    }
+
+    private func progress(_ text: LocalizedStringKey) -> some View {
+        HStack(spacing: 6) {
+            ProgressView().controlSize(.mini).frame(width: 14, height: 14)
+            Text(text).foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// Settings → "Запись": the version, "Проверить" and the automatic check switch.
+struct UpdateSettingsRow: View {
+    @ObservedObject private var updater = Updater.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Обновления").font(.callout)
+                    Text(status).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 4)
+                if updater.state == .checking {
+                    ProgressView().controlSize(.small).frame(width: 16, height: 16)
+                }
+                Button("Проверить") { Task { await updater.check(userInitiated: true) } }
+                    .disabled(updater.state == .checking || updater.isInstalling)
+            }
+            if let release = updater.latest, Updater.isNewer(release.version, than: updater.currentVersion) {
+                UpdateStatusLine(release: release).font(.caption).padding(.leading, 24)
+            } else if case .failed(let message) = updater.state {
+                WarningLabel(text: message).font(.caption).padding(.leading, 24)
+            }
+            Toggle("Проверять обновления автоматически", isOn: $updater.automatic)
+                .help("Раз в несколько часов MeetRec спрашивает GitHub о новой версии; больше ничего не отправляется")
+        }
+    }
+
+    private var status: String {
+        let version = String(localized: "Версия \(updater.currentVersion)")
+        switch updater.state {
+        case .checking:
+            return version + " · " + String(localized: "проверяю…")
+        case .upToDate:
+            let time = updater.lastCheck.map { $0.formatted(date: .omitted, time: .shortened) } ?? ""
+            return version + " · " + String(localized: "последняя, проверено в \(time)")
+        case .available(let release), .downloading(let release), .installing(let release):
+            return version + " · " + String(localized: "доступна \(release.version)")
+        case .idle, .failed:
+            return version
+        }
+    }
+}

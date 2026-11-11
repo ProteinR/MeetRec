@@ -20,6 +20,8 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the release notes list the commits since the previous tag
 
       - name: Version
         id: version
@@ -65,6 +67,16 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" build/release/* --clobber
           else
+            # "Что нового" in the app opens this page: the commits since the previous release first.
+            notes="$RUNNER_TEMP/notes.md"
+            previous=$(git describe --tags --abbrev=0 --match 'v*' "$GITHUB_SHA^" 2>/dev/null || true)
+            {
+              echo "## Changes"
+              echo
+              git log --no-merges --max-count=50 --format='- %s' ${previous:+"$previous.."}"$GITHUB_SHA"
+              echo
+              cat .github/release-notes.md
+            } > "$notes"
             gh release create "$TAG" build/release/* --target "$GITHUB_SHA" --title "MeetRec ${TAG#v}" \
-              --notes-file .github/release-notes.md
+              --notes-file "$notes"
           fi

@@ -35,6 +35,8 @@ syntax and fails), plain strings need no flag.
 | `microphone` | bool | `true` | Record the microphone. |
 | `microphoneID` | string | empty | CoreAudio device UID of a fixed microphone; empty = follow the system default and the call app. |
 | `crashWatchdog` | bool | `true` | Relaunch MeetRec if it crashes (launchd agent). |
+| `checkForUpdates` | bool | `true` | Ask GitHub Releases for a newer version a minute after launch and every 6 hours. |
+| `dismissedUpdateVersion` | string | empty | The version whose update banner was closed in the panel; a newer one shows it again. |
 
 ## Language
 

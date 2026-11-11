@@ -94,6 +94,17 @@ What MeetRec does instead:
   log), so the camera's 200–350 MB leave with it; camera picker on hover, Esc or ✕
   closes it and stops the camera. Unless one was picked, the built-in camera is used, else a real
   one: never a virtual camera on its own (with the lid closed macOS's default was OBS's). Nothing is recorded.
+- Updates with one button (`Updater.swift`, like the owner's subtitle translator): GitHub
+  `releases/latest` a minute after launch and every 6 h (`checkForUpdates`; "Проверить" in settings →
+  "Запись"); a newer release shows "Доступна версия X" at the bottom of the main page ("Что нового"
+  opens the release page, ✕ hides that version: `dismissedUpdateVersion`). "Обновить" downloads the
+  `.zip` next to the app (same volume), checks bundle id, version and that it satisfies the running
+  copy's designated requirement (same certificate: a swapped download is refused and the macOS
+  permissions stay), swaps the bundle in place, quits as usual (watchdog flag removed) and a shell
+  opens the new copy once this process is gone. Disabled while recording, saving or transcribing.
+  Only a copy signed with "MeetRec Release Signing" updates itself; the owner's `install.sh` builds
+  (another certificate) and copies on the disk image or translocated say why instead. The release
+  notes start with the commits since the previous tag.
 - Launch at login (`SMAppService`) toggle; Teams' "Microsoft Teams Audio" loopback is hidden from
   the microphone list.
 

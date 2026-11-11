@@ -137,6 +137,9 @@ struct ContentView: View {
                 RecordingsSection(isExpanded: expanded("recordings"))
                 ScreenshotsSection(isExpanded: expanded("screenshots"), close: close)
             }
+            if !recordingLayout, frozenLayout == nil {
+                UpdateBanner()
+            }
             if let notice = model.stopNotice, !model.isRecording, frozenLayout == nil {
                 LastRecordingNotice(notice: notice, interrupted: model.stopNoticeInterrupted, file: model.lastFile) { model.stopNotice = nil }
             }

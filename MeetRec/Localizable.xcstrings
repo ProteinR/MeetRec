@@ -361,6 +361,16 @@
     "12:34" : {
       "shouldTranslate" : false
     },
+    "GitHub ответил %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub answered %lld"
+          }
+        }
+      }
+    },
     "H.264 (совместимость)" : {
       "localizations" : {
         "en" : {
@@ -594,6 +604,16 @@
         }
       }
     },
+    "Архив обновления не распаковался: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The update archive could not be unpacked: %@"
+          }
+        }
+      }
+    },
     "Без записи" : {
       "localizations" : {
         "en" : {
@@ -644,6 +664,36 @@
         }
       }
     },
+    "В архиве версия %@, а не %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The archive has version %1$@, not %2$@"
+          }
+        }
+      }
+    },
+    "В архиве обновления другое приложение" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The update archive contains another app"
+          }
+        }
+      }
+    },
+    "В архиве обновления нет MeetRec.app" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The update archive has no MeetRec.app"
+          }
+        }
+      }
+    },
     "В записи нет видеодорожки" : {
       "localizations" : {
         "en" : {
@@ -684,6 +734,16 @@
         }
       }
     },
+    "В последнем релизе нет архива MeetRec" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The latest release has no MeetRec archive"
+          }
+        }
+      }
+    },
     "В системе выбран «%@», а запись идёт с «%@»." : {
       "localizations" : {
         "en" : {
@@ -710,6 +770,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Restore all"
+          }
+        }
+      }
+    },
+    "Версия %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %@"
+          }
+        }
+      }
+    },
+    "Версия %@ не новее установленной" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %@ is not newer than the installed one"
           }
         }
       }
@@ -1060,6 +1140,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Adding chapters…"
+          }
+        }
+      }
+    },
+    "Доступна версия %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %@ is available"
           }
         }
       }
@@ -2348,6 +2438,16 @@
         }
       }
     },
+    "На GitHub ещё нет релизов" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no releases on GitHub yet"
+          }
+        }
+      }
+    },
     "На диске осталось %@ — запись не начата. Освободите место или выберите другую папку." : {
       "localizations" : {
         "en" : {
@@ -2648,6 +2748,16 @@
         }
       }
     },
+    "Не удалось заменить приложение: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not replace the app: %@"
+          }
+        }
+      }
+    },
     "Не удалось записать главы: %@" : {
       "localizations" : {
         "en" : {
@@ -2714,6 +2824,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Couldn't switch the display: %@"
+          }
+        }
+      }
+    },
+    "Не удалось проверить подпись обновления" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not check the update's signature"
+          }
+        }
+      }
+    },
+    "Не удалось скачать обновление: GitHub ответил %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not download the update: GitHub answered %lld"
           }
         }
       }
@@ -2948,12 +3078,62 @@
         }
       }
     },
+    "Обновить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update"
+          }
+        }
+      }
+    },
     "Обновить список окон" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Refresh window list"
+          }
+        }
+      }
+    },
+    "Обновление подписано не тем сертификатом — не устанавливаю" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The update is signed with a different certificate, so it was not installed"
+          }
+        }
+      }
+    },
+    "Обновления" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates"
+          }
+        }
+      }
+    },
+    "Обновлю после записи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Will update after the recording"
+          }
+        }
+      }
+    },
+    "Обновлю после транскрибации" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Will update after the transcription"
           }
         }
       }
@@ -3478,6 +3658,16 @@
         }
       }
     },
+    "Переместите MeetRec в «Программы» и откройте оттуда — тогда он сможет обновляться." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move MeetRec to Applications and open it from there, so it can update itself."
+          }
+        }
+      }
+    },
     "Перетащите в чат или в поле загрузки; клик — редактировать" : {
       "localizations" : {
         "en" : {
@@ -3738,6 +3928,16 @@
         }
       }
     },
+    "Проверять обновления автоматически" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check for updates automatically"
+          }
+        }
+      }
+    },
     "Продолжить запись" : {
       "localizations" : {
         "en" : {
@@ -3804,6 +4004,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fri 9:41"
+          }
+        }
+      }
+    },
+    "Раз в несколько часов MeetRec спрашивает GitHub о новой версии; больше ничего не отправляется" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every few hours MeetRec asks GitHub for a new version; nothing else is sent"
           }
         }
       }
@@ -4018,6 +4228,16 @@
         }
       }
     },
+    "Скачиваю обновление…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading the update…"
+          }
+        }
+      }
+    },
     "Сколько обоев видно вокруг окна, 0–%lld; по умолчанию — из настроек «Скриншоты»" : {
       "localizations" : {
         "en" : {
@@ -4114,6 +4334,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Screenshots"
+          }
+        }
+      }
+    },
+    "Скрыть до следующей версии" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide until the next version"
           }
         }
       }
@@ -4640,6 +4870,16 @@
         }
       }
     },
+    "Устанавливаю, MeetRec перезапустится…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installing, MeetRec will restart…"
+          }
+        }
+      }
+    },
     "Файл" : {
       "localizations" : {
         "en" : {
@@ -4720,6 +4960,16 @@
         }
       }
     },
+    "Что нового" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What's new"
+          }
+        }
+      }
+    },
     "Чёрный" : {
       "localizations" : {
         "en" : {
@@ -4776,6 +5026,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Screen isn't being recorded"
+          }
+        }
+      }
+    },
+    "Эта копия собрана не из релиза — обновите её так же, как собирали (scripts/install.sh)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This copy was not built from a release: update it the way it was built (scripts/install.sh)."
           }
         }
       }
@@ -4971,6 +5231,16 @@
         }
       }
     },
+    "доступна %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ available"
+          }
+        }
+      }
+    },
     "за %lld с" : {
       "localizations" : {
         "en" : {
@@ -5151,12 +5421,32 @@
         }
       }
     },
+    "последняя, проверено в %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "latest, checked at %@"
+          }
+        }
+      }
+    },
     "похож на %@ %lld%%" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "like %1$@ %2$lld%%"
+          }
+        }
+      }
+    },
+    "проверяю…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "checking…"
           }
         }
       }

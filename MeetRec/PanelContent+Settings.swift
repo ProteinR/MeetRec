@@ -84,6 +84,7 @@ extension ContentView {
                     .help("Если MeetRec упадёт, он запустится снова через несколько секунд и продолжит запись")
                 Spacer(minLength: 0)
             }
+            UpdateSettingsRow()
         }
         .settingsCard()
     }
