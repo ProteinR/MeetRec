@@ -7,7 +7,7 @@ screen, your microphone and the other side's audio — and **transcribes them on
 Parakeet and speaker diarization. No bot joins your call and nothing is uploaded. It also takes
 **screenshots with annotations and OCR**, Shottr-style.
 
-It started as a lightweight **OBS alternative** (13 MB, ~40 MB of memory) for one job: pressing "record" in Microsoft Teams,
+It started as a lightweight **OBS alternative** (a 9 MB download, ~40 MB of memory) for one job: pressing "record" in Microsoft Teams,
 Google Meet, Zoom (in a browser) or Telegram calls, without scenes, sources and encoder settings.
 
 **English and Russian.** MeetRec follows the system language; another one can be chosen in Settings →
@@ -101,7 +101,7 @@ annotations; those apps are the better choice if you need them.
 
 ## Requirements
 
-- macOS 15 or later, Apple Silicon (transcription uses MLX).
+- macOS 15 or later, Apple Silicon (transcription runs on the Neural Engine and GPU).
 - To build from source only: Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen)
   (`brew install xcodegen`).
 - For transcription: [uv](https://docs.astral.sh/uv/) (`brew install uv`) and a Hugging Face
@@ -193,7 +193,7 @@ hand (⌃⌥⌘R).
 **Is anything sent to the cloud?** No. Recording and transcription run on your Mac; the only network
 access is the one-time model download from Hugging Face (and image search, when you click it).
 
-**Which Macs?** macOS 15 or later; transcription needs Apple Silicon (MLX). It is built and used on
+**Which Macs?** macOS 15 or later; transcription needs Apple Silicon (Parakeet on the Neural Engine, pyannote; Whisper via MLX). It is built and used on
 Apple Silicon only.
 
 ## Notes
