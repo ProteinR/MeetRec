@@ -428,9 +428,12 @@ extension RecorderModel {
 
     /// Remembers a title for the file name: an open Teams meeting's. Other windows (a browser tab,
     /// an app chosen for single-window capture) are not used: their titles are incidental and change.
+    /// Only while Teams is in a call (holds the mic, or started this recording): any other Teams
+    /// window (Planner, a popped-out chat) named a plain test recording "Planner".
     func updateMeetingTitle(force: Bool = false) {
         guard force || Date().timeIntervalSince(lastTitleCheck) >= 15 else { return }
         lastTitleCheck = Date()
+        guard autoStartedAppID == "teams" || detector.currentMeeting?.id == "teams" else { return }
         let title = MeetingTitle.teamsMeeting()
         if let title, title != meetingTitle {
             Log.info("Recording title: \"\(title)\" (Teams windows: \(MeetingTitle.describeTeamsWindows()))")

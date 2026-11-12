@@ -58,7 +58,8 @@ What MeetRec does instead:
 - Disk space guard: no start below 1 GB free, warning below 3 GB, automatic clean stop below 500 MB.
 - File names get the Teams meeting window's title (only that; browser tabs and other windows are
   ignored, and so are Teams' tiny/hidden helper windows like the 1×1 "Teams NRC"; the log lists the
-  Teams windows at launch and with each title) after the timestamp,
+  Teams windows at launch and with each title; taken only while Teams is in a call, i.e. holds the
+  mic or started the recording, else an open Planner window named a test recording) after the timestamp,
   which always comes first so Finder sorts by time: `2026-10-16 14-03-22 Weekly sync.mov`. The
   recordings list can rename (keeping the timestamp first), move to Trash, re-transcribe (new `name (2).md`, old kept) and search
   names and transcript text.
