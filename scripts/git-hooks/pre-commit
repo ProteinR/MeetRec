@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 # Only commits that change what goes into the app.
-git diff --cached --quiet -- MeetRec Resources project.yml && exit 0
+git diff --cached --quiet -- MeetRec MeetRecASR MeetRecMirror Resources project.yml && exit 0
 
 staged=$(git diff --cached -U0 -- project.yml)
 build_changed=$(grep -c '^+ *CURRENT_PROJECT_VERSION:' <<<"$staged" || true)

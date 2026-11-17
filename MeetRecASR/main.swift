@@ -111,8 +111,16 @@ case "diarize" where arguments.count >= 2:
         let start = Date()
         let manager = OfflineDiarizerManager(config: diarizerConfig)
         try await manager.prepareModels()
-        let result = try await manager.process(URL(fileURLWithPath: arguments[1])) { done, total in
-            if total > 0 { emitJSON(["progress": Double(done) / Double(total)]) }
+        let result: DiarizationResult
+        do {
+            result = try await manager.process(URL(fileURLWithPath: arguments[1])) { done, total in
+                if total > 0 { emitJSON(["progress": Double(done) / Double(total)]) }
+            }
+        } catch OfflineDiarizationError.noSpeechDetected {
+            // Silence on this track (a recording without a call: nobody on the system side) is
+            // no speakers, not a failed transcription; the microphone's words still count.
+            log("Diarization: no speech in \(URL(fileURLWithPath: arguments[1]).lastPathComponent)")
+            return ["turns": [[Any]](), "embeddings": [String: [Float]](), "seconds": Date().timeIntervalSince(start)]
         }
         let turns: [[Any]] = result.segments
             .sorted { $0.startTimeSeconds < $1.startTimeSeconds }

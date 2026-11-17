@@ -322,7 +322,7 @@ func transcribeCommand(_ options: TranscribeOptions) async throws {
         if let chunks { mine = try await recogniseChunks(audio.microphone!, chunks) }
         diarization = try await diarize(others, report: Throttle("diarization").report)
     }
-    let language = guessLanguage(segments)
+    let language = guessLanguage(segments + (mine?.segments ?? []))
     segments = withoutLoops(segments)
 
     emit("phase", ["name": tr("Сохранение", "Saving")])
