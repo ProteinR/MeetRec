@@ -8,17 +8,17 @@ options:
   deploymentTarget:
     macOS: "15.0"
 packages:
-  # Parakeet speech recognition for transcripts, linked only into MeetRecASR (as in Genius Typer). No
-  # traits: TTS, diarization and the NeMo text normalizer are left out (pyannote diarizes).
+  # Parakeet speech recognition and speaker diarization for transcripts, linked only into MeetRecASR.
+  # Only the Diarizer trait: TTS and the NeMo text normalizer are left out.
   FluidAudio:
     url: https://github.com/FluidInference/FluidAudio
-    from: 0.17.7
-    traits: []
+    from: 0.18.3
+    traits: [Diarizer]
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.11.1"
-    CURRENT_PROJECT_VERSION: "30"
+    MARKETING_VERSION: "0.12.0"
+    CURRENT_PROJECT_VERSION: "31"
     # No Apple Developer account: ad-hoc signing, no hardened runtime.
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Manual
@@ -86,7 +86,8 @@ targets:
       base:
         PRODUCT_NAME: MeetRecMirror
         PRODUCT_BUNDLE_IDENTIFIER: com.dmemruk.MeetRec.mirror
-  # Parakeet (FluidAudio, Neural Engine) for transcribe.py: only this process links FluidAudio.
+  # Parakeet and speaker diarization (FluidAudio, Neural Engine) for transcribe.py: only this
+  # process links FluidAudio.
   MeetRecASR:
     type: tool
     platform: macOS

@@ -37,7 +37,7 @@ What MeetRec does instead:
   double them. In the mix the microphone is raised once per recording to the other side's speech
   level (ScreenCaptureKit gives the raw mic, the call app's side comes processed and ~10 dB louder),
   max +18 dB, soft limiter; the separate tracks stay as recorded. On failure the file stays as written.
-- Optional local transcription after each recording (Parakeet Ultra + pyannote, nothing leaves the Mac),
+- Optional local transcription after each recording (Parakeet Ultra + FluidAudio speaker diarization, nothing leaves the Mac),
   speaker names from enrolled voices including the owner's own voice sample, and a recordings list
   showing which videos are transcribed or how far a running transcription is.
 - Detailed logs, so problems in a long meeting can be traced afterwards.
@@ -375,65 +375,65 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
   red "no signal" turns the menu bar icon into ⚠️.
 - Transcription (`Transcriber.swift`, `TranscriptionViews.swift`, `VoiceSampleRecorder.swift`,
   `Resources/transcribe.py`, `MeetRecASR/main.swift`): after a recording, optionally runs the bundled
-  helper with `uv run` (speech recognition + pyannote speaker-diarization-community-1, adapted from
-  the owner's earlier transcription script).
-  **Recognition engine** (`transcriptionEngine`, no switch in the settings): **Parakeet Ultra** by
-  default since 0.10.0 (2026-10-28) — `Contents/MacOS/MeetRecASR`, a Swift tool linking FluidAudio
-  (CoreML, Neural Engine), the same model as Genius Typer's dictation and the same cache
-  (`~/Library/Application Support/FluidAudio/Models/parakeet-ultra`); `transcribe.py` runs it on a WAV
-  and gets words with times, punctuation and capitals; hesitations ("uh", "um", "эм") are left out,
-  words are cut into phrases at sentence ends and pauses > 0.8 s (the segments below). It detects
-  the language itself (25 European languages), so `--language` is ignored and the header's language
-  is guessed from the letters. `MEETREC_ASR` points `transcribe.py` at another build. Or
-  **mlx-whisper large-v3-turbo** (`--engine whisper`, the engine before). Why Parakeet (compared on
-  three meetings, English/German/Russian, 2026-10-28): Whisper translated German speech into English
-  instead of writing it down (even with the other-language retry), dropped words and wrote text
-  into silence ("Продолжение следует..."); Parakeet keeps the language spoken and every word,
-  recognition took ~20 s instead of ~400 s for 83 minutes, without the GPU. Its slips: a rare
-  phrase in a wrong language (Dutch for English), more lower case and fewer commas. The Whisper-only steps below (loops, other languages,
-  `no_speech_prob`) run only with Whisper. Both audio tracks are mixed before
-  recognition. The helper finds them by the default flag ([mix, mic, system] or
-  older [system, mic]; the player mix is not used). Whoever speaks into the microphone is the user
-  (`--me`, "Моё имя"): a phrase heard mostly through the microphone track is theirs, and a diarized
-  speaker with ≥60% of speech there gets the name, whatever the voice match says; voice samples name
-  only the other side. When exactly one person of the other side is recognised by voice, an unnamed
-  speaker with < 20 % of the other side's speech is taken as that person (`merge_stray_voices`, log
-  "Stray voice: …"): pyannote split a Teams one-on-one partner in two on 2026-10-28, the small
-  cluster being short pieces, many while the user talked over them, which matched nobody. Speakers are assigned per word (Whisper word timestamps), not per Whisper
-  segment: one segment often holds several people ("Hi. Hi, Dima. Hi."), and a short "Bye" of the
-  user inside the other side's segment used to go to them. A word counts as the user's when the
-  microphone dominates its audible frames (Whisper pads short words). One or two words that
-  diarization gives to someone other than both neighbours, mid-sentence, stay with them, and a dangling
-  first word of the next speaker goes to them.
+  helper with `uv run` (adapted from the owner's earlier transcription script; Python needs only
+  numpy and soundfile, plus ffmpeg). The models run in `Contents/MacOS/MeetRecASR`, a Swift tool
+  linking FluidAudio (CoreML on the Neural Engine, trait `Diarizer`); both live in FluidAudio's cache
+  `~/Library/Application Support/FluidAudio/Models` (`parakeet-ultra`, ~600 MB, shared with Genius
+  Typer's dictation; `speaker-diarization`, ~22 MB), downloaded by MeetRecASR, no account or token.
+  `MEETREC_ASR` points `transcribe.py` at another build.
+  **Speech recognition: Parakeet Ultra** (since 0.10.0, 2026-10-28; it replaced mlx-whisper
+  large-v3-turbo, removed with pyannote on 2026-11-17). `transcribe.py` gets words with times,
+  punctuation and capitals; hesitations ("uh", "um", "эм") are left out, words are cut into phrases
+  at sentence ends and pauses > 0.8 s. It detects the language itself (25 European languages; the
+  header's language is guessed from the letters), so there is no language setting. Why Parakeet
+  (three meetings, English/German/Russian): Whisper translated German speech into English, dropped
+  words and wrote text into silence; Parakeet keeps the language spoken and every word, ~20 s
+  instead of ~400 s for 83 minutes. Its slips: a rare phrase in a wrong language, more lower case
+  and fewer commas. A rare loop (the same word > 5 times, "1,1,1…") is left out and logged.
+  **Speaker diarization: FluidAudio's offline pipeline** (`MeetRecASR diarize`: pyannote
+  community-1 segmentation, WeSpeaker embeddings, PLDA + VBx clustering, turns without overlaps).
+  It replaced pyannote community-1 in Python on 2026-11-17 after a comparison on four recordings
+  (70-min Teams meeting with four people, 50-min lesson, 41-min one-on-one, 1-min call): the same
+  speaker names on 96–100 % of the words (the rest single words at speaker changes), the voices
+  recognised with the same scores (the embeddings are the same WeSpeaker voice prints, so
+  `speakers.json` and `run.json` from before keep working), whole transcription 59 s instead of
+  378 s for 70 minutes (diarization 13 s instead of 320 s with the GPU at 98 % and 4.6 GB), and no
+  PyTorch (the uv environment went from 1.3 GB to a few MB) and no gated Hugging Face model.
+  FluidAudio's turns are tighter: a phrase outside every turn goes to the nearest speaker (it is
+  speech: Parakeet does not write text into silence); and it may split one voice into several small
+  clusters, one of which can match someone else weakly (0.4 min of one voice as another person at 0.80), so in
+  `merge_stray_voices` a recognised name with < 20 % of the speech and a match below 0.9 does not
+  count as a second person.
+  Both audio tracks are mixed before recognition. The helper finds them by the default flag ([mix,
+  mic, system] or older [system, mic]; the player mix is not used). Whoever speaks into the
+  microphone is the user (`--me`, "Моё имя"): a phrase heard mostly through the microphone track is
+  theirs, and a diarized speaker with ≥60% of speech there gets the name, whatever the voice match
+  says; voice samples name only the other side. When exactly one person of the other side is
+  recognised by voice, an unnamed speaker with < 20 % of the other side's speech is taken as that
+  person (`merge_stray_voices`, log "Stray voice: …"): a Teams one-on-one partner was split in two
+  on 2026-10-28, the small cluster being short pieces, many while the user talked over them, which
+  matched nobody. Speakers are assigned per word, not per phrase: one phrase often holds several
+  people ("Hi. Hi, Dima. Hi."), and a short "Bye" of the user inside the other side's phrase used
+  to go to them. A word counts as the user's when the microphone dominates its audible frames. One
+  or two words that diarization gives to someone other than both neighbours, mid-sentence, stay
+  with them, and a dangling first word of the next speaker goes to them.
   Microphone apart (the default when the file has both tracks and a name is set): with headphones
   the microphone hears only the user, so the user's speech is found by level in the microphone track
   (pauses < 1.5 s joined, 0.3 s padding, < 0.3 s of sound dropped), the pieces are put one after
-  another with 2 s pauses and recognised in one pass (language from the user's own speech, times
-  mapped back per piece), and only the system track gets recognition and diarization; the two word
-  streams are merged by time, the user's phrase kept whole when others speak at the same moment.
+  another with 2 s pauses and recognised in one pass (times mapped back per piece), and only the
+  system track gets recognition and diarization; the two word streams are merged by time, the
+  user's phrase kept whole when others speak at the same moment.
   If the microphone hears the other side (`echo_ratio` > 25 %: the Mac's speakers, ScreenCaptureKit
   gives the raw microphone) or `--mixed` is passed, the mixed way above is used. The log lists the
   user's phrases (`microphone [hh:mm:ss]: …`).
-  Whisper sometimes loops at random on clear audio ("dot dot dot…" ×200, "1,1,1…"): a segment with
-  the same word more than 5 times in a row, or a word that is one short piece repeated, is recognised
-  again on its own stretch with some temperature (usually fine then); if it still loops, the loop is
-  left out. Both are logged.
-  Speech in another language (a colleague in the room speaking German) comes out as gibberish in the
-  recording's language, often in mixed writing systems (Cyrillic and Latin in one word, CJK or Arabic
-  next to them; Russian with English terms is not a mix). Such a passage, with the unsure segments
-  around it (avg_logprob < −1, < 5 s apart), or a longer (≥ 3 s) unsure passage where Whisper hears
-  another language (≥ 50 %), is recognised again in the two likeliest languages Whisper hears on that
-  stretch and replaced by the unmixed result Whisper is surest of (German forced into English comes
-  out translated, with less confidence). The log says "Mixed scripts at … heard de 99 %; recognised
-  again in de …" (or "kept as it was"). Whisper is random on such audio; short pieces stay as they are.
   Gentle on the Mac: the helper runs at Darwin background priority (`taskpolicy -b`: efficiency
   cores, low GPU/disk priority), recognition and diarization one after the other, each in its own
-  process (they ran in parallel and kept the GPU at ~98 %, fans on); slower, nothing waits for it.
+  process; nothing waits for it.
   `TranscriptionLoad.swift` logs `Load (transcription):` every 30 s (GPU %, CPU and memory of the
   helper's whole process tree, thermal state) and a summary when the helper exits; MeetRec's own
-  `Load:` line does not see the helper or the GPU. The run file records each speaker's microphone share. Transcript: `<recording>.md` next to the video, never overwritten. Models: the shared
-  Hugging Face cache `~/.cache/huggingface/hub` (pyannote is gated: needs an HF token and accepted
-  conditions). Voices: `~/Library/Application Support/MeetRec/speakers.json` (starts empty; names are added with
+  `Load:` line does not see the helper or the GPU. The run file records each speaker's microphone
+  share. Transcript: `<recording>.md` next to the video, never overwritten. Voices:
+  `~/Library/Application Support/MeetRec/speakers.json` (starts empty; names are added with
   "Подписать спикеров…"); "record voice sample" enrolls the user's own voice
   under "Моё имя". The helper talks JSON lines on stdout; its stderr goes to the MeetRec log.
 

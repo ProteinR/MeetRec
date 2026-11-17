@@ -1,28 +1,29 @@
 # /// script
 # requires-python = ">=3.12,<3.13"
 # dependencies = [
-#     "mlx-whisper==0.4.3",
-#     "pyannote.audio==4.0.7",
-#     "librosa==0.11.0",
+#     "numpy==2.5.4",
+#     "soundfile==0.14.0",
 # ]
 # ///
-"""MeetRec transcription helper: Parakeet Ultra (or mlx-whisper large-v3-turbo) + pyannote speaker
-diarization.
+"""MeetRec transcription helper: Parakeet Ultra speech recognition + speaker diarization, both in
+`MeetRecASR` (a Swift helper next to MeetRec's executable: FluidAudio, CoreML on the Neural Engine;
+the Parakeet models are shared with Genius Typer's dictation). This script cuts the audio, runs the
+helper and turns words and speaker turns into the transcript.
 
 Adapted from the author's earlier meeting transcription script. Runs locally on Apple Silicon;
-the only network access is the model download (Hugging Face).
+the only network access is the model download (Hugging Face, by FluidAudio).
 
-Speech recognition: Parakeet Ultra by default (`MeetRecASR`, a Swift helper next to MeetRec's
-executable: FluidAudio, Neural Engine; the models are shared with Genius Typer's dictation), or
-Whisper with `--engine whisper`. Parakeet was more accurate on the author's meetings and does not
-invent text in silence or translate German into English, as Whisper did (2026-10-28).
+Parakeet replaced mlx-whisper (2026-10-28: more accurate, no text invented in silence, no German
+translated into English) and FluidAudio's offline diarization replaced pyannote community-1
+(2026-11-17: the same speakers on the author's meetings, diarization in 10–15 s instead of 3–5 min
+with the GPU at 98 %, no PyTorch, no gated model).
 
 Talks to the app through JSON lines on stdout: {"event": "phase"|"progress"|"done"|"error", ...}.
 Human-readable diagnostics go to stderr, which the app writes to its log.
 
 Commands:
-  download [--engine e]            fetch both models (and build the uv environment)
-  transcribe <recording> --output <md> [--engine parakeet|whisper] [--no-diarization] [--language xx] [--speakers file] [--me Name] [--one-other] [--mixed]
+  download                         fetch both models (and build the uv environment)
+  transcribe <recording> --output <md> [--no-diarization] [--speakers file] [--me Name] [--one-other] [--mixed]
   enroll-sample <wav> --name <Name> --speakers <file>
 """
 import argparse
@@ -34,14 +35,11 @@ import subprocess
 import sys
 import tempfile
 import time
-import unicodedata
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
-ASR_MODEL = "mlx-community/whisper-large-v3-turbo"
-DIARIZATION_MODEL = "pyannote/speaker-diarization-community-1"
-ENGINES = {"parakeet": "Parakeet Ultra", "whisper": "mlx-whisper large-v3-turbo"}
+ENGINE = "Parakeet Ultra + FluidAudio diarization"
 SAMPLE_RATE = 16000
 DEFAULT_THRESHOLD = 0.7
 
@@ -75,48 +73,6 @@ class _Throttle:
         if value - self.last >= 0.01 or value >= 1.0 > self.last:
             self.last = value
             emit("progress", stage=self.stage, value=round(value, 3))
-
-
-class _AsrProgress:
-    """Stand-in for tqdm inside mlx_whisper.transcribe: reports decoded frames as progress."""
-
-    def __init__(self, total=None, **_):
-        self.total = total or 1
-        self.done = 0
-        self.report = _Throttle("asr")
-
-    def __enter__(self):
-        self.report(0.0)
-        return self
-
-    def __exit__(self, *_):
-        self.report(1.0)
-
-    def update(self, n=1):
-        self.done += n
-        self.report(self.done / self.total)
-
-
-class _SilentProgress(_AsrProgress):
-    """For the user's short microphone pieces: they take seconds, the progress bar is the rest."""
-
-    def __init__(self, total=None, **_):
-        super().__init__(total)
-        self.report = lambda value: None
-
-
-def _diarization_hook():
-    report = _Throttle("diarization")
-    weights = {"segmentation": (0.0, 0.35), "embeddings": (0.35, 0.6)}
-
-    def hook(step_name, step_artifact, file=None, total=None, completed=None):
-        if step_name in weights and total:
-            start, span = weights[step_name]
-            report(start + span * (completed or 0) / total)
-        elif step_name == "discrete_diarization":
-            report(0.97)
-
-    return hook, report
 
 
 def fail(code, message):
@@ -190,9 +146,12 @@ def frame_levels(path, frame=0.05):
 
 
 def load_audio(path):
-    import librosa
+    """A mono 16 kHz WAV written by `extract_audio`, as float32 samples."""
+    import soundfile
 
-    audio, _ = librosa.load(path, sr=SAMPLE_RATE)
+    audio, rate = soundfile.read(path, dtype="float32")
+    if rate != SAMPLE_RATE:
+        raise ValueError(f"{path}: {rate} Hz, expected {SAMPLE_RATE}")
     return audio
 
 
@@ -323,36 +282,11 @@ def run_parakeet(wav_path):
     return {"language": guess_language(segments), "segments": without_loops(segments), "seconds": time.time() - t0}
 
 
-def run_asr(wav_path, language, engine="parakeet"):
-    if engine == "parakeet":
-        return run_parakeet(wav_path)
-    import mlx_whisper
-
-    # `mlx_whisper.transcribe` is shadowed by the function of the same name; patch the module's tqdm
-    # so decoding reports progress events instead of drawing a terminal bar.
-    sys.modules["mlx_whisper.transcribe"].tqdm.tqdm = _AsrProgress
-    t0 = time.time()
-    audio = load_audio(wav_path)
-    result = mlx_whisper.transcribe(
-        audio,
-        path_or_hf_repo=ASR_MODEL,
-        # Words with their times: one Whisper segment often holds several people ("Hi. Hi, Dima.
-        # Hi."), so speakers are assigned per word (`build_lines`).
-        word_timestamps=True,
-        condition_on_previous_text=False,
-        language=language or None,
-    )
-    language = language or result.get("language")
-    segments = without_loops(retry_other_languages(retry_loops([
-        {"start": s["start"], "end": s["end"], "text": s["text"].strip(), "logprob": s.get("avg_logprob", 0.0),
-         "words": [{"start": w["start"], "end": w["end"], "text": w["word"]} for w in s.get("words", [])]}
-        for s in result["segments"]
-        if s["text"].strip()
-    ], audio, language), audio, language))
-    return {"language": result.get("language"), "segments": segments, "seconds": time.time() - t0}
+def run_asr(wav_path):
+    return run_parakeet(wav_path)
 
 
-JOIN_PAUSE = 2.0  # long enough that Whisper's word times (±0.5 s) tell the pieces apart
+JOIN_PAUSE = 2.0  # long enough that word times (±0.5 s) tell the pieces apart
 
 
 def joined_chunks(chunks, silence=JOIN_PAUSE):
@@ -366,8 +300,8 @@ def joined_chunks(chunks, silence=JOIN_PAUSE):
 
 
 def piece_of(t, places):
-    """Index of the piece a time in the joined audio belongs to; in a pause, the nearer piece (Whisper
-    lets a word start or end a little inside the pause)."""
+    """Index of the piece a time in the joined audio belongs to; in a pause, the nearer piece (a word
+    may start or end a little inside the pause)."""
     for index, (_, joined, length) in enumerate(places):
         if t < joined + length:
             if index > 0 and t < joined:
@@ -386,7 +320,7 @@ def recording_time(t, places, index=None):
 
 
 def split_by_piece(segments, places):
-    """One phrase per piece of the user's speech, times back in the recording. Whisper joins
+    """One phrase per piece of the user's speech, times back in the recording. Recognition joins
     neighbouring pieces into one phrase ("Hi." at 0:05 and "Okay, thank you." at 0:50), so a phrase is
     cut where its words change piece; and it splits one piece into several ("Okay." "Okay." "Okay."),
     so those are joined again, and someone else's words said at that moment cannot get between them."""
@@ -403,7 +337,7 @@ def split_by_piece(segments, places):
              "text": " ".join("".join(w["text"] for w in group).split()), "words": group} for _, group in groups]
 
 
-def run_chunks_asr(wav_path, chunks, language, engine="parakeet"):
+def run_chunks_asr(wav_path, chunks):
     """Recognises the user's pieces of the microphone track, put one after another with short pauses:
     one pass (the engine hears the context, the language is found from the user's own speech), times
     mapped back to the recording."""
@@ -418,41 +352,19 @@ def run_chunks_asr(wav_path, chunks, language, engine="parakeet"):
         pieces += [audio[int(start * SAMPLE_RATE):int(end * SAMPLE_RATE)], pause]
     if not pieces:
         return {"segments": [], "language": None, "seconds": 0.0}
-    if engine == "parakeet":
-        import soundfile
+    import soundfile
 
-        joined = Path(wav_path).with_name("microphone-joined.wav")
-        soundfile.write(joined, np.concatenate(pieces), SAMPLE_RATE)
-        found = phrases(parakeet_words(joined))
-        segments = without_loops(split_by_piece(
-            [{**s, "words": [{**w, "word": w["text"]} for w in s["words"]]} for s in found], places))
-        for s in segments:
-            log(f"microphone [{format_time(s['start'])}]: {s['text']}")
-        return {"segments": segments, "language": guess_language(found), "seconds": time.time() - t0}
-    import mlx_whisper
-
-    sys.modules["mlx_whisper.transcribe"].tqdm.tqdm = _SilentProgress
-    result = mlx_whisper.transcribe(
-        np.concatenate(pieces),
-        path_or_hf_repo=ASR_MODEL,
-        word_timestamps=True,
-        condition_on_previous_text=False,
-        language=language or None,
-    )
-    # Whisper invents text in noise ("Thank you."); it says so itself.
-    kept = []
-    for s in result["segments"]:
-        if s["text"].strip() and s.get("no_speech_prob", 0.0) <= 0.6:
-            kept.append(s)
-        elif s["text"].strip():
-            log(f"microphone: left out (no speech {s.get('no_speech_prob', 0.0):.0%}): {s['text'].strip()}")
-    segments = without_loops(split_by_piece(kept, places))
+    joined = Path(wav_path).with_name("microphone-joined.wav")
+    soundfile.write(joined, np.concatenate(pieces), SAMPLE_RATE)
+    found = phrases(parakeet_words(joined))
+    segments = without_loops(split_by_piece(
+        [{**s, "words": [{**w, "word": w["text"]} for w in s["words"]]} for s in found], places))
     for s in segments:
         log(f"microphone [{format_time(s['start'])}]: {s['text']}")
-    return {"segments": segments, "language": result.get("language"), "seconds": time.time() - t0}
+    return {"segments": segments, "language": guess_language(found), "seconds": time.time() - t0}
 
 
-MAX_REPEAT = 5  # "Okay. Okay. Okay." is speech; the same word more times in a row is Whisper looping
+MAX_REPEAT = 5  # "Okay. Okay. Okay." is speech; the same word more times in a row is a loop
 
 
 def _word_key(text):
@@ -463,171 +375,11 @@ def _looping_word(text):
     return re.search(r"(.{1,4}?)\1{8,}", text.strip()) is not None
 
 
-def has_loop(segment):
-    """The same word more than `MAX_REPEAT` times in a row, or a word that is one short piece repeated."""
-    words = segment.get("words") or []
-    run = 1
-    for previous, word in zip(words, words[1:]):
-        same = _word_key(word["text"]) and _word_key(word["text"]) == _word_key(previous["text"])
-        run = run + 1 if same else 1
-        if run > MAX_REPEAT:
-            return True
-    return any(_looping_word(word["text"]) for word in words)
-
-
-def _stretch(segment, audio):
-    """The segment's own stretch of audio, with half a second to spare: (start, end) in seconds."""
-    return max(segment["start"] - 0.5, 0.0), min(segment["end"] + 0.5, len(audio) / SAMPLE_RATE)
-
-
-def recognise_stretch(audio, start, end, language, **options):
-    """Recognises audio[start:end] again; segments in recording time, and the language used."""
-    import mlx_whisper
-
-    sys.modules["mlx_whisper.transcribe"].tqdm.tqdm = _SilentProgress
-    again = mlx_whisper.transcribe(
-        audio[int(start * SAMPLE_RATE):int(end * SAMPLE_RATE)],
-        path_or_hf_repo=ASR_MODEL,
-        word_timestamps=True,
-        condition_on_previous_text=False,
-        language=language or None,
-        **options,
-    )
-    return [{"start": start + n["start"], "end": start + n["end"], "text": n["text"].strip(), "logprob": n.get("avg_logprob", 0.0),
-             "words": [{"start": start + w["start"], "end": start + w["end"], "text": w["word"]} for w in n.get("words", [])]}
-            for n in again["segments"] if n["text"].strip()], again.get("language")
-
-
-def stretch_languages(audio, start, end):
-    """Whisper's language guess for audio[start:end] (its first 30 s): [(language, probability)],
-    most likely first."""
-    import mlx.core as mx
-    from mlx_whisper.audio import N_FRAMES, N_SAMPLES, log_mel_spectrogram, pad_or_trim
-
-    model = sys.modules["mlx_whisper.transcribe"].ModelHolder.get_model(ASR_MODEL, mx.float16)
-    mel = log_mel_spectrogram(audio[int(start * SAMPLE_RATE):int(end * SAMPLE_RATE)], n_mels=model.dims.n_mels, padding=N_SAMPLES)
-    _, probs = model.detect_language(pad_or_trim(mel, N_FRAMES, axis=-2).astype(mx.float16))
-    return sorted(probs.items(), key=lambda item: -item[1])
-
-
-def retry_loops(segments, audio, language):
-    """Whisper loops at random (the same audio recognised again is usually fine): a segment that loops
-    is recognised once more, its own stretch of audio with some randomness (temperature), and replaced
-    when the new text does not loop. Otherwise `without_loops` leaves the loop out."""
-    result = []
-    for s in segments:
-        if not has_loop(s):
-            result.append(s)
-            continue
-        start, end = _stretch(s, audio)
-        new, _ = recognise_stretch(audio, start, end, language, temperature=(0.2, 0.4, 0.6, 0.8))
-        if new and not any(has_loop(n) for n in new):
-            log(f"Whisper looped at {format_time(s['start'])}; recognised again: {' '.join(n['text'] for n in new)[:120]}")
-            result += new
-        else:
-            log(f"Whisper looped at {format_time(s['start'])} and again on a retry; the loop is left out")
-            result.append(s)
-    return result
-
-
-def _script(char):
-    """The writing system of a letter: "LATIN", "CYRILLIC", "CJK" (Chinese, Japanese and Korean
-    together), "ARABIC"…"""
-    name = unicodedata.name(char, "")
-    if name.startswith(("CJK", "HIRAGANA", "KATAKANA", "HANGUL")):
-        return "CJK"
-    return name.split(" ")[0]
-
-
-def has_script_mix(segment):
-    """Whisper writes speech in a language other than the one it recognises as gibberish in several
-    writing systems ("Г찰� тренировка… strongly transmагает"). Russian with English terms ("RFID",
-    "QR-код") is not a mix; a word that mixes writing systems is, and so is a third one besides Latin
-    and Cyrillic, or CJK/Arabic/… next to either."""
-    scripts = set()
-    for word in re.findall(r"[^\W\d_]+", segment["text"]):
-        own = {_script(c) for c in word}
-        if len(own) > 1:
-            return True
-        scripts |= own
-    return len(scripts) > 1 and not scripts <= {"LATIN", "CYRILLIC"}
-
-
-UNSURE = -1.0  # Whisper's own threshold (avg_logprob): below it a window is decoded again with temperature
-
-
-def unclear_passages(segments, gap=5.0):
-    """Runs of segments (first, last index) Whisper may have got wrong: segments in mixed writing
-    systems or unsure ones, less than `gap` s apart. Whisper cuts speech in another language into
-    pieces, some mixed, some just wrong ("address 1?") or dots, and a piece of a second or two is too
-    short to tell its language."""
-    passages, i = [], 0
-    unclear = [has_script_mix(s) or s.get("logprob", 0.0) < UNSURE for s in segments]
-    while i < len(segments):
-        j = i
-        if unclear[i]:
-            while j + 1 < len(segments) and unclear[j + 1] and segments[j + 1]["start"] - segments[j]["end"] < gap:
-                j += 1
-            passages.append((i, j))
-        i = j + 1
-    return passages
-
-
-def _confidence(segments):
-    """Whisper's own confidence in a result: avg_logprob weighted by duration."""
-    total = sum(s["end"] - s["start"] for s in segments)
-    return sum(s.get("logprob", 0.0) * (s["end"] - s["start"]) for s in segments) / total if total else -math.inf
-
-
-OTHER_LANGUAGE = 0.5  # an unsure passage is recognised again when Whisper hears another language there this surely
-MIN_PASSAGE = 3.0  # seconds: shorter unsure passages without mixed writing are left alone
-
-
-def retry_other_languages(segments, audio, language):
-    """Speech in another language (a colleague in the room, a few words in German) comes out as
-    gibberish in the recording's language, often in mixed writing systems ("Г찰� тренировка…
-    strongly transmагает"). An unclear passage (`unclear_passages`) with mixed writing, or a longer
-    unsure one where Whisper hears another language, is recognised once more in each language Whisper
-    hears there (the two likeliest, at least 10 %), and replaced by the result Whisper is surest of
-    among those that are not mixed. Whisper made to recognise German as English translates it
-    instead, with less confidence. Without such a result the passage stays as it was."""
-    result, done = [], 0
-    for first, last in unclear_passages(segments):
-        old = segments[first:last + 1]
-        mixed = any(has_script_mix(s) for s in old)
-        if not mixed and old[-1]["end"] - old[0]["start"] < MIN_PASSAGE:
-            log(f"Unsure passage at {format_time(old[0]['start'])}–{format_time(old[-1]['end'])}: too short to check")
-            continue
-        start, end = _stretch({"start": old[0]["start"], "end": old[-1]["end"]}, audio)
-        guesses = [(lang, p) for lang, p in stretch_languages(audio, start, end) if p >= 0.1][:2]
-        heard = ", ".join(f"{lang} {p:.0%}" for lang, p in guesses)
-        where = (f"{'Mixed scripts' if mixed else 'Unsure passage'} at {format_time(old[0]['start'])}–"
-                 f"{format_time(old[-1]['end'])} ({language}; heard {heard})")
-        if not mixed and (not guesses or guesses[0][0] == language or guesses[0][1] < OTHER_LANGUAGE):
-            log(f"{where}: left as it is")
-            continue
-        result += segments[done:first]
-        done = last + 1
-        tries = []
-        for lang, _ in guesses:
-            new, _ = recognise_stretch(audio, start, end, lang)
-            if new and not any(has_script_mix(n) for n in new):
-                tries.append((_confidence(new), lang, new))
-        if tries:
-            confidence, lang, new = max(tries, key=lambda t: t[0])
-            log(f"{where}; recognised again in {lang} (confidence {confidence:.2f}, "
-                f"{', '.join(f'{l} {c:.2f}' for c, l, _ in tries)}): {' '.join(n['text'] for n in new)[:160]}")
-            result += new
-        else:
-            log(f"{where}; kept as it was: {' '.join(s['text'] for s in old)[:80]}")
-            result += old
-    return result + segments[done:]
-
-
 def without_loops(segments):
-    """Whisper sometimes loops on unclear audio and writes one word hundreds of times ("dot dot dot…",
-    "1,1,1,1…"). Runs of the same word longer than `MAX_REPEAT`, and words that are one short piece
-    repeated, are left out (and logged); the rest of the segment stays."""
+    """Recognition sometimes loops on unclear audio and writes one word hundreds of times ("dot dot
+    dot…", "1,1,1,1…"; Whisper did, Parakeet rarely). Runs of the same word longer than
+    `MAX_REPEAT`, and words that are one short piece repeated, are left out (and logged); the rest
+    of the segment stays."""
     key = _word_key
     result = []
     for s in segments:
@@ -642,7 +394,7 @@ def without_loops(segments):
                 j += 1
             run = words[i:j + 1]
             if len(run) > MAX_REPEAT:
-                log(f"Left out a Whisper loop at {format_time(run[0]['start'])}: {run[0]['text'].strip()!r} × {len(run)}")
+                log(f"Left out a loop at {format_time(run[0]['start'])}: {run[0]['text'].strip()!r} × {len(run)}")
             else:
                 for w in run:
                     if _looping_word(w["text"]):
@@ -656,42 +408,14 @@ def without_loops(segments):
     return result
 
 
-def load_pipeline():
-    import torch
-    from pyannote.audio import Pipeline
-
-    try:
-        pipeline = Pipeline.from_pretrained(DIARIZATION_MODEL)
-    except Exception as error:  # gated repo, missing token, network
-        text = f"{type(error).__name__}: {error}"
-        if "Gated" in text or "403" in text or "401" in text or "token" in text.lower():
-            fail("gated", tr("Нет доступа к модели pyannote: нужен вход в Hugging Face и принятые условия модели "
-                             "pyannote/speaker-diarization-community-1",
-                             "No access to the pyannote model: log in to Hugging Face and accept the conditions of "
-                             "pyannote/speaker-diarization-community-1"))
-        raise
-    if pipeline is None:
-        fail("gated", tr("Модель pyannote не загрузилась: проверьте токен Hugging Face",
-                         "The pyannote model did not load: check your Hugging Face token"))
-    if torch.backends.mps.is_available():
-        pipeline.to(torch.device("mps"))
-    return pipeline
-
-
 def run_diarization(wav_path):
-    import torch
-
+    """Who spoke when: FluidAudio's offline diarization in MeetRecASR (pyannote community-1
+    segmentation, WeSpeaker embeddings, VBx clustering as CoreML models; turns without overlaps).
+    Embeddings are the same WeSpeaker voice prints pyannote gave, so `speakers.json` kept working."""
     t0 = time.time()
-    pipeline = load_pipeline()
-    audio = load_audio(wav_path)
-    hook, report = _diarization_hook()
-    output = pipeline({"waveform": torch.from_numpy(audio).unsqueeze(0), "sample_rate": SAMPLE_RATE}, hook=hook)
-    report(1.0)
-    annotation = output.exclusive_speaker_diarization
-    labels = annotation.labels()
-    turns = [{"start": t.start, "end": t.end, "speaker": spk} for t, _, spk in annotation.itertracks(yield_label=True)]
-    embeddings = {label: output.speaker_embeddings[i].tolist() for i, label in enumerate(labels)}
-    return {"turns": turns, "embeddings": embeddings, "seconds": time.time() - t0}
+    result = run_asr_helper(["diarize", str(wav_path)], _Throttle("diarization"))
+    turns = [{"start": start, "end": end, "speaker": speaker} for start, end, speaker in result["turns"]]
+    return {"turns": turns, "embeddings": result["embeddings"], "seconds": time.time() - t0}
 
 
 # ── Speakers ─────────────────────────────────────────────────────────────────────────────────────
@@ -799,20 +523,42 @@ def merge_other_side(names, speaking, me):
     return {label: (name if label in others else value) for label, value in names.items()}
 
 
-def merge_stray_voices(names, speaking, me, max_share=0.2):
+def merge_stray_voices(names, speaking, me, max_share=0.2, scores=None, sure=0.9):
     """Diarization sometimes splits one voice: a second cluster made of short pieces, often where the
     user talks over them and the call app changes their sound, matches nobody. When exactly one
     person of the other side was recognised by voice, an unnamed speaker with less than max_share
-    of the other side's speech is taken as that person (a Teams one-on-one, 2026-10-28)."""
+    of the other side's speech is taken as that person (a Teams one-on-one, 2026-10-28).
+
+    A small cluster can also match someone else by a weak margin: FluidAudio gave 0.4 min of one
+    voice to another person at 0.80 (2026-11-17). So a recognised name with less than max_share of
+    the speech and a match below `sure` does not count as a second person and is merged as well."""
     others = [label for label in names if not (me and names[label] == me)]
-    known = {names[label] for label in others if not names[label].startswith("Speaker ")}
+    total = sum(speaking.get(label, 0.0) for label in others)
+    scores = scores or {}
+
+    def small(label):
+        return speaking.get(label, 0.0) < max_share * total
+
+    def weak(label):
+        return names[label].startswith("Speaker ") or (small(label) and scores.get(label, {}).get("score", 1.0) < sure)
+
+    known = {names[label] for label in others if not weak(label)}
     if len(known) != 1:
         return names
-    total = sum(speaking.get(label, 0.0) for label in others)
     name = known.pop()
-    return {label: (name if label in others and value.startswith("Speaker ")
-                    and speaking.get(label, 0.0) < max_share * total else value)
+    return {label: (name if label in others and weak(label) and small(label) else value)
             for label, value in names.items()}
+
+
+def nearest_speaker(segment, turns, within=math.inf):
+    """The speaker of the closest turn at most `within` seconds away: a short phrase in a gap
+    between turns (FluidAudio's turns are tighter than pyannote's) is still speech."""
+    best, distance = None, within
+    for turn in turns:
+        gap = max(turn["start"] - segment["end"], segment["start"] - turn["end"], 0.0)
+        if gap <= distance:
+            best, distance = turn["speaker"], gap
+    return best
 
 
 def assign_speaker(segment, turns):
@@ -885,28 +631,31 @@ def smooth_short_runs(words, max_words=2):
     return words
 
 
-def build_lines(segments, turns, names, me=None, levels=None):
+def build_lines(segments, turns, names, me=None, levels=None, near=math.inf):
     """Transcript lines, a speaker's words joined until someone else speaks; with the user's name and
-    the microphone/system levels, words spoken into the microphone are the user's."""
+    the microphone/system levels, words spoken into the microphone are the user's. A phrase outside
+    every turn goes to the nearest speaker (at most `near` seconds away, else it is dropped):
+    Parakeet does not write text into silence as Whisper did, and FluidAudio's turns leave short
+    phrases ("Let me check.") outside (2026-11-17)."""
     words, dropped = [], 0
     for segment in segments:
-        label = assign_speaker(segment, turns)
+        label = assign_speaker(segment, turns) or nearest_speaker(segment, turns, near)
         if label is None and not (me and levels and spoken_into_microphone(segment, levels)):
-            dropped += 1  # Whisper hallucinations in silence ("Thank you.")
+            dropped += 1
             continue
         words += word_names(segment, label, turns, names, me, levels)
     return join_lines(smooth_short_runs(words)), dropped
 
 
-def build_split_lines(segments, my_segments, turns, names, me):
+def build_split_lines(segments, my_segments, turns, names, me, near=math.inf):
     """Transcript lines when the user's microphone track was transcribed apart (`my_segments`): the
     other side's words get their diarized speakers, the user's words are the user's, and both are
-    put in order of time."""
+    put in order of time. A phrase outside every turn goes to a speaker at most `near` seconds away."""
     words, dropped = [], 0
     for segment in segments:
-        label = assign_speaker(segment, turns)
+        label = assign_speaker(segment, turns) or nearest_speaker(segment, turns, near)
         if label is None:
-            dropped += 1  # Whisper hallucinations in silence ("Thank you.")
+            dropped += 1
             continue
         words += word_names(segment, label, turns, names)
     # A phrase of the user stays whole: the other side's words said at the same moment (everyone's
@@ -1045,18 +794,13 @@ def insert_markers(timed_lines, markers):
 # ── Commands ─────────────────────────────────────────────────────────────────────────────────────
 
 def download(args):
-    from huggingface_hub import snapshot_download
-
     emit("phase", name=tr("Скачивание модели распознавания речи", "Downloading the speech recognition model"))
     t0 = time.time()
-    if args.engine == "parakeet":
-        run_asr_helper(["download"], _Throttle("download"))
-    else:
-        snapshot_download(ASR_MODEL)
+    run_asr_helper(["download"], _Throttle("download"))
     log(f"ASR model ready in {time.time() - t0:.0f}s")
     emit("phase", name=tr("Скачивание модели разбивки по ролям", "Downloading the speaker diarization model"))
     t0 = time.time()
-    load_pipeline()
+    run_asr_helper(["download-diarizer"])
     log(f"Diarization model ready in {time.time() - t0:.0f}s")
     emit("done", message=tr("Модели готовы", "Models ready"))
 
@@ -1087,7 +831,7 @@ def transcribe(args):
         my_asr = None
         if args.no_diarization:
             emit("phase", name=tr("Распознавание речи", "Recognizing speech"))
-            asr = run_asr(str(wav), args.language, args.engine)
+            asr = run_asr(str(wav))
             diarization = None
         else:
             emit("phase", name=tr("Распознавание речи и разбивка по ролям", "Recognizing speech and speakers"))
@@ -1095,11 +839,10 @@ def transcribe(args):
             # the Mac cooler (and quieter) at the cost of a longer run; nothing waits for the transcript.
             others = str(separate["system"]) if chunks is not None else str(wav)
             with ProcessPoolExecutor(max_workers=1) as pool:
-                asr = pool.submit(run_asr, others, args.language, args.engine).result()
+                asr = pool.submit(run_asr, others).result()
             if chunks is not None:
                 with ProcessPoolExecutor(max_workers=1) as pool:
-                    my_asr = pool.submit(run_chunks_asr, str(separate["microphone"]), chunks, args.language,
-                                         args.engine).result()
+                    my_asr = pool.submit(run_chunks_asr, str(separate["microphone"]), chunks).result()
             with ProcessPoolExecutor(max_workers=1) as pool:
                 diarization = pool.submit(run_diarization, others).result()
 
@@ -1124,7 +867,7 @@ def transcribe(args):
                 log(f"One other person: {', '.join(sorted(l for l in names if merged[l] != names[l]))} → {merged}")
             names = merged
         else:
-            merged = merge_stray_voices(names, speaking, args.me)
+            merged = merge_stray_voices(names, speaking, args.me, scores=scores)
             if merged != names:
                 log(f"Stray voice: {', '.join(f'{l} ({speaking.get(l, 0.0):.0f}s)' for l in sorted(names) if merged[l] != names[l])} → {merged}")
             names = merged
@@ -1132,7 +875,7 @@ def transcribe(args):
             lines, dropped = build_split_lines(asr["segments"], my_asr["segments"], diarization["turns"], names, args.me)
         else:
             lines, dropped = build_lines(asr["segments"], diarization["turns"], names, args.me, levels)
-        engine = f"{ENGINES[args.engine]} + pyannote community-1"
+        engine = ENGINE
         if my_asr is not None:
             mine_seconds = sum(end - start for start, end in chunks)
             speakers_summary.append({"label": "microphone", "name": args.me, "minutes": round(mine_seconds / 60, 1),
@@ -1155,7 +898,7 @@ def transcribe(args):
     else:
         lines = [(s["start"], f"[{format_time(s['start'])}] {s['text']}") for s in asr["segments"]]
         dropped = 0
-        engine = ENGINES[args.engine]
+        engine = "Parakeet Ultra"
 
     markers = load_markers(recording)
     mutes = load_mutes(recording, speech=[s["start"] for s in my_asr["segments"]] if my_asr else ())
@@ -1211,16 +954,12 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
 
     d = commands.add_parser("download")
-    d.add_argument("--engine", choices=sorted(ENGINES), default="parakeet")
     d.set_defaults(handler=download)
 
     t = commands.add_parser("transcribe")
     t.add_argument("recording")
     t.add_argument("--output", required=True)
-    t.add_argument("--engine", choices=sorted(ENGINES), default="parakeet",
-                   help="speech recognition: Parakeet Ultra (MeetRecASR) or mlx-whisper")
     t.add_argument("--no-diarization", action="store_true")
-    t.add_argument("--language", default="")
     t.add_argument("--speakers")
     t.add_argument("--runs-dir")
     t.add_argument("--run-file", help="where the speakers of this run go (MeetRec: run.json in the recording's folder)")

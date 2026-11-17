@@ -34,8 +34,8 @@ welcome (`MeetRec/Localizable.xcstrings`).
   space guard, crash watchdog.
 - **Markers, pause and chapters**: ⭐ markers become chapters in the video and lines in the
   transcript; pause works like in OBS.
-- **Local transcription** with speaker names (Parakeet Ultra on the Neural Engine + pyannote,
-  nothing leaves the Mac; Whisper as an option):
+- **Local transcription** with speaker names (Parakeet Ultra and FluidAudio's speaker diarization
+  on the Neural Engine, nothing leaves the Mac):
   your own speech is found through the microphone track, other voices are recognised from enrolled
   samples.
 - **Screenshots** (⇧⌘4) with a frozen screen, window shots on wallpaper, an annotation editor
@@ -101,11 +101,10 @@ annotations; those apps are the better choice if you need them.
 
 ## Requirements
 
-- macOS 15 or later, Apple Silicon (transcription runs on the Neural Engine and GPU).
+- macOS 15 or later, Apple Silicon (transcription runs on the Neural Engine).
 - To build from source only: Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen)
   (`brew install xcodegen`).
-- For transcription: [uv](https://docs.astral.sh/uv/) (`brew install uv`) and a Hugging Face
-  account (below).
+- For transcription: [uv](https://docs.astral.sh/uv/) and ffmpeg (`brew install uv ffmpeg`).
 
 ## Install
 
@@ -167,11 +166,7 @@ tccutil reset Microphone com.dmemruk.MeetRec
 
 ### Transcription setup
 
-1. Accept the conditions of
-   [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
-   on Hugging Face.
-2. Log in once in the terminal: `uvx --from huggingface_hub hf auth login` (stores the token in `~/.cache/huggingface`).
-3. In MeetRec: Settings → Recording → Transcription → Download models (~2 GB, once).
+In MeetRec: Settings → Recording → Transcription → Download models (~650 MB, once; no account needed).
 
 Everything then runs locally at background priority.
 
@@ -198,9 +193,9 @@ Zoom, Slack, Webex and FaceTime apps are not detected yet, but you can always st
 hand (⌃⌥⌘R).
 
 **Is anything sent to the cloud?** No. Recording and transcription run on your Mac; the only network
-access is the one-time model download from Hugging Face (and image search, when you click it).
+access is the one-time model download (and image search, when you click it).
 
-**Which Macs?** macOS 15 or later; transcription needs Apple Silicon (Parakeet on the Neural Engine, pyannote; Whisper via MLX). It is built and used on
+**Which Macs?** macOS 15 or later; transcription needs Apple Silicon (Parakeet and speaker diarization on the Neural Engine). It is built and used on
 Apple Silicon only.
 
 ## Notes

@@ -101,12 +101,12 @@ class SpeakerTests(unittest.TestCase):
             {"start": 0.0, "end": 2.0, "text": "hello"},
             {"start": 2.0, "end": 4.0, "text": "there"},
             {"start": 5.0, "end": 6.0, "text": "hi"},
-            {"start": 20.0, "end": 21.0, "text": "Thank you."},  # in silence: no speaker
+            {"start": 20.0, "end": 21.0, "text": "Thank you."},  # outside every turn: the nearest speaker
         ]
         turns = [{"start": 0.0, "end": 4.5, "speaker": "S0"}, {"start": 4.5, "end": 7.0, "speaker": "S1"}]
         lines, dropped = transcribe.build_lines(segments, turns, {"S0": "Dima", "S1": "Speaker 1"})
-        self.assertEqual([text for _, text in lines], ["[00:00:00] Dima: Hello there", "[00:00:05] Speaker 1: Hi"])
-        self.assertEqual(dropped, 1)
+        self.assertEqual([text for _, text in lines], ["[00:00:00] Dima: Hello there", "[00:00:05] Speaker 1: Hi Thank you."])
+        self.assertEqual(dropped, 0)
 
 
 
@@ -274,7 +274,7 @@ class MicrophoneTests(unittest.TestCase):
         result = transcribe.split_by_piece(segments, places)
         self.assertEqual([(s["start"], s["text"]) for s in result], [(100.0, "Okay. Okay.")])
 
-    def test_whisper_loops_are_left_out(self):
+    def test_loops_are_left_out(self):
         def words(*items):
             return [{"start": float(i), "end": i + 0.5, "text": " " + text} for i, text in enumerate(items)]
         looping = words("tabs", "star", *["dot"] * 50, "STLV", "The")
@@ -285,30 +285,6 @@ class MicrophoneTests(unittest.TestCase):
                     {"start": 0.0, "end": 3.0, "text": "", "words": number}]
         result = transcribe.without_loops(segments)
         self.assertEqual([s["text"] for s in result], ["tabs star STLV The", "Okay. Okay. Okay.", "the in"])
-        self.assertEqual([transcribe.has_loop(s) for s in segments], [True, False, True])
-
-    def test_mixed_writing_systems(self):
-        def mixed(text):
-            return transcribe.has_script_mix({"text": text})
-        # Russian with English terms, English, German, Japanese: not mixed.
-        self.assertFalse(mixed("Дима, а при чём здесь этот RFID префикс, если она сканирует QR -код?"))
-        self.assertFalse(mixed("сканирует QR-код через iPhone, e-mail 00001"))
-        self.assertFalse(mixed("Du musst also diese fünf Nummern vergeben."))
-        self.assertFalse(mixed("今日はいい天気ですね"))
-        # Today's meeting: German recognised as Russian.
-        self.assertTrue(mixed("Г찰� тренировка за привязку а то есть когда ты добир到 чем он нашел"))
-        self.assertTrue(mixed("jusquже Horthey живут на земле"))
-        self.assertTrue(mixed("Да ты рыga была прослав measuring"))
-        self.assertTrue(mixed("на земле илиیں армией"))
-
-    def test_unclear_passages(self):
-        def seg(start, text, logprob):
-            return {"start": start, "end": start + 1.0, "text": text, "logprob": logprob}
-        segments = [seg(0, "Подожди, стой.", -0.3),
-                    seg(20, "address 1?", -1.7), seg(21.5, "Г찰� тренировка", -1.7), seg(23, "это то.", -1.7),
-                    seg(30, "Хорошо?", -0.9),
-                    seg(40, "address 2?", -1.7)]
-        self.assertEqual(transcribe.unclear_passages(segments), [(1, 3), (5, 5)])
 
     def test_my_voice_on_the_other_side_is_not_me(self):
         self.assertEqual(transcribe.without_me({"A": "Dima", "B": "Falk"}, "Dima"), {"A": "Speaker 1", "B": "Falk"})
@@ -341,6 +317,31 @@ class MicrophoneTests(unittest.TestCase):
         # Nobody recognised: nothing to merge into.
         names = {"S0": "Speaker 1", "S1": "Speaker 2"}
         self.assertEqual(transcribe.merge_stray_voices(names, {"S0": 5.0, "S1": 100.0}, "Dima"), names)
+
+    def test_a_small_weak_match_is_not_a_second_person(self):
+        # FluidAudio, 2026-11-17: 0.4 min of Anna matched someone else at 0.80, which blocked the merge.
+        names = {"S1": "Anna", "S2": "Speaker 1", "S4": "Ben"}
+        speaking = {"S1": 684.0, "S2": 168.0, "S4": 24.0}
+        scores = {"S1": {"score": 0.82}, "S2": {"score": 0.55}, "S4": {"score": 0.80}}
+        self.assertEqual(transcribe.merge_stray_voices(names, speaking, "Dima", scores=scores),
+                         {"S1": "Anna", "S2": "Anna", "S4": "Anna"})
+        # A sure match stays a person of their own, and so does a recognised voice with a big share.
+        sure = {**scores, "S4": {"score": 0.95}}
+        self.assertEqual(transcribe.merge_stray_voices(names, speaking, "Dima", scores=sure), names)
+        big = {"S1": 684.0, "S2": 168.0, "S4": 300.0}
+        self.assertEqual(transcribe.merge_stray_voices(names, big, "Dima", scores=scores), names)
+
+    def test_a_phrase_between_turns_goes_to_the_nearest_speaker(self):
+        turns = [{"start": 0.0, "end": 5.0, "speaker": "A"}, {"start": 6.0, "end": 9.0, "speaker": "B"}]
+        self.assertEqual(transcribe.nearest_speaker({"start": 5.6, "end": 5.9}, turns), "B")
+        self.assertEqual(transcribe.nearest_speaker({"start": 5.1, "end": 5.3}, turns), "A")
+        self.assertIsNone(transcribe.nearest_speaker({"start": 12.0, "end": 13.0}, turns, within=2.0))
+        self.assertEqual(transcribe.nearest_speaker({"start": 12.0, "end": 13.0}, turns), "B")
+        segment = {"start": 5.2, "end": 5.4, "text": "Okay.", "words": [{"start": 5.2, "end": 5.4, "text": "Okay."}]}
+        self.assertEqual(transcribe.build_lines([segment], turns, {"A": "Anna", "B": "Ben"}, near=0.0)[1], 1)
+        lines, dropped = transcribe.build_lines([segment], turns, {"A": "Anna", "B": "Ben"})
+        self.assertEqual(dropped, 0)
+        self.assertIn("Anna", lines[0][1])
 
     def test_without_my_name_nothing_changes(self):
         names = {"A": "Speaker 1"}

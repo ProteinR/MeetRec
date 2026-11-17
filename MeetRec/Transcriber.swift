@@ -4,9 +4,9 @@ import SwiftUI
 
 /// Runs `transcribe.py` (bundled in Resources) through `uv`, one job at a time.
 ///
-/// Models live in the standard Hugging Face cache (`~/.cache/huggingface/hub`), shared with the
-/// transcribe-meeting / transcribe-lesson skills. Speaker voices live in
-/// `~/Library/Application Support/MeetRec/speakers.json`.
+/// Models live in FluidAudio's cache (`~/Library/Application Support/FluidAudio/Models`: Parakeet,
+/// shared with Genius Typer, and the speaker diarization models), downloaded by `MeetRecASR`.
+/// Speaker voices live in `~/Library/Application Support/MeetRec/speakers.json`.
 @MainActor
 final class Transcriber: ObservableObject {
     static let shared = Transcriber()
@@ -24,11 +24,7 @@ final class Transcriber: ObservableObject {
     // Settings
     @AppStorage("transcribeAfterRecording") var transcribeAfterRecording = false
     @AppStorage("diarization") var diarization = true
-    @AppStorage("transcriptionLanguage") var language = ""
     @AppStorage("myName") var myName = ""
-    /// Speech recognition: "parakeet" (Parakeet Ultra in MeetRecASR, the default) or "whisper"
-    /// (mlx-whisper large-v3-turbo, the engine before 0.10.0). No switch in the settings yet.
-    @AppStorage("transcriptionEngine") var engine = "parakeet"
     /// JSON of `copyRules`.
     @AppStorage("transcriptCopyRules") private var copyRulesJSON = ""
 
@@ -50,11 +46,12 @@ final class Transcriber: ObservableObject {
     /// Bumped whenever a transcript is written, so views re-check which recordings have one.
     @Published private(set) var transcriptsVersion = 0
 
-    static let asrRepo = "models--mlx-community--whisper-large-v3-turbo"
+    private static let fluidModels = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("FluidAudio/Models", isDirectory: true)
     /// Parakeet Ultra in FluidAudio's cache, shared with Genius Typer's dictation.
-    static let parakeetDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("FluidAudio/Models/parakeet-ultra", isDirectory: true)
-    static let diarizationRepo = "models--pyannote--speaker-diarization-community-1"
+    static let parakeetDir = fluidModels.appendingPathComponent("parakeet-ultra", isDirectory: true)
+    /// FluidAudio's offline speaker diarization (CoreML).
+    static let diarizerDir = fluidModels.appendingPathComponent("speaker-diarization", isDirectory: true)
 
     let stateDir: URL
     var speakersFile: URL { stateDir.appendingPathComponent("speakers.json") }
@@ -78,13 +75,11 @@ final class Transcriber: ObservableObject {
 
     func refreshModels() {
         if case .downloading = modelsState { return }
-        let asrReady = engine == "whisper"
-            ? Self.modelCached(Self.asrRepo, marker: { $0.hasSuffix(".safetensors") || $0.hasSuffix(".npz") })
-            : FileManager.default.fileExists(atPath: Self.parakeetDir.appendingPathComponent("Encoder.mlmodelc").path)
-        let ready = asrReady
-            && Self.modelCached(Self.diarizationRepo, marker: { $0 == "config.yaml" })
+        let files = FileManager.default
+        let ready = files.fileExists(atPath: Self.parakeetDir.appendingPathComponent("Encoder.mlmodelc").path)
+            && files.fileExists(atPath: Self.diarizerDir.appendingPathComponent("Segmentation.mlmodelc").path)
         modelsState = ready ? .ready : .missing
-        Log.info("Transcription models: \(ready ? "ready" : "missing") (cache \(Self.hubDir.path))", "transcribe")
+        Log.info("Transcription models: \(ready ? "ready" : "missing") (cache \(Self.fluidModels.path))", "transcribe")
     }
 
     func downloadModels() {
@@ -92,7 +87,7 @@ final class Transcriber: ObservableObject {
         modelsState = .downloading(String(localized: "Подготовка окружения…"))
         Log.info("Model download started", "transcribe")
         Task {
-            let result = await runScript(["download", "--engine", engine]) { [weak self] event in
+            let result = await runScript(["download"]) { [weak self] event in
                 if event["event"] as? String == "phase", let name = event["name"] as? String {
                     self?.modelsState = .downloading(name + "…")
                 }
@@ -170,10 +165,9 @@ final class Transcriber: ObservableObject {
         progress = nil
         var stageProgress: [String: Double] = [:]
         let useDiarization = diarization
-        var arguments = ["transcribe", file.path, "--output", output.path, "--engine", engine,
+        var arguments = ["transcribe", file.path, "--output", output.path,
                          "--speakers", speakersFile.path, "--run-file", SpeakerNaming.runURL(for: file).path]
         if !diarization { arguments.append("--no-diarization") }
-        if !language.isEmpty { arguments += ["--language", language] }
         // Whoever speaks into the microphone track is the user, whatever the voice match says.
         let me = myName.trimmingCharacters(in: .whitespaces)
         if !me.isEmpty { arguments += ["--me", me] }
@@ -181,7 +175,7 @@ final class Transcriber: ObservableObject {
            BrowserRule.saved().first(where: { $0.id.uuidString == ruleID })?.oneOther == true {
             arguments.append("--one-other")
         }
-        Log.info("Transcription started: \(file.lastPathComponent) diarization=\(diarization) language=\(language.isEmpty ? "auto" : language) → \(output.path)", "transcribe")
+        Log.info("Transcription started: \(file.lastPathComponent) diarization=\(diarization) → \(output.path)", "transcribe")
 
         Task {
             var summary: String?
@@ -380,19 +374,6 @@ final class Transcriber: ObservableObject {
     // MARK: - Process
 
     enum ScriptResult { case success, failure(String) }
-
-    private static var hubDir: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cache/huggingface/hub")
-    }
-
-    private static func modelCached(_ repo: String, marker: (String) -> Bool) -> Bool {
-        let snapshots = hubDir.appendingPathComponent(repo).appendingPathComponent("snapshots")
-        guard let revisions = try? FileManager.default.contentsOfDirectory(atPath: snapshots.path) else { return false }
-        return revisions.contains { revision in
-            let files = (try? FileManager.default.contentsOfDirectory(atPath: snapshots.appendingPathComponent(revision).path)) ?? []
-            return files.contains(where: marker)
-        }
-    }
 
     private static func findUV() -> String? {
         let home = FileManager.default.homeDirectoryForCurrentUser.path

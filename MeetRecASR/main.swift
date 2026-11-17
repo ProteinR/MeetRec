@@ -1,12 +1,18 @@
-// MeetRecASR: speech recognition with Parakeet (FluidAudio, CoreML on the Neural Engine) for the
-// transcription helper (`Resources/transcribe.py`), which runs it as a child process. The same
-// models as Genius Typer's dictation, in FluidAudio's shared cache
+// MeetRecASR: speech recognition with Parakeet and speaker diarization (FluidAudio, CoreML on the
+// Neural Engine) for the transcription helper (`Resources/transcribe.py`), which runs it as a child
+// process. Parakeet is the same model as Genius Typer's dictation, in FluidAudio's shared cache
 // (`~/Library/Application Support/FluidAudio/Models`), so a model downloaded by either app serves both.
 //
 // Modes (one JSON object per line on stdout):
 //   download [ultra|v3]               → {"progress": 0.42} … {"done": true} | {"error": "…"}
 //   transcribe <wav> [ultra|v3]       → {"progress": 0.42} … {"words": [[text, start, end, confidence], …],
 //                                       "seconds": 12.3} | {"error": "…"}
+//   download-diarizer                 → {"done": true} | {"error": "…"}
+//   diarize <wav>                     → {"progress": 0.42} … {"turns": [[start, end, speaker], …],
+//                                       "embeddings": {speaker: [Float]}, "seconds": 12.3} | {"error": "…"}
+// Diarization: FluidAudio's offline pipeline (pyannote community-1 segmentation, WeSpeaker
+// embeddings, VBx clustering, as CoreML models), turns without overlaps like pyannote's
+// `exclusive_speaker_diarization`.
 // Words keep Parakeet's punctuation and capitals ("Okay,"); times are seconds of the file.
 import FluidAudio
 import Foundation
@@ -25,6 +31,9 @@ let arguments = Array(CommandLine.arguments.dropFirst())
 func version(_ name: String?) -> AsrModelVersion {
     name == "v3" ? .v3 : .ultra
 }
+
+/// pyannote community-1 settings, with turns that never overlap (one speaker at a time).
+let diarizerConfig = OfflineDiarizerConfig(exclusiveSegments: true)
 
 switch arguments.first {
 case "download":
@@ -72,7 +81,38 @@ case "transcribe" where arguments.count >= 2:
         exit(1)
     }
 
+case "download-diarizer":
+    do {
+        try await OfflineDiarizerManager(config: diarizerConfig).prepareModels()
+        emit(["done": true])
+    } catch {
+        emit(["error": error.localizedDescription])
+        exit(1)
+    }
+
+case "diarize" where arguments.count >= 2:
+    do {
+        let start = Date()
+        let manager = OfflineDiarizerManager(config: diarizerConfig)
+        try await manager.prepareModels()
+        let result = try await manager.process(URL(fileURLWithPath: arguments[1])) { done, total in
+            if total > 0 { emit(["progress": Double(done) / Double(total)]) }
+        }
+        let turns: [[Any]] = result.segments
+            .sorted { $0.startTimeSeconds < $1.startTimeSeconds }
+            .map { [Double($0.startTimeSeconds), Double($0.endTimeSeconds), $0.speakerId] }
+        let speakers = Set(result.segments.map(\.speakerId))
+        var embeddings: [String: [Float]] = [:]
+        for speaker in speakers {
+            if let embedding = result.speakerDatabase?[speaker] { embeddings[speaker] = embedding }
+        }
+        emit(["turns": turns, "embeddings": embeddings, "seconds": Date().timeIntervalSince(start)])
+    } catch {
+        emit(["error": error.localizedDescription])
+        exit(1)
+    }
+
 default:
-    FileHandle.standardError.write(Data("usage: MeetRecASR download [ultra|v3] | transcribe <wav> [ultra|v3]\n".utf8))
+    FileHandle.standardError.write(Data("usage: MeetRecASR download [ultra|v3] | transcribe <wav> [ultra|v3] | download-diarizer | diarize <wav>\n".utf8))
     exit(2)
 }

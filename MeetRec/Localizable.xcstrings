@@ -2368,12 +2368,12 @@
         }
       }
     },
-    "Модели не скачаны (~3 ГБ: распознавание речи и разбивка по ролям)" : {
+    "Модели не скачаны (~650 МБ: распознавание речи и разбивка по ролям)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Models not downloaded (~3 GB: speech recognition and speaker separation)"
+            "value" : "Models not downloaded (~650 MB: speech recognition and speaker diarization)"
           }
         }
       }
@@ -3234,16 +3234,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Window: %@"
-          }
-        }
-      }
-    },
-    "Определять автоматически" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Detect automatically"
           }
         }
       }
@@ -5497,16 +5487,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "language %@"
-          }
-        }
-      }
-    },
-    "язык авто" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "auto language"
           }
         }
       }

@@ -116,7 +116,6 @@ extension ContentView {
         case .ready:
             var parts = [transcriber.transcribeAfterRecording ? String(localized: "После записи: вкл") : String(localized: "После записи: выкл")]
             if transcriber.diarization { parts.append(String(localized: "по ролям")) }
-            parts.append(transcriber.language.isEmpty ? String(localized: "язык авто") : transcriber.language)
             return parts.joined(separator: " · ")
         }
     }

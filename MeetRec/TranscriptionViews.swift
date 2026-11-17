@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Settings section: auto-transcription, models, diarization, language, own voice sample.
+/// Settings section: auto-transcription, models, diarization, own voice sample.
 struct TranscriptionSettings: View {
     @EnvironmentObject private var transcriber: Transcriber
     @EnvironmentObject private var model: RecorderModel
@@ -16,12 +16,6 @@ struct TranscriptionSettings: View {
                 Toggle("Разбивка по ролям", isOn: $transcriber.diarization)
                     .help("Определять, кто говорит, и подписывать реплики именами")
                 Spacer(minLength: 0)
-            }
-            Picker("Язык", selection: $transcriber.language) {
-                Text("Определять автоматически").tag("")
-                Text(verbatim: "English").tag("en")
-                Text(verbatim: "Русский").tag("ru")
-                Text(verbatim: "Deutsch").tag("de")
             }
             meetingsFolder
             if transcriber.diarization {
@@ -44,7 +38,7 @@ struct TranscriptionSettings: View {
             Text("Проверка моделей…").font(.callout).foregroundStyle(.secondary)
         case .missing:
             VStack(alignment: .leading, spacing: 4) {
-                Text("Модели не скачаны (~3 ГБ: распознавание речи и разбивка по ролям)")
+                Text("Модели не скачаны (~650 МБ: распознавание речи и разбивка по ролям)")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button("Скачать модели") { transcriber.downloadModels() }
