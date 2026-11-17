@@ -1,62 +1,84 @@
-// MeetRecASR: speech recognition with Parakeet and speaker diarization (FluidAudio, CoreML on the
-// Neural Engine) for the transcription helper (`Resources/transcribe.py`), which runs it as a child
-// process. Parakeet is the same model as Genius Typer's dictation, in FluidAudio's shared cache
-// (`~/Library/Application Support/FluidAudio/Models`), so a model downloaded by either app serves both.
+// MeetRecASR: MeetRec's transcription, run by the app as a child process at background priority.
+// Speech recognition with Parakeet and speaker diarization (FluidAudio, CoreML on the Neural
+// Engine); the audio is read with AVFoundation. Parakeet is the same model as Genius Typer's
+// dictation, in FluidAudio's shared cache (`~/Library/Application Support/FluidAudio/Models`), so a
+// model downloaded by either app serves both. Nothing else to install: no Python, no ffmpeg.
 //
-// Modes (one JSON object per line on stdout):
-//   download [ultra|v3]               → {"progress": 0.42} … {"done": true} | {"error": "…"}
-//   transcribe <wav> [ultra|v3]       → {"progress": 0.42} … {"words": [[text, start, end, confidence], …],
-//                                       "seconds": 12.3} | {"error": "…"}
-//   download-diarizer                 → {"done": true} | {"error": "…"}
-//   diarize <wav>                     → {"progress": 0.42} … {"turns": [[start, end, speaker], …],
-//                                       "embeddings": {speaker: [Float]}, "seconds": 12.3} | {"error": "…"}
+// Commands for MeetRec (JSON lines {"event": "phase"|"progress"|"done"|"error", …} on stdout):
+//   download                         fetch both models
+//   transcribe <recording> --output <md> [--no-diarization] [--speakers file] [--run-file file]
+//              [--me Name] [--one-other] [--mixed] [--threshold 0.7]
+//   enroll-sample <wav> --name <Name> --speakers <file>
+//
+// Steps run in a child process of this tool (one JSON object per line):
+//   asr-download                     → {"progress": 0.42} … {"done": true} | {"error": "…"}
+//   asr <wav>                        → {"progress": 0.42} … {"words": [[text, start, end, confidence], …],
+//                                      "seconds": 12.3} | {"error": "…"}
+//   diarizer-download                → {"done": true} | {"error": "…"}
+//   diarize <wav>                    → {"progress": 0.42} … {"turns": [[start, end, speaker], …],
+//                                      "embeddings": {speaker: [Float]}, "seconds": 12.3} | {"error": "…"}
 // Diarization: FluidAudio's offline pipeline (pyannote community-1 segmentation, WeSpeaker
-// embeddings, VBx clustering, as CoreML models), turns without overlaps like pyannote's
-// `exclusive_speaker_diarization`.
+// embeddings, VBx clustering, as CoreML models), turns without overlaps.
 // Words keep Parakeet's punctuation and capitals ("Okay,"); times are seconds of the file.
 import FluidAudio
 import Foundation
 
 setvbuf(stdout, nil, _IOLBF, 0)
 
-func emit(_ object: [String: Any]) {
-    guard let data = try? JSONSerialization.data(withJSONObject: object),
-          let line = String(data: data, encoding: .utf8) else { return }
-    print(line)
-}
-
 let arguments = Array(CommandLine.arguments.dropFirst())
-
-/// "ultra" (Moondream's post-trained v3, the default) or "v3" (NVIDIA's).
-func version(_ name: String?) -> AsrModelVersion {
-    name == "v3" ? .v3 : .ultra
-}
 
 /// pyannote community-1 settings, with turns that never overlap (one speaker at a time).
 let diarizerConfig = OfflineDiarizerConfig(exclusiveSegments: true)
 
-switch arguments.first {
-case "download":
+/// A step for a child process: its result, or {"error": …} and exit 1.
+func step(_ body: () async throws -> [String: Any]) async {
     do {
-        try await AsrModels.download(version: version(arguments.dropFirst().first)) {
-            emit(["progress": $0.fractionCompleted])
-        }
-        emit(["done": true])
+        emitJSON(try await body())
     } catch {
-        emit(["error": error.localizedDescription])
+        emitJSON(["error": error.localizedDescription])
         exit(1)
     }
+}
 
-case "transcribe" where arguments.count >= 2:
-    let model = version(arguments.dropFirst(2).first)
-    let manager = AsrManager(config: .default)
+/// A command for MeetRec: {"event": "error", …} and exit 1 when it fails.
+func command(_ body: () async throws -> Void) async {
+    forwardTerminationToChildren()
     do {
+        try await body()
+    } catch let failure as Failure {
+        emit("error", ["code": failure.code, "message": failure.message])
+        exit(1)
+    } catch {
+        log("Failed: \(error)")
+        emit("error", ["code": "exception", "message": "\(type(of: error)): \(error.localizedDescription)"])
+        exit(1)
+    }
+}
+
+switch arguments.first {
+case "download":
+    await command { try await downloadCommand() }
+
+case "transcribe":
+    await command { try await transcribeCommand(TranscribeOptions(Array(arguments.dropFirst()))) }
+
+case "enroll-sample":
+    await command { try await enrollCommand(Array(arguments.dropFirst())) }
+
+case "asr-download":
+    await step {
+        try await AsrModels.download(version: .ultra) { emitJSON(["progress": $0.fractionCompleted]) }
+        return ["done": true]
+    }
+
+case "asr" where arguments.count >= 2:
+    await step {
         let start = Date()
-        let models = try await AsrModels.downloadAndLoad(version: model)
-        try await manager.loadModels(models)
+        let manager = AsrManager(config: .default)
+        try await manager.loadModels(try await AsrModels.downloadAndLoad(version: .ultra))
         let progress = Task {
             for try await value in await manager.transcriptionProgressStream {
-                emit(["progress": value])
+                emitJSON(["progress": value])
             }
         }
         var state = TdtDecoderState.make(decoderLayers: await manager.decoderLayerCount)
@@ -75,44 +97,34 @@ case "transcribe" where arguments.count >= 2:
                 words[words.count - 1][3] = min(words[words.count - 1][3] as! Float, timing.confidence)
             }
         }
-        emit(["words": words.filter { !($0[0] as! String).isEmpty }, "seconds": Date().timeIntervalSince(start)])
-    } catch {
-        emit(["error": error.localizedDescription])
-        exit(1)
+        return ["words": words.filter { !($0[0] as! String).isEmpty }, "seconds": Date().timeIntervalSince(start)]
     }
 
-case "download-diarizer":
-    do {
+case "diarizer-download":
+    await step {
         try await OfflineDiarizerManager(config: diarizerConfig).prepareModels()
-        emit(["done": true])
-    } catch {
-        emit(["error": error.localizedDescription])
-        exit(1)
+        return ["done": true]
     }
 
 case "diarize" where arguments.count >= 2:
-    do {
+    await step {
         let start = Date()
         let manager = OfflineDiarizerManager(config: diarizerConfig)
         try await manager.prepareModels()
         let result = try await manager.process(URL(fileURLWithPath: arguments[1])) { done, total in
-            if total > 0 { emit(["progress": Double(done) / Double(total)]) }
+            if total > 0 { emitJSON(["progress": Double(done) / Double(total)]) }
         }
         let turns: [[Any]] = result.segments
             .sorted { $0.startTimeSeconds < $1.startTimeSeconds }
             .map { [Double($0.startTimeSeconds), Double($0.endTimeSeconds), $0.speakerId] }
-        let speakers = Set(result.segments.map(\.speakerId))
         var embeddings: [String: [Float]] = [:]
-        for speaker in speakers {
+        for speaker in Set(result.segments.map(\.speakerId)) {
             if let embedding = result.speakerDatabase?[speaker] { embeddings[speaker] = embedding }
         }
-        emit(["turns": turns, "embeddings": embeddings, "seconds": Date().timeIntervalSince(start)])
-    } catch {
-        emit(["error": error.localizedDescription])
-        exit(1)
+        return ["turns": turns, "embeddings": embeddings, "seconds": Date().timeIntervalSince(start)]
     }
 
 default:
-    FileHandle.standardError.write(Data("usage: MeetRecASR download [ultra|v3] | transcribe <wav> [ultra|v3] | download-diarizer | diarize <wav>\n".utf8))
+    log("usage: MeetRecASR download | transcribe <recording> --output <md> [options] | enroll-sample <wav> --name <Name> --speakers <file>")
     exit(2)
 }

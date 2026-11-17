@@ -104,7 +104,7 @@ MeetRec маленький и делает одно дело от начала �
 - macOS 15 или новее, Apple Silicon (транскрибация работает на Neural Engine).
 - Только для сборки из исходников: Xcode и [XcodeGen](https://github.com/yonaskolb/XcodeGen)
   (`brew install xcodegen`).
-- Для транскрибации: [uv](https://docs.astral.sh/uv/) и ffmpeg (`brew install uv ffmpeg`).
+- Для транскрибации ничего ставить не нужно: модели скачиваются из самого MeetRec.
 
 ## Установка
 
@@ -177,7 +177,6 @@ tccutil reset Microphone com.dmemruk.MeetRec
 ```bash
 xcodegen generate
 xcodebuild test -project MeetRec.xcodeproj -scheme MeetRec -destination 'platform=macOS' -derivedDataPath build/dd-test
-python3 -m unittest discover -s Tests
 ```
 
 ## Вопросы и ответы

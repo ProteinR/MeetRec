@@ -1,7 +1,7 @@
 import Foundation
 
 /// A speaker found by diarization in one recording (from `runs/<recording>.json`, written by
-/// `transcribe.py`): its label, the name it got in the transcript and how sure the match was.
+/// `MeetRecASR`): its label, the name it got in the transcript and how sure the match was.
 struct RunSpeaker: Identifiable, Equatable {
     let label: String
     let name: String

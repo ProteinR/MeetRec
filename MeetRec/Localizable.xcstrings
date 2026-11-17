@@ -441,6 +441,16 @@
         }
       }
     },
+    "MeetRecASR не найден в приложении" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MeetRecASR not found in the app"
+          }
+        }
+      }
+    },
     "OCR" : {
       "localizations" : {
         "en" : {
@@ -487,16 +497,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "px"
-          }
-        }
-      }
-    },
-    "transcribe.py не найден в приложении" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "transcribe.py is missing from the app"
           }
         }
       }
@@ -2708,16 +2708,6 @@
         }
       }
     },
-    "Не найден uv. Установите: brew install uv" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "uv not found. Install it: brew install uv"
-          }
-        }
-      }
-    },
     "Не найдено поддерживаемых приложений для звонков" : {
       "localizations" : {
         "en" : {
@@ -3708,12 +3698,12 @@
         }
       }
     },
-    "Подготовка окружения…" : {
+    "Подготовка…" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Preparing the environment…"
+            "value" : "Preparing…"
           }
         }
       }

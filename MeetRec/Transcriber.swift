@@ -2,7 +2,8 @@ import AVFoundation
 import Foundation
 import SwiftUI
 
-/// Runs `transcribe.py` (bundled in Resources) through `uv`, one job at a time.
+/// Runs `MeetRecASR` (bundled in Contents/MacOS: audio, speech recognition, speaker diarization and
+/// the transcript, nothing to install), one job at a time.
 ///
 /// Models live in FluidAudio's cache (`~/Library/Application Support/FluidAudio/Models`: Parakeet,
 /// shared with Genius Typer, and the speaker diarization models), downloaded by `MeetRecASR`.
@@ -84,10 +85,10 @@ final class Transcriber: ObservableObject {
 
     func downloadModels() {
         guard modelsState != .ready, job == .idle || isFailed else { return }
-        modelsState = .downloading(String(localized: "Подготовка окружения…"))
+        modelsState = .downloading(String(localized: "Подготовка…"))
         Log.info("Model download started", "transcribe")
         Task {
-            let result = await runScript(["download"]) { [weak self] event in
+            let result = await runHelper(["download"]) { [weak self] event in
                 if event["event"] as? String == "phase", let name = event["name"] as? String {
                     self?.modelsState = .downloading(name + "…")
                 }
@@ -179,7 +180,7 @@ final class Transcriber: ObservableObject {
 
         Task {
             var summary: String?
-            let result = await runScript(arguments) { [weak self] event in
+            let result = await runHelper(arguments) { [weak self] event in
                 guard let self else { return }
                 switch event["event"] as? String {
                 case "phase":
@@ -337,7 +338,7 @@ final class Transcriber: ObservableObject {
         enrollMessage = String(localized: "Анализ образца…")
         Log.info("Enrolling voice sample for \(name): \(wav.path)", "transcribe")
         var samples: Int?
-        let result = await runScript(["enroll-sample", wav.path, "--name", name, "--speakers", speakersFile.path]) { event in
+        let result = await runHelper(["enroll-sample", wav.path, "--name", name, "--speakers", speakersFile.path]) { event in
             if event["event"] as? String == "done" { samples = event["samples"] as? Int }
         }
         loadSpeakers()
@@ -373,33 +374,29 @@ final class Transcriber: ObservableObject {
 
     // MARK: - Process
 
-    enum ScriptResult { case success, failure(String) }
+    enum HelperResult { case success, failure(String) }
 
-    private static func findUV() -> String? {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return ["/opt/homebrew/bin/uv", "/usr/local/bin/uv", "\(home)/.local/bin/uv", "\(home)/.cargo/bin/uv"]
-            .first { FileManager.default.isExecutableFile(atPath: $0) }
+    /// MeetRecASR next to MeetRec's executable; `MEETREC_ASR` points at another build.
+    private static var helperPath: String {
+        ProcessInfo.processInfo.environment["MEETREC_ASR"]
+            ?? Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/MeetRecASR").path
     }
 
     /// Runs the helper and forwards its JSON events to `onEvent` on the main actor. stderr goes to the log.
-    private func runScript(_ arguments: [String], onEvent: @escaping ([String: Any]) -> Void) async -> ScriptResult {
-        guard let uv = Self.findUV() else {
-            return .failure(String(localized: "Не найден uv. Установите: brew install uv"))
-        }
-        guard let script = Bundle.main.url(forResource: "transcribe", withExtension: "py") else {
-            return .failure(String(localized: "transcribe.py не найден в приложении"))
+    private func runHelper(_ arguments: [String], onEvent: @escaping ([String: Any]) -> Void) async -> HelperResult {
+        let helper = Self.helperPath
+        guard FileManager.default.isExecutableFile(atPath: helper) else {
+            return .failure(String(localized: "MeetRecASR не найден в приложении"))
         }
 
         let process = Process()
-        // Darwin background priority (inherited by the helper's worker processes): efficiency cores,
+        // Darwin background priority (inherited by the helper's child processes): efficiency cores,
         // low GPU and disk priority, so the Mac heats up less and other apps stay smooth. Slower, and
-        // nothing waits for a transcript. `taskpolicy` execs uv, so the process (and cancelling) is the same.
+        // nothing waits for a transcript. `taskpolicy` execs the helper, so the process (and
+        // cancelling: the helper ends its child with it) is the same.
         process.executableURL = URL(fileURLWithPath: "/usr/sbin/taskpolicy")
-        process.arguments = ["-b", uv, "run", "--quiet", script.path] + arguments
+        process.arguments = ["-b", helper] + arguments
         var environment = ProcessInfo.processInfo.environment
-        environment["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-        environment["PYTHONUNBUFFERED"] = "1"
-        environment["TOKENIZERS_PARALLELISM"] = "false"
         // The helper's messages and the marker lines in the transcript follow the app's language.
         environment["MEETREC_LANGUAGE"] = Bundle.main.preferredLocalizations.first ?? "ru"
         process.environment = environment

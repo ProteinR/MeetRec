@@ -6,7 +6,7 @@ System Settings → Privacy & Security → "Open Anyway". Or in Terminal:
 xattr -dr com.apple.quarantine /Applications/MeetRec.app
 ```
 
-macOS 15+, Apple Silicon. Transcription also needs `uv` and ffmpeg (`brew install uv ffmpeg`).
+macOS 15+, Apple Silicon. Transcription needs nothing else: "Download models" in MeetRec, once.
 Updates are signed with the same certificate, so Screen Recording and Microphone permissions are
 kept. Once installed, MeetRec offers newer versions itself ("Доступна версия X" → "Обновить" in the
 panel).

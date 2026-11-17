@@ -374,15 +374,23 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
 - `MeetRec/RecordingHealth.swift`: live status while recording (mic/system levels, screen, file);
   red "no signal" turns the menu bar icon into ⚠️.
 - Transcription (`Transcriber.swift`, `TranscriptionViews.swift`, `VoiceSampleRecorder.swift`,
-  `Resources/transcribe.py`, `MeetRecASR/main.swift`): after a recording, optionally runs the bundled
-  helper with `uv run` (adapted from the owner's earlier transcription script; Python needs only
-  numpy and soundfile, plus ffmpeg). The models run in `Contents/MacOS/MeetRecASR`, a Swift tool
-  linking FluidAudio (CoreML on the Neural Engine, trait `Diarizer`); both live in FluidAudio's cache
+  `MeetRecASR/`): after a recording, optionally runs `Contents/MacOS/MeetRecASR`, a Swift tool that
+  does all of it, so users install nothing but the app and the models: the audio tracks with
+  AVFoundation (`Audio.swift`, placed by their timestamps, stereo averaged to mono, 16 kHz WAVs),
+  the commands and process steps (`Commands.swift`, `main.swift`), and the transcript logic
+  (`Transcript/`, pure functions, compiled into the tests too). It replaced a Python helper
+  (`transcribe.py` with `uv`, numpy, soundfile and ffmpeg) on 2026-11-17: on the same WAVs the four
+  comparison recordings gave identical transcripts and `run.json`. AVFoundation's audio is the same
+  sound (correlation 0.9999 below 4 kHz) but no longer drops a track's start offset (ffmpeg's WAVs
+  had the microphone 0.18 s early), so a re-transcription differs in a few uncertain words.
+  Speech recognition and diarization each run in a child process of the tool (`asr`, `diarize`),
+  one model in memory at a time; a SIGTERM ends the child too. The models link FluidAudio (CoreML
+  on the Neural Engine, trait `Diarizer`); both live in FluidAudio's cache
   `~/Library/Application Support/FluidAudio/Models` (`parakeet-ultra`, ~600 MB, shared with Genius
   Typer's dictation; `speaker-diarization`, ~22 MB), downloaded by MeetRecASR, no account or token.
-  `MEETREC_ASR` points `transcribe.py` at another build.
+  `MEETREC_ASR` points MeetRec at another build of the tool.
   **Speech recognition: Parakeet Ultra** (since 0.10.0, 2026-10-28; it replaced mlx-whisper
-  large-v3-turbo, removed with pyannote on 2026-11-17). `transcribe.py` gets words with times,
+  large-v3-turbo, removed with pyannote on 2026-11-17). MeetRecASR gets words with times,
   punctuation and capitals; hesitations ("uh", "um", "эм") are left out, words are cut into phrases
   at sentence ends and pauses > 0.8 s. It detects the language itself (25 European languages; the
   header's language is guessed from the letters), so there is no language setting. Why Parakeet
@@ -398,7 +406,7 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
   recognised with the same scores (the embeddings are the same WeSpeaker voice prints, so
   `speakers.json` and `run.json` from before keep working), whole transcription 59 s instead of
   378 s for 70 minutes (diarization 13 s instead of 320 s with the GPU at 98 % and 4.6 GB), and no
-  PyTorch (the uv environment went from 1.3 GB to a few MB) and no gated Hugging Face model.
+  PyTorch and no gated Hugging Face model.
   FluidAudio's turns are tighter: a phrase outside every turn goes to the nearest speaker (it is
   speech: Parakeet does not write text into silence); and it may split one voice into several small
   clusters, one of which can match someone else weakly (0.4 min of one voice as another person at 0.80), so in
@@ -464,7 +472,6 @@ Privacy & Security (README).
 ```bash
 xcodebuild test -project MeetRec.xcodeproj -scheme MeetRec -destination 'platform=macOS' -derivedDataPath build/dd-test
 rm -rf build/dd-test/Build/Products/Debug/MeetRec.app   # else it shows up as a second MeetRec in Launchpad
-python3 -m unittest discover -s Tests   # transcribe.py helpers, no models needed
 ```
 
 Use `build/dd-test` for tests, not a new `build/dd-<name>` per session: every such folder keeps a
@@ -484,7 +491,9 @@ system switch (`.toggleStyle(.switch)`) and the system `Slider` each cost ~100 M
 first draw (use `LightSwitchStyle` / `LightSlider`; `--settings-test` shows such peaks); give a `ProgressView` inside a button a fixed size.
 
 `Tests/MeetRecTests` covers file names and companions, tags, transcript speaker renaming, meeting
-apps and rules, the health tracker, and screenshot coordinates and files. The app is the test host but starts empty under XCTest
+apps and rules, the health tracker, screenshot coordinates and files, and MeetRecASR's transcript
+logic (`TranscriptTests`: `MeetRecASR/Transcript` is compiled into the test bundle; no models needed).
+The app is the test host but starts empty under XCTest
 (`AppDelegate.isRunningTests`: no watchdog, hot keys or detector) and logs to a temporary folder.
 
 ## Signing and permissions (important)
@@ -527,6 +536,6 @@ then launch, grant again, and relaunch after granting Screen Recording.
   without English. The app follows the system language, or the one chosen in settings → "Запись" → "Язык"
   (`AppLanguage.swift`: the app's own `AppleLanguages`, the same setting as System Settings → General →
   Language & Region → Applications; applied at launch, so it offers "Перезапустить", disabled while
-  recording or transcribing). `transcribe.py` gets the language as
+  recording or transcribing). MeetRecASR gets the language as
   `MEETREC_LANGUAGE` (its messages and the marker lines in the transcript follow it).
 - The icon is generated by `scripts/make-icon.swift`; re-run it instead of editing PNGs.

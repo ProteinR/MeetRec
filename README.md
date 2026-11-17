@@ -104,7 +104,7 @@ annotations; those apps are the better choice if you need them.
 - macOS 15 or later, Apple Silicon (transcription runs on the Neural Engine).
 - To build from source only: Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen)
   (`brew install xcodegen`).
-- For transcription: [uv](https://docs.astral.sh/uv/) and ffmpeg (`brew install uv ffmpeg`).
+- Nothing else to install for transcription: the models are downloaded from MeetRec itself.
 
 ## Install
 
@@ -181,7 +181,6 @@ JSON formats (browser rules, transcript copy rules, shortcuts), so an agent can 
 ```bash
 xcodegen generate
 xcodebuild test -project MeetRec.xcodeproj -scheme MeetRec -destination 'platform=macOS' -derivedDataPath build/dd-test
-python3 -m unittest discover -s Tests
 ```
 
 ## FAQ

@@ -80,7 +80,7 @@ struct Marker: Codable, Equatable {
 
 /// Markers live in the recording's folder as `markers.json` (`<name>.markers.json` next to a
 /// recording of the older flat layout), written on every new marker so they survive a crash like the
-/// fragmented video does. `transcribe.py` puts them into the transcript.
+/// fragmented video does. `MeetRecASR` puts them into the transcript.
 enum MarkerFile {
     static func url(for recording: URL) -> URL {
         RecordingFiles.companion("markers.json", of: recording)
@@ -98,7 +98,7 @@ enum MarkerFile {
 }
 
 /// When the microphone was muted during a recording (`mutes.json`, seconds of the file, `end`
-/// nil while still muted), written on every change like the markers. `transcribe.py` writes the longer
+/// nil while still muted), written on every change like the markers. `MeetRecASR` writes the longer
 /// ones into the transcript.
 struct MuteSpan: Codable, Equatable {
     var start: TimeInterval

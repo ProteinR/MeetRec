@@ -3,7 +3,7 @@ import IOKit
 
 /// How hard a transcription works the Mac: the helper's models run on the Neural Engine and the GPU,
 /// which MeetRec's own `Load:` line (system CPU and MeetRec itself) does not see. Every 5 s it samples
-/// the GPU, the CPU and memory of the helper's whole process tree (uv → python → MeetRecASR) and the
+/// the GPU, the CPU and memory of the helper's whole process tree (MeetRecASR and its child for speech recognition or diarization) and the
 /// thermal state;
 /// every 30 s a `Load (transcription):` line goes to the log, and a summary when the helper exits.
 @MainActor

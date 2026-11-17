@@ -77,7 +77,7 @@ defaults write com.dmemruk.MeetRec browserAutoRules -string '[{"id":"6F1C2B9E-3D
 
 ## Transcription
 
-Needs `uv` and ffmpeg (see README).
+Needs only the models ("Скачать модели", ~650 MB); nothing else to install.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
