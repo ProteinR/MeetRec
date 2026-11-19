@@ -62,7 +62,7 @@ struct KeyCombo: Equatable {
 /// Everything a global shortcut can do. Recording and the marker keep their old keys; the pause has
 /// none until one is set (the owner uses the buttons).
 enum ShortcutAction: String, CaseIterable, Identifiable {
-    case record, marker, pause, screenshot, text
+    case record, marker, pause, screenshot, fullScreen, text
     var id: String { rawValue }
 
     var title: String {
@@ -71,6 +71,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable {
         case .marker: return String(localized: "Отметить момент")
         case .pause: return String(localized: "Пауза")
         case .screenshot: return String(localized: "Скриншот")
+        case .fullScreen: return String(localized: "Скриншот всего экрана")
         case .text: return "OCR"
         }
     }
@@ -79,7 +80,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable {
         switch self {
         case .record: return KeyCombo(keyCode: kVK_ANSI_R, modifiers: cmdKey | optionKey | controlKey, label: "R")
         case .marker: return KeyCombo(keyCode: kVK_ANSI_M, modifiers: cmdKey | optionKey | controlKey, label: "M")
-        case .pause: return nil
+        case .pause, .fullScreen: return nil
         case .screenshot: return KeyCombo(keyCode: kVK_ANSI_4, modifiers: cmdKey | shiftKey, label: "4")
         case .text: return KeyCombo(keyCode: kVK_ANSI_2, modifiers: cmdKey | shiftKey, label: "2")
         }
@@ -89,7 +90,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable {
     var prefix: String { rawValue }
 
     static let recording: [ShortcutAction] = [.record, .marker, .pause]
-    static let screenshots: [ShortcutAction] = [.screenshot, .text]
+    static let screenshots: [ShortcutAction] = [.screenshot, .fullScreen, .text]
 }
 
 /// The global shortcuts: what is set, registering them (Carbon, no Accessibility permission), and
@@ -197,7 +198,7 @@ final class Shortcuts: ObservableObject {
         case .record: model.toggle()
         case .marker: model.addMarker()
         case .pause: model.togglePause()
-        case .screenshot, .text: Screenshotter.shared.capture(action)
+        case .screenshot, .fullScreen, .text: Screenshotter.shared.capture(action)
         }
     }
 }

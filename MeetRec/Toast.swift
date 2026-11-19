@@ -24,6 +24,49 @@ struct Toast: Equatable, Identifiable {
     var duration: TimeInterval { action != nil ? 12 : kind == .screenshot ? 5 : (kind == .started ? 4.5 : 7) }
 }
 
+/// How much of a toast's time is left, for the thin line along its bottom: runs down while the
+/// toast is up, stops while the pointer is on it, and runs out over the last 2 s after it leaves.
+/// One linear animation per run, not a timer: nothing is redrawn by MeetRec meanwhile.
+@MainActor
+final class ToastCountdown: ObservableObject {
+    @Published private(set) var fraction: CGFloat = 1
+    private var started: Date?
+    private var duration: TimeInterval = 1
+    private var from: CGFloat = 1
+
+    /// A new toast: full again.
+    func reset() {
+        started = nil
+        from = 1
+        set(1)
+    }
+
+    /// From where it is now down to nothing in `seconds`.
+    func run(_ seconds: TimeInterval) {
+        set(from)
+        started = Date()
+        duration = max(seconds, 0.1)
+        DispatchQueue.main.async {
+            withAnimation(.linear(duration: seconds)) { self.fraction = 0 }
+        }
+    }
+
+    /// Stops where it is (the pointer is on the toast).
+    func pause() {
+        guard let started else { return }
+        let left = from * CGFloat(max(0, 1 - Date().timeIntervalSince(started) / duration))
+        self.started = nil
+        from = left
+        set(left)
+    }
+
+    private func set(_ value: CGFloat) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { fraction = value }
+    }
+}
+
 /// Shows the current toast or call question in a small floating window under the menu bar item.
 /// It never takes keyboard focus (typing in the meeting app keeps working) and its transparent
 /// margins let clicks through.
@@ -49,6 +92,8 @@ final class ToastController {
     private var foldedPrompt: String?
     static let promptVisibleFor: TimeInterval = 25
     private var cancellables: Set<AnyCancellable> = []
+    private let countdown = ToastCountdown()
+    private var shownToast: UUID?
 
     /// A screenshot preview is being dragged out: the toast stays until the drop.
     private var dragging = false
@@ -71,6 +116,7 @@ final class ToastController {
         let view = ToastView(onHover: { [weak self] inside in self?.hover(inside) },
                              onDrag: { [weak self] state in self?.drag(state) })
             .environmentObject(model)
+            .environmentObject(countdown)
         let hosting = NSHostingView(rootView: view)
         hosting.sizingOptions = []
         panel.contentView = hosting
@@ -122,6 +168,10 @@ final class ToastController {
             hideWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.promptVisibleFor, execute: work)
         } else if let toast = model.toast {
+            if shownToast != toast.id {
+                shownToast = toast.id
+                countdown.reset()
+            }
             scheduleHide(after: toast.duration)
         }
     }
@@ -134,6 +184,7 @@ final class ToastController {
         }
         hideWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+        countdown.run(delay)
     }
 
     /// Dropped somewhere: done, like Shottr's thumbnail; cancelled: the toast folds away as usual.
@@ -142,6 +193,7 @@ final class ToastController {
         case .began:
             dragging = true
             hideWork?.cancel()
+            countdown.pause()
         case .ended(let dropped):
             dragging = false
             if dropped {
@@ -157,6 +209,7 @@ final class ToastController {
         hovering = inside || dragging
         if hovering {
             hideWork?.cancel()
+            countdown.pause()
         } else if model.toast != nil, model.callPrompt == nil {
             scheduleHide(after: 2)
         }
@@ -190,6 +243,7 @@ struct ToastView: View {
     let onHover: (Bool) -> Void
     let onDrag: (DragState) -> Void
     @EnvironmentObject private var model: RecorderModel
+    @EnvironmentObject private var countdown: ToastCountdown
     /// The image search service under the pointer, named next to the icons.
     @State private var searchHover: String?
 
@@ -206,6 +260,21 @@ struct ToastView: View {
             .frame(width: ToastController.width - 2 * ToastController.margin)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5))
+            .overlay(alignment: .bottom) {
+                // The time left before it folds away.
+                if showsMessage {
+                    Capsule()
+                        .fill(Color.primary.opacity(0.35))
+                        .frame(height: 2)
+                        .scaleEffect(x: countdown.fraction, anchor: .leading)
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 3)
+                        .allowsHitTesting(false)
+                }
+            }
+            .overlay(alignment: .topLeading) {
+                if showsMessage { closeButton }
+            }
             .shadow(color: .black.opacity(0.3), radius: 10, y: 4)
             .onHover(perform: onHover)
             .transition(.move(edge: .top).combined(with: .opacity))
@@ -217,9 +286,46 @@ struct ToastView: View {
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.callPrompt?.id)
     }
 
+    /// A message, not the call question (that one waits for an answer).
+    private var showsMessage: Bool {
+        model.toast != nil && !(model.callPrompt != nil && !model.isRecording)
+    }
+
+    /// Like a notification's: puts the toast away at once.
+    private var closeButton: some View {
+        Button {
+            model.dismissToast()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.secondary)
+                .frame(width: 18, height: 18)
+                .background(Circle().fill(.regularMaterial))
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.18), lineWidth: 0.5))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .offset(x: -6, y: -6)
+        .help("Закрыть")
+        .accessibilityLabel("Закрыть")
+    }
+
     private func message(_ toast: Toast) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             messageRow(toast)
+            if toast.kind == .screenshot, let file = toast.file, toast.preview != nil {
+                HStack(spacing: 8) {
+                    ToastActionButton(icon: "pencil", title: String(localized: "Редактировать")) {
+                        model.dismissToast()
+                        ScreenshotEditor.open(file)
+                    }
+                    ToastActionButton(icon: "text.viewfinder", title: "OCR") {
+                        model.dismissToast()
+                        Screenshotter.shared.recognizeText(file)
+                    }
+                    .help("Распознать текст на снимке и скопировать его")
+                }
+            }
             // A row of its own: in the button column each new provider made the column wider and
             // squeezed the title into a narrow, many-line strip.
             if toast.kind == .screenshot, let file = toast.file, toast.preview != nil {
@@ -260,24 +366,6 @@ struct ToastView: View {
                 Button("Переключить") { model.performToastAction(action) }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-            } else if toast.kind == .screenshot, let file = toast.file, toast.preview != nil {
-                VStack(spacing: 4) {
-                    Button {
-                        model.dismissToast()
-                        ScreenshotEditor.open(file)
-                    } label: {
-                        Text("Редактировать").frame(maxWidth: .infinity)
-                    }
-                    Button {
-                        model.dismissToast()
-                        Screenshotter.shared.recognizeText(file)
-                    } label: {
-                        Text("OCR").frame(maxWidth: .infinity)
-                    }
-                    .help("Распознать текст на снимке и скопировать его")
-                }
-                .controlSize(.small)
-                .fixedSize()
             } else if toast.kind == .stopped, let file = toast.file {
                 Button("Показать в Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([file])
@@ -405,5 +493,33 @@ private struct FileDragSource: NSViewRepresentable {
         func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
             onEnd?(operation != [])
         }
+    }
+}
+
+/// A screenshot toast's action: big enough to hit at a glance, with an icon, tinted so it does not
+/// melt into the material behind it.
+private struct ToastActionButton: View {
+    let icon: String
+    let title: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon).font(.system(size: 13, weight: .semibold))
+                Text(title).font(.callout.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 7)
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color.accentColor.opacity(hovering ? 0.32 : 0.2)))
+            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(Color.accentColor.opacity(0.45), lineWidth: 0.5))
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 }

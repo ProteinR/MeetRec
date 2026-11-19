@@ -1,44 +1,96 @@
 import SwiftUI
 
-/// The settings page behind the gear: tabs for recording (general settings and the accordion of
-/// sections), screenshots and shortcuts.
+/// The settings behind the gear: a list of sections, each opening as its own page.
 extension ContentView {
-    /// Settings that rarely change, behind the gear button.
     var settingsPage: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        ZStack(alignment: .top) {
+            if let page = settingsSubpage {
+                settingsDetail(page)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else {
+                settingsList
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+        }
+        .animation(.smooth(duration: 0.3), value: settingsSubpage)
+    }
+
+    func openSettings(_ page: SettingsPage?) {
+        withAnimation(.smooth(duration: 0.3)) { settingsSubpage = page }
+    }
+
+    /// Back, the title in the middle and something on the right (the version on the list).
+    private func settingsHeader(back: String, title: String, trailing: String? = nil, action: @escaping () -> Void) -> some View {
+        ZStack {
+            Text(title).font(.headline).lineLimit(1)
             HStack {
-                Button {
-                    showingSettings = false
-                } label: {
-                    Label("Назад", systemImage: "chevron.left")
+                Button(action: action) {
+                    Label(back, systemImage: "chevron.left")
                 }
                 .buttonStyle(.borderless)
                 Spacer()
-                Text("Настройки").font(.headline)
-                Spacer()
-                // Balances the back button so the title stays centred.
-                Label("Назад", systemImage: "chevron.left").hidden()
-            }
-            SettingsTabBar(selection: settingsTabBinding)
-            switch settingsTab {
-            case .recording:
-                generalSettings
-                // Accordion: one card open at a time keeps the page within the screen height.
-                VStack(spacing: 8) {
-                    CollapsibleSection(title: String(localized: "Видео"), icon: "video.fill", summary: videoSummary,
-                                       isExpanded: expanded("video")) { videoSettings }
-                    CollapsibleSection(title: String(localized: "Встречи и звонки"), icon: "person.2.wave.2.fill", summary: meetingSummary,
-                                       isExpanded: expanded("meetings")) { MeetingSettings() }
-                    CollapsibleSection(title: String(localized: "Транскрибация"), icon: "text.bubble.fill", summary: transcriptionSummary,
-                                       isExpanded: expanded("transcription")) { TranscriptionSettings() }
-                    CollapsibleSection(title: String(localized: "Вид во время записи"), icon: "menubar.rectangle", summary: appearanceSummary,
-                                       isExpanded: expanded("appearance")) { AppearanceSettings() }
+                if let trailing {
+                    Text(trailing)
+                        .font(.caption).foregroundStyle(.tertiary)
+                        .textSelection(.enabled)
                 }
-            case .screenshots:
-                ScreenshotSettings().settingsCard()
-            case .shortcuts:
-                shortcutSettings.settingsCard()
             }
+        }
+    }
+
+    private var settingsList: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            settingsHeader(back: String(localized: "Назад"), title: String(localized: "Настройки"),
+                           trailing: "MeetRec \(RecorderModel.appVersion)") { showingSettings = false }
+            ForEach(Array(SettingsPage.groups.enumerated()), id: \.offset) { _, group in
+                SettingsGroup {
+                    ForEach(Array(group.enumerated()), id: \.element) { index, page in
+                        if index > 0 { Divider().padding(.leading, 44) }
+                        SettingsRow(page: page, summary: settingsSummary(page)) { openSettings(page) }
+                    }
+                }
+            }
+            // Quiet, at the end: whoever opens the settings has been through it already.
+            Button {
+                showingSettings = false
+                onboardingDone = false
+            } label: {
+                Label("Пройти знакомство с MeetRec ещё раз", systemImage: "sparkles")
+                    .font(.caption)
+            }
+            .buttonStyle(.borderless)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func settingsDetail(_ page: SettingsPage) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            settingsHeader(back: String(localized: "Настройки"), title: page.title) { openSettings(nil) }
+            Group {
+                switch page {
+                case .general: generalSettings
+                case .video: videoSettings
+                case .meetings: MeetingSettings()
+                case .transcription: TranscriptionSettings()
+                case .appearance: AppearanceSettings()
+                case .screenshots: ScreenshotSettings()
+                case .shortcuts: shortcutSettings
+                }
+            }
+            .settingsCard()
+        }
+    }
+
+    func settingsSummary(_ page: SettingsPage) -> String {
+        switch page {
+        case .general: String(localized: "Папка «\(model.folderURL.lastPathComponent)», язык, запуск, обновления")
+        case .video: videoSummary
+        case .meetings: meetingSummary
+        case .transcription: transcriptionSummary
+        case .appearance: appearanceSummary
+        case .screenshots: String(localized: "Папка «\(Screenshotter.shared.folderURL.lastPathComponent)», формат, поиск по картинке")
+        case .shortcuts: [Shortcuts.shared.hint(.record), Shortcuts.shared.hint(.screenshot), Shortcuts.shared.hint(.text)]
+            .compactMap { $0 }.joined(separator: " · ")
         }
     }
 
@@ -86,14 +138,17 @@ extension ContentView {
             }
             UpdateSettingsRow()
         }
-        .settingsCard()
     }
 
     var meetingSummary: String {
-        guard model.meetingDetection else { return String(localized: "Выключена") }
-        let names = MeetingApp.all.filter { $0.supported && model.selectedMeetingApps.contains($0.id) }.map(\.name)
-        guard !names.isEmpty else { return String(localized: "Не выбраны приложения") }
-        return (model.detectorStatus ?? String(localized: "Включена")) + " · " + names.joined(separator: ", ")
+        let selected = MeetingApp.all.filter { $0.supported && model.selectedMeetingApps.contains($0.id) }
+        let auto = model.meetingDetection ? selected.filter { !model.asks($0) }.map(\.shortName) : []
+        let ask = selected.filter { model.asks($0) }.map(\.shortName)
+        guard !auto.isEmpty || !ask.isEmpty else { return String(localized: "Автозапись выключена") }
+        var parts: [String] = []
+        if !auto.isEmpty { parts.append(String(localized: "Сам запишу: \(auto.formatted(.list(type: .and))).")) }
+        if !ask.isEmpty { parts.append(String(localized: "Спрошу: \(ask.formatted(.list(type: .and))).")) }
+        return parts.joined(separator: " ")
     }
 
     var appearanceSummary: String {
@@ -136,7 +191,6 @@ extension ContentView {
                 Text("HEVC (меньше файлы)").tag("hevc")
             }
         }
-        .padding(.top, 4)
         .disabled(model.isRecording)
         .overlay(alignment: .bottomTrailing) {
             if model.isRecording {
@@ -165,6 +219,7 @@ struct HuggingScrollView<Content: View>: View {
     var body: some View {
         ScrollView(.vertical) {
             content()
+                .background(OverlayScrollers())
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { newHeight in
                     // Sections open with an animation: the card follows it instead of jumping.
                     if height == nil {

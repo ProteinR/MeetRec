@@ -2,7 +2,7 @@
 
 Every setting MeetRec has is a key in its user defaults (domain `com.dmemruk.MeetRec`), so a
 script or an AI agent can set MeetRec up without clicking through the panel. Everything here can
-also be changed in the app (gear → three tabs); this file is for doing it from the terminal.
+also be changed in the app (gear → the list of sections); this file is for doing it from the terminal.
 
 ## How to change a setting
 
@@ -120,7 +120,7 @@ are never copied. Known voices live in `~/Library/Application Support/MeetRec/sp
 
 ## Shortcuts
 
-Actions: `record` (⌃⌥⌘R), `marker` (⌃⌥⌘M), `pause` (none), `screenshot` (⇧⌘4), `text` (OCR, ⇧⌘2).
+Actions: `record` (⌃⌥⌘R), `marker` (⌃⌥⌘M), `pause` (none), `screenshot` (⇧⌘4), `fullScreen` (none), `text` (OCR, ⇧⌘2).
 Each has four keys:
 
 | Key | Type | Meaning |
@@ -141,6 +141,8 @@ defaults write com.dmemruk.MeetRec pauseHotKey -bool true
 
 ## Internal (do not edit)
 
-`lastRecording`, `lastCrashRecovery`, `settingsTab`, `panelRecordingsExpanded` /
-`panelScreenshotsExpanded` (whether "Записи" and "Скриншоты" are open on the main page) and
+`lastRecording`, `lastCrashRecovery`, `panelTab` (`recordings` or `screenshots`:
+the main page's tab, opened again next time), `onboardingDone` (bool: the first launch's steps
+were finished or skipped; `false` shows them again, as "Знакомство с MeetRec" at the top of
+the settings does; a copy with screen recording already allowed sets it at launch) and
 launch-at-login (managed by macOS through `SMAppService`) are state, not settings.

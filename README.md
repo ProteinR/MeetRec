@@ -123,7 +123,7 @@ granting Screen Recording. Releases are all signed with the same certificate, so
 are kept when you install a newer one.
 
 **Updates:** MeetRec checks GitHub Releases a minute after launch and every 6 hours (settings →
-"Запись" → "Обновления", where it can be turned off or checked by hand). When a newer version is
+"Основные" → "Обновления", where it can be turned off or checked by hand). When a newer version is
 out, the panel shows "Доступна версия X" with "Обновить": MeetRec downloads the release, installs
 it only if it is signed with the same certificate as the running copy, and restarts. It waits while
 a recording or a transcription is running. A copy built from source (another certificate) does not

@@ -74,7 +74,9 @@ What MeetRec does instead:
   from the whole recording in turn in a bigger preview (320×180 pt) with a thin progress line. Previews and those frames are cached as small
   JPEGs in `~/Library/Caches/MeetRec/Thumbnails` (`Thumbnails.swift`), keyed by the file itself
   (volume, inode, size, modification date, so a rename keeps them and an edit makes new ones), made
-  two at a time in the background, removed after 60 days unused. Screenshots use the same cache.
+  two at a time in the background, removed after 60 days unused. Screenshots use the same cache and the same tile size
+  (time under the picture; the tip shows the whole shot fitted at the preview's size, made on hover:
+  `screenshotPreview`, kept on disk only).
   Instead of the system tooltip a tile has its own (`HoverTip.swift`): a click-through window that
   appears at once and follows the pointer, with name, start–end time, duration, size, markers and
   transcript state (screenshots: time, pixels, format, size). The right-click menu has "Скопировать
@@ -85,9 +87,8 @@ What MeetRec does instead:
   no file header, grey time, bold speaker, the lines that do not fit fade out; while searching it
   starts at the hit, marked; a "## Резюме" / "## Summary" section is shown instead when the file has
   one, for a future summary); a click on it opens the `.md` in the default app. While transcribing,
-  the badge's tip gives the percent. Next to each section's title its count in grey ("Записи 236",
-  "12 из 236" while searching). Both sections remember whether they are open (`panelRecordingsExpanded`,
-  `panelScreenshotsExpanded`), each on its own.
+  the badge's tip gives the percent. Each tab's count is grey in the tab bar ("Записи 236",
+  "12 из 236" while searching); the tab not shown gets its count from a quick listing.
 - One folder per recording (`RecordingFiles`): `<stem>/<stem>.mov`, transcripts `<stem>.md`,
   `<stem> (2).md`…, `markers.json`, `mutes.json`, `run.json` (speakers). A rename renames the folder,
   the video and the transcripts; Trash takes the whole folder. The older flat layout (`<stem>.mov` with
@@ -98,8 +99,25 @@ What MeetRec does instead:
   the log ("Migration: from → to"). Other tools read both layouts: inventire-workspace's
   `transcribe-meeting` / `analyze-latest-meeting` skills and english's `transcribe-lesson` scripts
   (`meetrec_recordings.sh`).
-- Monitor choice is an accordion section on the main page titled with the display to be recorded;
-  opened, it shows live thumbnails of all displays (refreshed every 2 s, `DisplayPreview.swift`),
+- Main page (since 0.15.0, made for people who see MeetRec for the first time): the tabs
+  "Записи | Скриншоты" right under the header (`PanelTabBar`, the last one chosen is remembered:
+  `panelTab`, so someone who only takes screenshots always lands there). "Записи": the start
+  button, a line saying what MeetRec records by itself (`AutoRecordStatus`: "Сам запишу: Teams.
+  Спрошу: Telegram и браузер.", or "Автозапись выключена"; a click opens "Встречи и звонки"), the
+  sources as three equal buttons (`SourceChip` in `PanelSources.swift`: "Микрофон" switches on/off,
+  its ⌄ lists the microphones with the level check; "Собеседники" switches the system audio;
+  "Экран" opens the display/window choice under the row), then the recordings. "Скриншоты": big
+  "Область", "Весь экран" (`captureFullScreen`: the screen under the pointer, no selection) and
+  "OCR" buttons for those who do not use the shortcuts, then the recent screenshots; while
+  recording, the stop button is there too. The version is in the settings header, not on the main page.
+- First launch (`Onboarding.swift`, in the panel until `onboardingDone`): permissions (asks macOS,
+  then opens the right System Settings pane, checks every second, offers a relaunch for screen
+  recording), when to record each calling app installed here ("Сразу записывать" / "Спрашивать" /
+  "Не записывать", with what that means under the choice; any choice but the last turns detection
+  on), name and models for transcripts, a last word. A copy with screen recording already allowed
+  skips it (an update); "Пройти знакомство с MeetRec ещё раз" at the bottom of the settings list shows it again.
+- Monitor choice opens under the sources from "Экран";
+  it shows live thumbnails of all displays (refreshed every 2 s, `DisplayPreview.swift`),
   the one to be recorded framed in red, an "Авто" switch, and a red frame around that whole screen
   (`DisplayHighlight`, click-through) so the choice is visible on the monitor itself. The same frame
   blinks softly three times on the recorded screen when any recording starts or switches screens
@@ -114,7 +132,8 @@ What MeetRec does instead:
   (`RecordingOptions.windowID`, scaled to fill the frame). The choice is for that one start: it is
   cleared when the panel closes without starting and after the start. Teams auto-recordings and
   browser rules always take the whole display.
-- "Как я выгляжу" (person icon next to the gear, or the quick menu): a floating mirrored camera
+- "Проверить камеру" (a labelled button next to the gear, or the quick menu; a bare person icon
+  was not understood): a floating mirrored camera
   window to check yourself before a meeting, in its own process `MeetRecMirror` (target of the same
   name, embedded in `Contents/MacOS`; `CameraMirror.swift` starts and ends it, its output goes to the
   log), so the camera's 200–350 MB leave with it; camera picker on hover, Esc or ✕
@@ -205,11 +224,18 @@ What MeetRec does instead:
   In settings each rule is a card: "Вкладка называется" (several, comma-separated), "Название
   записи", the file name it gives ("Файл будет: 2026-10-17 14-03-22 Skyeng.mov"), "Собеседник один",
   "Удалить правило" (an arrow between the fields read as "rename A to B").
-- Settings live on a separate page behind the gear, in three tabs (`SettingsTabs.swift`, drawn by
-  SwiftUI, not the glass segmented control; the last tab is remembered): "Запись" (general: folder,
-  log, launch at login, watchdog; then an accordion: video; "Встречи и звонки" incl. browser rules;
-  transcription incl. copy rules; "Вид во время записи" with a preview), "Скриншоты" (only the
-  screenshot settings) and "Клавиши" (every shortcut, grouped "Запись" / "Скриншоты"). The page scrolls only when it is taller than the screen (`HuggingScrollView`: as tall as the content, so the card still hugs it; a big section open on the built-in display). They open during a recording too;
+- Settings live behind the gear as a list, like System Settings (`SettingsPages.swift`, since
+  0.15.0): two groups of rows,
+  each with a coloured icon, its title and a one-line summary: "Основные" (folder, log, language,
+  launch at login, watchdog, updates), "Видео", "Встречи и звонки" (each installed calling app with
+  the first launch's "Сразу записывать / Спрашивать / Не записывать" and what it means, browser
+  site rules, apps coming later), "Транскрибация" (incl. copy rules), "Вид во время записи" |
+  "Скриншоты", "Клавиши" (every shortcut); under them a quiet "Пройти знакомство с MeetRec ещё раз". A row opens its section as its own page sliding in
+  ("‹ Настройки" or Esc goes back), so nothing unfolds in place: the old accordion made the card
+  grow, start scrolling and jump. `requestSettings(.meetings)` opens a page directly. A page taller
+  than the screen scrolls (`HuggingScrollView`: as tall as the content, so the card still hugs it)
+  with an overlay scroller (`OverlayScrollers`: a legacy scroller, used with a mouse attached, took
+  its width from the page, which jumped narrower and back). They open during a recording too;
   only "Видео" and the recordings folder are locked then. The main page keeps the daily things: no transcription block (progress is per recording in
   the list, cancel in its right-click menu) no Quit button (it is in the item's right-click menu) and no folder row (the folder
   button is next to the search field in "Записи").
@@ -226,7 +252,7 @@ What MeetRec does instead:
   (percent while running, "Транскрипт готов" opens it, retry on failure).
   No markers while stopping. Right click on the item opens a quick menu: Начать/Остановить запись,
   Пауза, Отметить момент | «Последняя запись»: Показать в Finder, Открыть транскрипт (or the
-  transcription percent) | Скриншот, OCR | Как я выгляжу, Настройки…, Завершить MeetRec; shortcuts
+  transcription percent) | Скриншот, Скриншот всего экрана, OCR | Проверить камеру, Настройки…, Завершить MeetRec; shortcuts
   shown when set. ⌘, opens settings. The last recording is remembered across launches. When its
   transcript still has "Speaker N", the last-recording notice offers to name them (inline editor).
 - Words: "Скриншот", "OCR", "Удалить" (always to the Trash), "Показать в Finder", "Завершить"; the
@@ -240,7 +266,7 @@ What MeetRec does instead:
   banner in the panel, no health alerts (the tracker starts afresh on resume). After 10 min a quiet
   notification, every 30 min one with "Сохранить и остановить" / "Снять с паузы" / "Оставить на
   паузе" (it never stops by itself). The automatic stop after a meeting works as usual.
-- Shortcuts (`Shortcuts.swift`): record ⌃⌥⌘R, marker ⌃⌥⌘M, pause (none), screenshot ⇧⌘4, OCR ⇧⌘2;
+- Shortcuts (`Shortcuts.swift`): record ⌃⌥⌘R, marker ⌃⌥⌘M, pause (none), screenshot ⇧⌘4, full screen (none: the screen under the pointer at once), OCR ⇧⌘2;
   each changeable (settings → "Клавиши": click, press keys with ⌘/⌥/⌃, Esc
   cancels, ↺ restores or ✕ clears; the same keys twice are refused). One that cannot be registered
   (another app has it) shows a warning with "Повторить" in settings and, for the recording ones, a
@@ -309,7 +335,10 @@ What MeetRec does instead:
   "Скопирован и сохранён" (the owner used to press "copy" in Shottr anyway) and shows a preview:
   drag it into a chat or a browser's upload field (the file itself; unsaved shots get a temporary
   copy in `$TMPDIR/MeetRec Screenshots`, cleared at launch); it stays while dragging and goes after
-  a drop; a click or "Редактировать" edits, "OCR" copies the text of the whole shot. In a row under them ("Найти:", the hovered service named after the icons: the toast is never key, so `.help` tooltips do not show there), image search buttons (Google
+  a drop; a click or "Редактировать" (✎) edits, "OCR" copies the text of the whole shot (both
+  big, tinted buttons in a row under the preview). Every message toast has a ✕ at its top left and a
+  thin line along its bottom showing the time left (`ToastCountdown`: stops while hovered, runs out
+  over the last 2 s after the pointer leaves). In a row under them ("Найти:", the hovered service named after the icons: the toast is never key, so `.help` tooltips do not show there), image search buttons (Google
   Lens, Яндекс; `ImageSearch.swift`): the app only knows the `ImageSearchProvider` protocol (picture
   in, results page out), each service is its own provider in `ImageSearch.all`, switchable in
   "Скриншоты" (setting `imageSearchProviders`). Every place with search uses the same views
@@ -325,8 +354,8 @@ What MeetRec does instead:
   clipboard and the site's page opens for a ⌘V by hand). Until the setting is changed only Google Lens is on. Only on a click, the shot scaled to ≤ 2048 px is
   uploaded and the page opens in the browser. Both use the sites' own upload forms (no official
   API), so they may break when a site changes: the log has "Image search in …". OCR runs
-  without language correction (it broke code and e-mails). The main page has "Скриншоты" under
-  "Записи": "Скриншот" and "OCR" buttons, a row of thumbnails by creation date scrolled sideways (Shottr's
+  without language correction (it broke code and e-mails). The main page's "Скриншоты" tab:
+  "Область", "Весь экран" and "OCR" buttons, a row of thumbnails by creation date scrolled sideways (Shottr's
   `SCR-…` files mix in; an edit keeps the creation date; click edits, drag into a chat, right
   click: edit, copy, OCR, Finder, Удалить). The editor: arrow (A; a middle point bends it, off
   centre the bend moves towards that end, back onto the line it snaps straight), rectangle (R),
@@ -353,8 +382,8 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
 
 - `MeetRec/MeetRecApp.swift` + `MenuPanel.swift`: `AppDelegate` owns an `NSStatusItem` and a
   borderless, transparent, fixed-size panel window; the visible card (blur, corners, shadow) is drawn
-  by SwiftUI (`PanelCard`) and hugs the content, so accordion sections (`CollapsibleSection`: Video,
-  Transcription, the display; one open at a time; "Записи" and "Скриншоты" open on their own) animate their height smoothly. Do not make the window
+  by SwiftUI (`PanelCard`) and hugs the content, so its height changes (a page, the microphone or
+  screen choice under the sources) animate smoothly. Do not make the window
   follow SwiftUI's size again: that caused jumps and, with Auto Layout, a launch crash. Clicking the
   item or reopening the app shows the panel; clicks outside (including the transparent part, which is
   click-through), Esc or ⌘W close it. If Ice hides the item (it moves hidden items off screen), the
@@ -364,7 +393,8 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
     `AppDelegate+QuickMenu.swift`, `QuickMenuItem.swift`, `MenuPanel.swift` (window),
     `PanelContent.swift` (`ContentView`: main page), `PanelContent+Settings.swift` (settings page),
     `PanelStatus.swift` (live status while recording), `PanelBanners.swift` (call question,
-    countdowns, last-recording notice), `RecordButton.swift`, `CollapsibleSection.swift`,
+    countdowns, last-recording notice), `RecordButton.swift`, `PanelSources.swift`,
+    `SettingsPages.swift`, `Onboarding.swift`,
     `RecordingsStrip.swift` ("Записи"), `RecordingsList.swift` (the list, search, speakers editor),
     `HorizontalStrip.swift`, `Thumbnails.swift` (preview cache), `HoverTip.swift`.
   - Recording state (`RecorderModel`, the one `ObservableObject` the UI watches):
@@ -547,8 +577,8 @@ then launch, grant again, and relaunch after granting Screen Recording.
   (`scripts/git-hooks/pre-commit`; enable once per clone: `git config core.hooksPath scripts/git-hooks`)
   does it when a commit touches the app: `CURRENT_PROJECT_VERSION` +1 and the patch
   (0.3.1 → 0.3.2). For a new feature bump the minor by hand before committing
-  (`MARKETING_VERSION: "0.4.0"`); the hook keeps a hand-made bump. The version is shown next to
-  the title on the main page; the log's launch line also has the build number.
+  (`MARKETING_VERSION: "0.4.0"`); the hook keeps a hand-made bump. The version is shown in the
+  settings header; the log's launch line also has the build number.
 - Do not add an App Sandbox, hardened runtime or a team id: the local signing setup depends on it.
 - Never reinstall while a recording is running (`install.sh` kills the app): check the log's last
   "Recording state" line first.
@@ -560,7 +590,7 @@ then launch, grant again, and relaunch after granting Screen Recording.
   `RecorderModel.pauseNote`) and logs are not localized. After adding or changing UI text:
   `scripts/l10n.py sync` (builds and adds the new keys), translate them (a JSON file for
   `scripts/l10n.py merge`, or Xcode's catalog editor), and `scripts/l10n.py check` must list none
-  without English. The app follows the system language, or the one chosen in settings → "Запись" → "Язык"
+  without English. The app follows the system language, or the one chosen in settings → "Основные" → "Язык"
   (`AppLanguage.swift`: the app's own `AppleLanguages`, the same setting as System Settings → General →
   Language & Region → Applications; applied at launch, so it offers "Перезапустить", disabled while
   recording or transcribing). MeetRecASR gets the language as

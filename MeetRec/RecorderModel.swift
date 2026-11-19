@@ -70,14 +70,12 @@ final class RecorderModel: ObservableObject {
     /// `stopNotice` tells of an interrupted recording (crash, capture stopped): the panel shows it as a
     /// warning. A flag, not a check of the text, since the text is localized.
     @Published var stopNoticeInterrupted = false
-    /// Bumped to open the settings page (quick menu "Настройки…"), at `settingsTab` and
-    /// `settingsSection` if set.
+    /// Bumped to open the settings (quick menu "Настройки…"), at `settingsPage` if set.
     @Published private(set) var settingsRequest = 0
-    private(set) var settingsTab: SettingsTab?
-    private(set) var settingsSection: String?
-    func requestSettings(tab: SettingsTab? = nil, section: String? = nil) {
-        settingsTab = tab
-        settingsSection = section
+    private(set) var settingsPage: SettingsPage?
+    /// Opens the settings at `page`, or at the list of sections.
+    func requestSettings(_ page: SettingsPage? = nil) {
+        settingsPage = page
         settingsRequest += 1
     }
 

@@ -61,7 +61,6 @@ struct AppearanceSettings: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.top, 4)
     }
 }
 

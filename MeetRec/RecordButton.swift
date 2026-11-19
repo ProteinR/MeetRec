@@ -16,6 +16,9 @@ struct RecordButton: View {
         isRecording ? (isBusy ? String(localized: "Сохраняю запись…") : String(localized: "Остановить запись")) : String(localized: "Начать запись")
     }
 
+    /// The same corners as the panel's other cards and buttons.
+    private static let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+
     private static let startColor = Color(red: 0.96, green: 0.26, blue: 0.27)
     private static let stopColor = Color(red: 0.62, green: 0.08, blue: 0.10)
 
@@ -54,13 +57,13 @@ struct RecordButton: View {
             .padding(.vertical, 11)
             .frame(maxWidth: .infinity)
             .background {
-                Capsule()
+                Self.shape
                     .fill(isRecording ? Self.stopColor : Self.startColor)
                     .brightness(hovering && !isBusy ? 0.06 : 0)
             }
             .overlay {
                 // Ripple on start.
-                Capsule()
+                Self.shape
                     .stroke(Self.startColor, lineWidth: 3)
                     .scaleEffect(x: ripple ? 1.06 : 1, y: ripple ? 1.5 : 1)
                     .opacity(ripple ? 0 : (isRecording ? 0.9 : 0))
@@ -69,7 +72,7 @@ struct RecordButton: View {
             .shadow(color: (isRecording ? Self.stopColor : Self.startColor).opacity(isRecording ? 0.6 : 0.25),
                     radius: isRecording ? 10 : 5)
             .scaleEffect(pressed ? 0.97 : 1)
-            .contentShape(Capsule())
+            .contentShape(Self.shape)
         }
         .buttonStyle(PressReportingStyle(pressed: $pressed))
         .disabled(isBusy)

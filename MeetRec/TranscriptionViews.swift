@@ -22,7 +22,6 @@ struct TranscriptionSettings: View {
                 voice
             }
         }
-        .padding(.top, 4)
     }
 
     private var meetingsFolder: some View { CopyRulesEditor() }

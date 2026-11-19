@@ -8,7 +8,8 @@ import SwiftUI
 /// state.
 /// Renaming and speaker naming open under the row for the tile they belong to.
 struct RecordingsSection: View {
-    @Binding var isExpanded: Bool
+    /// "236" (while searching "12 из 236") for the tab's title.
+    @Binding var count: String?
     @EnvironmentObject private var model: RecorderModel
     @EnvironmentObject private var transcriber: Transcriber
     // The main page is made anew when coming back from the settings: it starts with the last list,
@@ -40,30 +41,28 @@ struct RecordingsSection: View {
     }
 
     var body: some View {
-        CollapsibleSection(title: String(localized: "Записи"), icon: "film.stack", summary: summary, count: count,
-                           isExpanded: $isExpanded) {
-            VStack(alignment: .leading, spacing: 6) {
-                searchRow
-                if items.isEmpty {
-                    Text(query.isEmpty ? String(localized: "Пока нет записей в папке «\(model.folderURL.lastPathComponent)»") : String(localized: "Ничего не найдено"))
-                        .font(.caption).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    HorizontalStrip(items: items, tileWidth: Thumbnails.videoSize.width, onReachEnd: loadMore) { item in
-                        RecordingTile(item: item, query: query.trimmingCharacters(in: .whitespaces), onChange: reload, show: show)
-                    }
-                    .frame(height: Thumbnails.videoSize.height + 20)
+        VStack(alignment: .leading, spacing: 6) {
+            searchRow
+            if items.isEmpty {
+                Text(query.isEmpty ? String(localized: "Здесь появятся записи и их транскрипты. Начните запись кнопкой выше, или MeetRec начнёт её сам, когда начнётся встреча.") : String(localized: "Ничего не найдено"))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HorizontalStrip(items: items, tileWidth: Thumbnails.videoSize.width, onReachEnd: loadMore) { item in
+                    RecordingTile(item: item, query: query.trimmingCharacters(in: .whitespaces), onChange: reload, show: show)
                 }
-                if let error {
-                    Text(error).font(.caption).foregroundStyle(.red)
-                }
-                if let detail { detailView(detail) }
+                .frame(height: Thumbnails.videoSize.height + 20)
             }
+            if let error {
+                Text(error).font(.caption).foregroundStyle(.red)
+            }
+            if let detail { detailView(detail) }
         }
         .onAppear(perform: reload)
+        .onChange(of: countLabel, initial: true) { count = countLabel }
         // Files may have been renamed, moved or deleted in Finder since the list was read.
         .onChange(of: model.panelVisible) { if model.panelVisible { reload() } else { detail = nil; error = nil } }
-        .onChange(of: isExpanded) { if isExpanded { reload() } }
         .onChange(of: model.lastFile) { reload() }
         .onChange(of: model.folderPath) { reload() }
         .onChange(of: transcriber.transcriptsVersion) { reload() }
@@ -153,18 +152,8 @@ struct RecordingsSection: View {
 
     // MARK: - Loading
 
-    /// The count is next to the title ("Записи 236"); this line says what it holds.
-    private var summary: String {
-        guard total > 0 || !query.isEmpty else { return String(localized: "Пока пусто") }
-        if let running = transcriber.runningFile, items.contains(where: { $0.url == running }) {
-            let percent = transcriber.progress.map { " \(Int($0 * 100))%" } ?? ""
-            return String(localized: "Транскрибируется\(percent)")
-        }
-        return String(localized: "с текстом: \(transcribed)")
-    }
-
     /// "236"; while searching "12 из 236".
-    private var count: String? {
+    private var countLabel: String? {
         guard total > 0 else { return nil }
         if !query.isEmpty { return String(localized: "\(items.count.formatted()) из \(total.formatted())") }
         return total.formatted()

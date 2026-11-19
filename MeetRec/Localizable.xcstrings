@@ -180,16 +180,6 @@
         }
       }
     },
-    "%@ — скриншот" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ — screenshot"
-          }
-        }
-      }
-    },
     "%@ — файл не растёт %lld с" : {
       "localizations" : {
         "en" : {
@@ -453,12 +443,52 @@
         }
       }
     },
+    "MeetRec видит, когда приложение для звонков включает микрофон. Здесь только приложения, которые нашлись на этом Mac; поменять можно в любой момент в настройках." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MeetRec sees when a calling app turns on the microphone. Only the apps found on this Mac are listed; you can change this any time in the settings."
+          }
+        }
+      }
+    },
+    "MeetRec живёт в строке меню — значок с красной точкой. Начните запись кнопкой или %@; записи и их тексты появятся в панели." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MeetRec lives in the menu bar: the icon with the red dot. Start a recording with the button or %@; recordings and their transcripts appear in the panel."
+          }
+        }
+      }
+    },
+    "MeetRec записывает экран, ваш голос и собеседников, а потом делает текст встречи. Всё остаётся на вашем Mac. Для начала нужны два разрешения macOS." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MeetRec records the screen, your voice and the other side, then writes a transcript of the meeting. Everything stays on your Mac. First it needs two macOS permissions."
+          }
+        }
+      }
+    },
     "MeetRec не сможет записывать" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "MeetRec can't record"
+          }
+        }
+      }
+    },
+    "MeetRec ничего не начнёт и ни о чём не спросит. Запись только вручную." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MeetRec will not start anything or ask. Recording is manual only."
           }
         }
       }
@@ -576,6 +606,16 @@
         }
       }
     },
+    "Авто" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto"
+          }
+        }
+      }
+    },
     "Авто (PNG/JPEG)" : {
       "localizations" : {
         "en" : {
@@ -622,6 +662,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Auto: external display when connected"
+          }
+        }
+      }
+    },
+    "Автозапись включена" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-recording is on"
+          }
+        }
+      }
+    },
+    "Автозапись выключена" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-recording is off"
           }
         }
       }
@@ -786,6 +846,36 @@
         }
       }
     },
+    "Ваш голос записывается. Нажмите, чтобы выключить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your voice is recorded. Click to turn it off"
+          }
+        }
+      }
+    },
+    "Ваш голос не записывается. Нажмите, чтобы включить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your voice is not recorded. Click to turn it on"
+          }
+        }
+      }
+    },
+    "Ваше имя" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your name"
+          }
+        }
+      }
+    },
     "Вернуть %@" : {
       "localizations" : {
         "en" : {
@@ -832,6 +922,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "All text"
+          }
+        }
+      }
+    },
+    "Весь экран" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full screen"
           }
         }
       }
@@ -886,16 +986,6 @@
         }
       }
     },
-    "Включена" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "On"
-          }
-        }
-      }
-    },
     "Включит микрофон, чтобы показать уровень, пока панель открыта" : {
       "localizations" : {
         "en" : {
@@ -916,12 +1006,32 @@
         }
       }
     },
+    "Включить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn on"
+          }
+        }
+      }
+    },
     "Во время записи" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "While recording"
+          }
+        }
+      }
+    },
+    "Вручную можно всегда: %@ или кнопка в панели." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can always record manually: %@ or the button in the panel."
           }
         }
       }
@@ -956,12 +1066,32 @@
         }
       }
     },
-    "Встреча замечается, когда приложение берёт микрофон. «Записывать» — запись начнётся сама через несколько секунд, у значка идёт отсчёт. «Спрашивать» — появится вопрос «Записать?». Остановится запись сама, через %lld с после конца встречи." : {
+    "Встреча замечается, когда приложение берёт микрофон. Остановится запись сама, через %lld с после конца встречи." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "A meeting is noticed when an app takes the microphone. “Record”: recording starts by itself after a few seconds, with a countdown next to the icon. “Ask”: you are asked “Record?”. Recording stops by itself %lld s after the meeting ends."
+            "value" : "A meeting is noticed when an app takes the microphone. The recording stops by itself %lld s after the meeting ends."
+          }
+        }
+      }
+    },
+    "Встреча началась — через несколько секунд MeetRec сам начнёт запись и сам остановит её после встречи. У значка в строке меню идёт отсчёт, его можно отменить." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When a meeting starts, MeetRec starts recording by itself a few seconds later and stops after the meeting. A countdown runs next to the menu bar icon; you can cancel it."
+          }
+        }
+      }
+    },
+    "Встречи записываются только вручную" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meetings are recorded only manually"
           }
         }
       }
@@ -976,12 +1106,42 @@
         }
       }
     },
+    "Встречи, которые MeetRec записывает сам, тоже пишутся с этого экрана." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meetings MeetRec records by itself use this screen too."
+          }
+        }
+      }
+    },
+    "Всё настроено" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All set"
+          }
+        }
+      }
+    },
     "Выбрать" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choose"
+          }
+        }
+      }
+    },
+    "Выбрать микрофон" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose microphone"
           }
         }
       }
@@ -996,12 +1156,32 @@
         }
       }
     },
-    "Выделите область или кликните по окну" : {
+    "Выбрать экран" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Select an area or click a window"
+            "value" : "Choose screen"
+          }
+        }
+      }
+    },
+    "Выбрать экран или одно окно" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a screen or a single window"
+          }
+        }
+      }
+    },
+    "Выделите область или кликните по заголовку окна" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select an area or click a window's title bar"
           }
         }
       }
@@ -1066,16 +1246,6 @@
         }
       }
     },
-    "Выключена" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Off"
-          }
-        }
-      }
-    },
     "Главы не добавлены: %@" : {
       "localizations" : {
         "en" : {
@@ -1106,12 +1276,42 @@
         }
       }
     },
+    "Готово" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        }
+      }
+    },
+    "Дальше" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next"
+          }
+        }
+      }
+    },
     "Данные не записываются уже %lld с. Остановите и начните запись заново." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nothing has been written for %lld s. Stop and start the recording again."
+          }
+        }
+      }
+    },
+    "Делать транскрипт после каждой записи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcribe after every recording"
           }
         }
       }
@@ -1212,6 +1412,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Some speakers have no name — name speakers…"
+          }
+        }
+      }
+    },
+    "Ещё умеет" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It can also"
           }
         }
       }
@@ -1396,12 +1606,12 @@
         }
       }
     },
-    "Записывать" : {
+    "Записывайте встречи без забот" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Record"
+            "value" : "Record meetings without a second thought"
           }
         }
       }
@@ -1790,6 +2000,16 @@
         }
       }
     },
+    "Запись экрана" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen Recording"
+          }
+        }
+      }
+    },
     "Запуск при входе" : {
       "localizations" : {
         "en" : {
@@ -1850,6 +2070,36 @@
         }
       }
     },
+    "Звонок начался — MeetRec сам начнёт запись и сам остановит её после звонка. Осторожно: %@ включает микрофон и для голосовых сообщений, они тоже запишутся." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When a call starts, MeetRec starts recording by itself and stops after the call. Careful: %@ also turns on the microphone for voice messages, and those will be recorded too."
+          }
+        }
+      }
+    },
+    "Звук Mac (голоса собеседников) записывается. Нажмите, чтобы выключить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Mac's sound (the other side's voices) is recorded. Click to turn it off"
+          }
+        }
+      }
+    },
+    "Звук Mac не записывается. Нажмите, чтобы включить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Mac's sound is not recorded. Click to turn it on"
+          }
+        }
+      }
+    },
     "Звук затвора" : {
       "localizations" : {
         "en" : {
@@ -1876,6 +2126,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "System audio isn't being recorded"
+          }
+        }
+      }
+    },
+    "Здесь появятся записи и их транскрипты. Начните запись кнопкой выше, или MeetRec начнёт её сам, когда начнётся встреча." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recordings and their transcripts will appear here. Start a recording with the button above, or MeetRec starts one by itself when a meeting begins."
           }
         }
       }
@@ -2080,6 +2340,16 @@
         }
       }
     },
+    "Как вас подписывать в тексте" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your name in transcripts"
+          }
+        }
+      }
+    },
     "Как у монитора" : {
       "localizations" : {
         "en" : {
@@ -2090,32 +2360,22 @@
         }
       }
     },
-    "Как я выгляжу" : {
+    "Как я выгляжу: зеркало с камеры перед встречей, ничего не записывается" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Check my look"
+            "value" : "How do I look: a camera mirror before a meeting, nothing is recorded"
           }
         }
       }
     },
-    "Как я выгляжу: зеркало с камеры" : {
+    "Какие встречи и звонки MeetRec записывает сам" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Check my look: camera mirror"
-          }
-        }
-      }
-    },
-    "Какой микрофон записывать. «По умолчанию» — сейчас: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Microphone to record. “Default” is currently: %@"
+            "value" : "Which meetings and calls MeetRec records by itself"
           }
         }
       }
@@ -2200,12 +2460,32 @@
         }
       }
     },
+    "Кнопка покажет вопрос macOS или откроет нужное место в Системных настройках." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The button shows the macOS prompt or opens the right place in System Settings."
+          }
+        }
+      }
+    },
     "Кнопки в сообщении после снимка, в меню снимков и в редакторе; снимок уходит в сервис только по клику" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Buttons in the message after a screenshot, in the screenshot menu and in the editor; the screenshot is sent to the service only when clicked"
+          }
+        }
+      }
+    },
+    "Когда начинать запись?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When should recording start?"
           }
         }
       }
@@ -2446,6 +2726,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Models not downloaded, transcription skipped"
+          }
+        }
+      }
+    },
+    "Модели распознавания · ~650 МБ" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speech models · ~650 MB"
+          }
+        }
+      }
+    },
+    "Можно пропустить: записи будут без текста, транскрибацию можно включить позже в настройках." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can skip this: recordings will have no transcript, and you can turn transcription on later in the settings."
           }
         }
       }
@@ -2710,6 +3010,16 @@
         }
       }
     },
+    "Начать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start"
+          }
+        }
+      }
+    },
     "Начать / остановить запись" : {
       "localizations" : {
         "en" : {
@@ -2726,26 +3036,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Start recording"
-          }
-        }
-      }
-    },
-    "Начнёт запись сама, с отсчётом у значка" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Starts recording by itself, with a countdown next to the icon"
-          }
-        }
-      }
-    },
-    "Не выбраны приложения" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No apps selected"
           }
         }
       }
@@ -3120,6 +3410,16 @@
         }
       }
     },
+    "Область" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Area"
+          }
+        }
+      }
+    },
     "Обновить" : {
       "localizations" : {
         "en" : {
@@ -3250,6 +3550,26 @@
         }
       }
     },
+    "Один раз, дальше всё работает без сети" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once; after that everything works offline"
+          }
+        }
+      }
+    },
+    "Окно" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window"
+          }
+        }
+      }
+    },
     "Окно закрыто" : {
       "localizations" : {
         "en" : {
@@ -3270,32 +3590,22 @@
         }
       }
     },
-    "Окно: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Window: %@"
-          }
-        }
-      }
-    },
-    "Определять встречи и звонки автоматически" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Detect meetings and calls automatically"
-          }
-        }
-      }
-    },
     "Определять, кто говорит, и подписывать реплики именами" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Detect who is speaking and label lines with names"
+          }
+        }
+      }
+    },
+    "Основные" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "General"
           }
         }
       }
@@ -3610,6 +3920,26 @@
         }
       }
     },
+    "Папка «%@», формат, поиск по картинке" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folder “%@”, format, image search"
+          }
+        }
+      }
+    },
+    "Папка «%@», язык, запуск, обновления" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folder “%@”, language, launch, updates"
+          }
+        }
+      }
+    },
     "Папка для записей" : {
       "localizations" : {
         "en" : {
@@ -3740,6 +4070,16 @@
         }
       }
     },
+    "Под строкой меню появится вопрос «Похоже, идёт звонок… Записать?» с кнопками «Записать» и «Не сейчас»." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A question “Looks like a call… Record?” appears under the menu bar with “Record” and “Not now”."
+          }
+        }
+      }
+    },
     "Подготовка…" : {
       "localizations" : {
         "en" : {
@@ -3790,32 +4130,12 @@
         }
       }
     },
-    "Пока нет записей в папке «%@»" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No recordings in the “%@” folder yet"
-          }
-        }
-      }
-    },
     "Пока нет скриншотов в «%@»" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "No screenshots in “%@” yet"
-          }
-        }
-      }
-    },
-    "Пока пусто" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nothing yet"
           }
         }
       }
@@ -3840,6 +4160,16 @@
         }
       }
     },
+    "После записи MeetRec сделает транскрипт с именами говорящих. Распознавание идёт на этом Mac, без интернета и без аккаунтов." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After a recording MeetRec writes a transcript with speaker names. Recognition runs on this Mac, with no internet and no accounts."
+          }
+        }
+      }
+    },
     "После записи: вкл" : {
       "localizations" : {
         "en" : {
@@ -3856,6 +4186,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "After recording: off"
+          }
+        }
+      }
+    },
+    "Последние" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent"
           }
         }
       }
@@ -3910,12 +4250,12 @@
         }
       }
     },
-    "Приложения на этом Mac" : {
+    "Приложений для звонков не нашлось. Записывайте вручную, а когда что-то появится, включите его в настройках → «Встречи и звонки»." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apps on this Mac"
+            "value" : "No calling apps were found. Record manually; when one is installed, turn it on in Settings → “Meetings and calls”."
           }
         }
       }
@@ -3926,6 +4266,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Test"
+          }
+        }
+      }
+    },
+    "Проверить камеру" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check camera"
           }
         }
       }
@@ -3976,6 +4326,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Continue recording into the same file"
+          }
+        }
+      }
+    },
+    "Пройти знакомство с MeetRec ещё раз" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take the MeetRec tour again"
+          }
+        }
+      }
+    },
+    "Пропустить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip"
           }
         }
       }
@@ -4080,6 +4450,26 @@
         }
       }
     },
+    "Разрешено" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allowed"
+          }
+        }
+      }
+    },
+    "Разрешили запись экрана? macOS включит её после перезапуска MeetRec." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allowed screen recording? macOS turns it on after MeetRec restarts."
+          }
+        }
+      }
+    },
     "Разрешите MeetRec в настройках «Объекты входа»" : {
       "localizations" : {
         "en" : {
@@ -4096,6 +4486,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Allow screen recording for MeetRec in System Settings → Privacy & Security → Screen & System Audio Recording, then relaunch MeetRec."
+          }
+        }
+      }
+    },
+    "Разрешить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow"
           }
         }
       }
@@ -4140,16 +4540,6 @@
         }
       }
     },
-    "Режим" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mode"
-          }
-        }
-      }
-    },
     "Резюме" : {
       "localizations" : {
         "en" : {
@@ -4176,6 +4566,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sites recorded right away"
+          }
+        }
+      }
+    },
+    "Сам запишу: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I record: %@."
           }
         }
       }
@@ -4226,6 +4626,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Blue"
+          }
+        }
+      }
+    },
+    "Скачаны, всё работает без сети" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloaded; everything works offline"
+          }
+        }
+      }
+    },
+    "Скачать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download"
           }
         }
       }
@@ -4330,12 +4750,32 @@
         }
       }
     },
+    "Скоро: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coming: %@"
+          }
+        }
+      }
+    },
     "Скриншот" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Screenshot"
+          }
+        }
+      }
+    },
+    "Скриншот всего экрана" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full-screen screenshot"
           }
         }
       }
@@ -4380,6 +4820,16 @@
         }
       }
     },
+    "Скриншоты с пометками, текст с экрана (OCR), отметки важных моментов во время записи. Всё это — во вкладке «Скриншоты» и в настройках → «Клавиши»." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screenshots with annotations, text from the screen (OCR), markers for key moments while recording. See the “Screenshots” tab and Settings → “Shortcuts”."
+          }
+        }
+      }
+    },
     "Скрыть до следующей версии" : {
       "localizations" : {
         "en" : {
@@ -4406,6 +4856,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Screenshot in the clipboard"
+          }
+        }
+      }
+    },
+    "Снимок всего экрана, на котором курсор" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A shot of the whole screen under the pointer"
           }
         }
       }
@@ -4456,6 +4916,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "One other person (lesson): everyone but you is one speaker in the transcript"
+          }
+        }
+      }
+    },
+    "Собеседники" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Others"
           }
         }
       }
@@ -4550,12 +5020,22 @@
         }
       }
     },
-    "Спросит «Записать?», когда %@ возьмёт микрофон" : {
+    "Спрошу: %@." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Asks “Record?” when %@ takes the microphone"
+            "value" : "I ask: %@."
+          }
+        }
+      }
+    },
+    "Сразу записывать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record right away"
           }
         }
       }
@@ -4616,6 +5096,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Selected in the system"
+          }
+        }
+      }
+    },
+    "Текст встречи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meeting transcript"
           }
         }
       }
@@ -4778,16 +5268,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Transcribing"
-          }
-        }
-      }
-    },
-    "Транскрибируется%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transcribing%@"
           }
         }
       }
@@ -5042,12 +5522,42 @@
         }
       }
     },
+    "Чтобы в записи был ваш голос" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "So your voice is in the recording"
+          }
+        }
+      }
+    },
+    "Чтобы записывать видео встречи и звук собеседников" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To record the meeting's video and the other side's sound"
+          }
+        }
+      }
+    },
     "Чёрный" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Black"
+          }
+        }
+      }
+    },
+    "Шаг %lld из 3" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Step %lld of 3"
           }
         }
       }
@@ -5172,12 +5682,42 @@
         }
       }
     },
+    "авто" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "auto"
+          }
+        }
+      }
+    },
     "авто · %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "auto · %@"
+          }
+        }
+      }
+    },
+    "авто · внешний" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "auto · external"
+          }
+        }
+      }
+    },
+    "авто · встроенный" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "auto · built-in"
           }
         }
       }
@@ -5283,6 +5823,16 @@
         }
       }
     },
+    "выключены" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "off"
+          }
+        }
+      }
+    },
     "выход из MeetRec" : {
       "localizations" : {
         "en" : {
@@ -5373,6 +5923,16 @@
         }
       }
     },
+    "звук Mac" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac sound"
+          }
+        }
+      }
+    },
     "и ещё %lld — их можно выбрать во время записи" : {
       "localizations" : {
         "en" : {
@@ -5389,6 +5949,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "on"
+          }
+        }
+      }
+    },
+    "как в звонке, иначе системный: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "as in the call, else the system's: %@"
           }
         }
       }
@@ -5439,6 +6009,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "not HTTP"
+          }
+        }
+      }
+    },
+    "не найден" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not found"
+          }
+        }
+      }
+    },
+    "не подключён" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not connected"
           }
         }
       }
@@ -5503,16 +6093,6 @@
         }
       }
     },
-    "последний %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "last %@"
-          }
-        }
-      }
-    },
     "последняя, проверено в %@" : {
       "localizations" : {
         "en" : {
@@ -5539,16 +6119,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "checking…"
-          }
-        }
-      }
-    },
-    "с текстом: %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "transcribed: %lld"
           }
         }
       }

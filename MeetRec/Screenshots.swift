@@ -80,9 +80,34 @@ final class Screenshotter: ObservableObject {
     func cancelSelection() { selector?.cancel() }
     func captureText() { capture(.text) }
 
+    /// The whole screen under the pointer at once, no selection (the panel's "Весь экран", for
+    /// those who do not use the shortcuts). Delivered like any screenshot.
+    func captureFullScreen() {
+        guard selector == nil, !freezing else { return }
+        freezing = true
+        Task { @MainActor in
+            defer { freezing = false }
+            let screens: [FrozenScreen]
+            do {
+                screens = try await FrozenScreen.captureAll()
+            } catch {
+                Log.error("Screen capture failed: \(Log.describe(error))", "screenshots")
+                RecorderModel.shared.showToast(Toast(kind: .screenshot, title: String(localized: "Не удалось снять экран"),
+                                                     detail: error.localizedDescription))
+                return
+            }
+            let mouse = NSEvent.mouseLocation
+            guard let frozen = screens.first(where: { $0.screen.frame.contains(mouse) }) ?? screens.first else { return }
+            Log.info("Full screen \(frozen.image.width)×\(frozen.image.height) px", "screenshots")
+            if playSound { shutter?.stop(); shutter?.play() }
+            deliver(frozen.image, scale: frozen.scale)
+        }
+    }
+
     /// Freezes all screens first (menus and tooltips of the app in front stay in the picture), then
     /// the crosshair over them; a drag takes an area, a click a window or the whole screen, Esc cancels.
     func capture(_ action: ShortcutAction) {
+        if action == .fullScreen { return captureFullScreen() }
         guard action == .screenshot || action == .text, selector == nil, !freezing else { return }
         freezing = true
         let previous = NSWorkspace.shared.frontmostApplication

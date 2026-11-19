@@ -8,7 +8,7 @@ import AppKit
 /// - `--profile-recording <seconds>`: a manual recording of that length (footprint every minute),
 ///   then the file is moved to the Trash; no transcription.
 /// - `--camera-test`: "Как я выгляжу" opened and closed three times.
-/// - `--settings-test`: the settings page with each tab and section open in turn, three rounds.
+/// - `--settings-test`: the settings list and each section's page in turn, three rounds.
 /// - `--stress-test`: three rounds of the panel (10 times, settings every other time), the
 ///   screenshot selection (3 times, cancelled), freezing the screens (5 times) and the screenshot
 ///   editor (5 times). Growing every
@@ -123,10 +123,10 @@ enum Profiling {
         log("Settings test start")
         for round in 1...3 {
             delegate.showPanel()
-            for (tab, section) in settingsSections {
-                RecorderModel.shared.requestSettings(tab: tab, section: section)
+            for page in [nil] + SettingsPage.allCases.map(Optional.some) {
+                RecorderModel.shared.requestSettings(page)
                 try? await Task.sleep(for: .seconds(1.5))
-                log("Settings \(section ?? tab.rawValue)")
+                log("Settings \(page?.rawValue ?? "list")")
             }
             delegate.panel.close()
             try? await Task.sleep(for: .seconds(3))
@@ -134,11 +134,6 @@ enum Profiling {
         }
         log("Settings test done")
     }
-
-    static let settingsSections: [(SettingsTab, String?)] = [
-        (.recording, "video"), (.recording, "meetings"), (.recording, "transcription"), (.recording, "appearance"),
-        (.screenshots, nil), (.shortcuts, nil),
-    ]
 
     private static func cameraTest() async {
         log("Camera test start")

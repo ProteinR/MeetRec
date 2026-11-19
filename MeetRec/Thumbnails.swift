@@ -13,7 +13,8 @@ import UniformTypeIdentifiers
 enum Thumbnails {
     /// Points of a recording tile; pictures are made at twice that for Retina screens.
     static let videoSize = CGSize(width: 124, height: 70)
-    static let screenshotSize = CGSize(width: 78, height: 50)
+    /// The same tile as a recording's, so both tabs look alike.
+    static let screenshotSize = videoSize
     /// The preview in a recording's tip: frames from the whole video, shown in turn.
     static let previewSize = CGSize(width: 320, height: 180)
     static let hoverFrameCount = 10
@@ -65,14 +66,28 @@ enum Thumbnails {
         guard let key = key(for: url) else { return nil }
         if let image = memory.object(forKey: "s\(key)" as NSString) { return image }
         let image: NSImage? = await limiter.run {
-            if let cached = readJPEG(file(key, "-s.jpg")) { return cached }
+            // "-s2": the tile grew in 0.15.0; the older, smaller "-s.jpg" files age out with `prune`.
+            if let cached = readJPEG(file(key, "-s2.jpg")) { return cached }
             let pixels = Int(max(screenshotSize.width, screenshotSize.height) * 2 * 1.6)
             guard let made = ScreenshotFiles.thumbnail(url, maxPixels: pixels) else { return nil }
-            writeJPEG(made, to: file(key, "-s.jpg"))
+            writeJPEG(made, to: file(key, "-s2.jpg"))
             return made
         }
         if let image { memory.setObject(image, forKey: "s\(key)" as NSString) }
         return image
+    }
+
+    /// The bigger picture in a screenshot's tip (`previewSize`, fitted): made on hover only and
+    /// kept on disk, not in memory, so a row of tiles does not hold big pictures.
+    static func screenshotPreview(_ url: URL) async -> NSImage? {
+        guard let key = key(for: url) else { return nil }
+        return await limiter.run {
+            if let cached = readJPEG(file(key, "-sp.jpg")) { return cached }
+            let pixels = Int(max(previewSize.width, previewSize.height) * 2)
+            guard let made = ScreenshotFiles.thumbnail(url, maxPixels: pixels) else { return nil }
+            writeJPEG(made, to: file(key, "-sp.jpg"))
+            return made
+        }
     }
 
     // MARK: - Recordings

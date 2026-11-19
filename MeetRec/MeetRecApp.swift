@@ -51,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !Self.isRunningTests else { return }
         let model = RecorderModel.shared
         Thumbnails.prune()
+        OnboardingView.skipForExistingInstall()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.target = self
         statusItem.button?.action = #selector(togglePanel)

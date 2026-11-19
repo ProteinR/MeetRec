@@ -41,7 +41,7 @@ extension AppDelegate {
             })
         }
         menu.addItem(.separator())
-        menu.addItem(QuickMenuItem(CameraMirror.shared.isShown ? String(localized: "Закрыть зеркало") : String(localized: "Как я выгляжу")) { CameraMirror.shared.toggle() })
+        menu.addItem(QuickMenuItem(CameraMirror.shared.isShown ? String(localized: "Закрыть зеркало") : String(localized: "Проверить камеру")) { CameraMirror.shared.toggle() })
         menu.addItem(QuickMenuItem(String(localized: "Настройки…"), key: ",") { [weak self] in
             self?.showPanel()
             model.requestSettings()

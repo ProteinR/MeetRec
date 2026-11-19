@@ -1,64 +1,41 @@
 import SwiftUI
 
-/// "Встречи и звонки": on/off and the calling apps found on this Mac.
+/// "Встречи и звонки": each calling app found on this Mac with the same choice as the first
+/// launch ("Сразу записывать" / "Спрашивать" / "Не записывать"), the browser's site rules, and the
+/// apps not supported yet.
 struct MeetingSettings: View {
     @EnvironmentObject private var model: RecorderModel
-    @State private var installed: [MeetingApp] = []
+    /// Found before the first frame: filled in `onAppear`, the apps appeared after the page had
+    /// started sliding in, and the card grew in a second animation behind it.
+    @State private var installed = MeetingApp.all.filter(\.isInstalled)
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle("Определять встречи и звонки автоматически", isOn: $model.meetingDetection)
-                .onChange(of: model.meetingDetection) { model.configureDetector() }
-            Text("Встреча замечается, когда приложение берёт микрофон. «Записывать» — запись начнётся сама через несколько секунд, у значка идёт отсчёт. «Спрашивать» — появится вопрос «Записать?». Остановится запись сама, через \(Int(MeetingDetector.endAfter)) с после конца встречи.")
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Встреча замечается, когда приложение берёт микрофон. Остановится запись сама, через \(Int(MeetingDetector.endAfter)) с после конца встречи.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-
-            Text("Приложения на этом Mac").font(.caption.weight(.semibold)).padding(.top, 2)
-            if installed.isEmpty {
+            let supported = installed.filter(\.supported)
+            if supported.isEmpty {
                 Text("Не найдено поддерживаемых приложений для звонков").font(.caption).foregroundStyle(.secondary)
             }
-            ForEach(installed) { app in
-                HStack(spacing: 8) {
-                    if let icon = icon(for: app) {
-                        Image(nsImage: icon).resizable().frame(width: 18, height: 18)
-                    }
-                    Toggle(app.name, isOn: Binding(
-                        get: { app.supported && model.selectedMeetingApps.contains(app.id) },
-                        set: { model.setMeetingApp(app, enabled: $0) }
-                    ))
-                    .disabled(!app.supported || !model.meetingDetection)
-                    if app.supported {
-                        Spacer()
-                        Picker("Режим", selection: Binding(get: { model.asks(app) }, set: { model.setAsks(app, $0) })) {
-                            Text("Записывать").tag(false)
-                            Text("Спрашивать").tag(true)
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .fixedSize()
-                        .controlSize(.small)
-                        .disabled(!model.meetingDetection || !model.selectedMeetingApps.contains(app.id))
-                        .help(model.asks(app) ? String(localized: "Спросит «Записать?», когда \(app.name) возьмёт микрофон")
-                                              : String(localized: "Начнёт запись сама, с отсчётом у значка"))
-                    } else if let note = app.note {
-                        Spacer()
-                        Text(note).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
-                    }
+            ForEach(supported) { app in
+                MeetingModeRow(app: app, icon: icon(for: app))
+                if app.id == "browser", model.selectedMeetingApps.contains("browser"), model.asks(app) {
+                    BrowserRulesEditor()
                 }
             }
-            if let browser = installed.first(where: { $0.id == "browser" }), model.asks(browser) {
-                BrowserRulesEditor()
-                    .disabled(!model.meetingDetection || !model.selectedMeetingApps.contains("browser"))
+            let later = installed.filter { !$0.supported }
+            if !later.isEmpty {
+                Text("Скоро: \(later.map(\.name).formatted(.list(type: .and)))")
+                    .font(.caption).foregroundStyle(.tertiary)
             }
-            if let status = model.detectorStatus {
+            if model.meetingDetection, let status = model.detectorStatus {
                 Label(status, systemImage: "waveform")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.top, 4)
-        .onAppear { installed = MeetingApp.all.filter(\.isInstalled) }
     }
 
     private func icon(for app: MeetingApp) -> NSImage? {
@@ -82,7 +59,6 @@ struct BrowserRulesEditor: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.top, 4)
             ForEach(model.browserRules) { rule in
                 card(rule)
             }

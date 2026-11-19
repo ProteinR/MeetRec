@@ -9,6 +9,8 @@ struct HoverTipContent: Equatable {
     var hint: String?
     /// A picture above the text (a recording's frames, one at a time), `Thumbnails.previewSize`.
     var preview: NSImage?
+    /// The whole picture fitted into the preview's box (a screenshot), not cropped to fill it.
+    var fitsPreview = false
     /// Which part of the recording the preview comes from, 0…1: a thin line under it.
     var progress: Double?
     /// Lines of a transcript in place of the picture, as big as it; what does not fit is cut off.
@@ -122,7 +124,13 @@ struct HoverTipView: View {
             if let preview = content.preview {
                 Color.black
                     .frame(width: Thumbnails.previewSize.width, height: Thumbnails.previewSize.height)
-                    .overlay { Image(nsImage: preview).resizable().scaledToFill() }
+                    .overlay {
+                        if content.fitsPreview {
+                            Image(nsImage: preview).resizable().scaledToFit()
+                        } else {
+                            Image(nsImage: preview).resizable().scaledToFill()
+                        }
+                    }
                     .overlay(alignment: .bottomLeading) {
                         if let progress = content.progress {
                             Rectangle().fill(Color.accentColor)
