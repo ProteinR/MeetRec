@@ -68,6 +68,7 @@ struct AppearanceSettings: View {
 struct MenuBarPreview: View {
     let style: MenuBarStyle
     let island: Bool
+    @AppStorage(MenuBarIcon.defaultsKey) private var iconChoice = MenuBarIcon.dot.rawValue
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -114,20 +115,65 @@ struct MenuBarPreview: View {
 
     @ViewBuilder
     private func item(recording: Bool) -> some View {
+        let icon = MenuBarIcon(rawValue: iconChoice) ?? .dot
         if !recording {
-            Image(systemName: "record.circle")
+            Image(nsImage: icon.image(mark: .none, colored: false)).renderingMode(.template)
         } else {
             switch style {
             case .full:
                 HStack(spacing: 3) {
-                    Image(systemName: "record.circle.fill").foregroundStyle(.red)
+                    Image(nsImage: icon.image(mark: .record, colored: true))
                     Text("12:34").monospacedDigit()
                 }
             case .icon:
-                Image(systemName: "record.circle.fill").foregroundStyle(.red)
+                Image(nsImage: icon.image(mark: .record, colored: true))
             case .discreet:
-                Image(systemName: "record.circle.fill")
+                Image(nsImage: icon.image(mark: .record, colored: false)).renderingMode(.template)
             }
         }
+    }
+}
+
+/// Settings → "Основные": the menu bar icon's picture, each choice shown as it looks without and
+/// with a recording. The menu bar changes at once (`MenuBarIcon.current`, read on every update).
+struct MenuBarIconPicker: View {
+    @AppStorage(MenuBarIcon.defaultsKey) private var choice = MenuBarIcon.dot.rawValue
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "menubar.rectangle")
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Значок в меню").font(.callout)
+                    Text("Как MeetRec выглядит в строке меню; во время записи на нём красная точка").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            HStack(spacing: 8) {
+                ForEach(MenuBarIcon.allCases) { tile($0) }
+            }
+        }
+    }
+
+    private func tile(_ icon: MenuBarIcon) -> some View {
+        let selected = choice == icon.rawValue
+        return Button {
+            choice = icon.rawValue
+        } label: {
+            VStack(spacing: 5) {
+                HStack(spacing: 10) {
+                    Image(nsImage: icon.image(mark: .none, colored: false)).renderingMode(.template)
+                    Image(nsImage: icon.image(mark: .record, colored: true))
+                }
+                .frame(height: 22)
+                Text(icon.title).font(.caption)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(selected ? 0.08 : 0.04)))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(selected ? Color.accentColor : Color.clear, lineWidth: 1.5))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

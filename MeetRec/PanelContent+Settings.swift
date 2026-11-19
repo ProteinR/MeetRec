@@ -107,7 +107,7 @@ extension ContentView {
 
     func settingsSummary(_ page: SettingsPage) -> String {
         switch page {
-        case .general: String(localized: "Папка «\(model.folderURL.lastPathComponent)», язык, запуск, обновления")
+        case .general: String(localized: "Папка «\(model.folderURL.lastPathComponent)», значок, язык, запуск, обновления")
         case .video: videoSummary
         case .meetings: meetingSummary
         case .transcription: transcriptionSummary
@@ -128,7 +128,7 @@ extension ContentView {
         }
     }
 
-    /// Folder, log, language, launch at login, crash watchdog.
+    /// Folder, log, menu bar icon, language, launch at login, crash watchdog.
     var generalSettings: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
@@ -152,6 +152,7 @@ extension ContentView {
                 Spacer(minLength: 4)
                 Button("Открыть") { model.openLog() }
             }
+            MenuBarIconPicker()
             LanguagePicker()
             HStack(alignment: .top, spacing: 20) {
                 LoginItemToggle()

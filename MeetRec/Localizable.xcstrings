@@ -2280,6 +2280,16 @@
         }
       }
     },
+    "Значок в меню" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menu bar icon"
+          }
+        }
+      }
+    },
     "Значок и панель MeetRec не попадают в демонстрацию экрана (там, где приложение это учитывает)" : {
       "localizations" : {
         "en" : {
@@ -2436,6 +2446,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No frames are coming in: the display is disconnected, the screen is locked or the Mac is asleep."
+          }
+        }
+      }
+    },
+    "Как MeetRec выглядит в строке меню; во время записи на нём красная точка" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How MeetRec looks in the menu bar; a red dot shows on it while recording"
           }
         }
       }
@@ -2996,6 +3016,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "My voice: %1$lld samples, labeled as “%2$@”"
+          }
+        }
+      }
+    },
+    "Монитор" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monitor"
           }
         }
       }
@@ -4210,22 +4240,22 @@
         }
       }
     },
+    "Папка «%@», значок, язык, запуск, обновления" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” folder, icon, language, launch, updates"
+          }
+        }
+      }
+    },
     "Папка «%@», формат, поиск по картинке" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Folder “%@”, format, image search"
-          }
-        }
-      }
-    },
-    "Папка «%@», язык, запуск, обновления" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Folder “%@”, language, launch, updates"
           }
         }
       }
@@ -5658,6 +5688,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This window only · on “%@” · for one recording"
+          }
+        }
+      }
+    },
+    "Точка" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dot"
           }
         }
       }

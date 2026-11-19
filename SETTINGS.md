@@ -135,6 +135,7 @@ printf '{"anthropic": "%s"}' "$ANTHROPIC_API_KEY" > "$f" && chmod 600 "$f"
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `menuBarStyle` | string | `full` | `full` (red icon + timer), `icon` (red icon only), `discreet` (monochrome, no timer, no auto-opening panel, no island). |
+| `menuBarIcon` | string | `dot` | Menu bar icon picture (settings → "Основные"): `dot` (the record dot), `camera` (a camera on a tripod), `monitor` (the app icon's monitor). The record, pause and problem marks are drawn inside it. |
 | `hideFromScreenSharing` | bool | `true` | Hide MeetRec's windows from screen sharing. |
 | `notchIsland` | bool | `true` | Recording island at the notch / under the menu bar. |
 

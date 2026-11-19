@@ -109,7 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
-        // Menu bar style or "hide from screen sharing" changed in the panel.
+        // Menu bar style, icon or "hide from screen sharing" changed in the panel.
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
@@ -171,16 +171,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let colored = recording && style != .discreet
         // On pause: a pause sign instead of the record dot, orange, so it is obvious nothing is written.
         let paused = recording && RecorderModel.shared.isPaused
-        let symbol = paused ? (colored ? "pause.circle.fill" : "pause.circle")
-            : problem ? (colored ? "exclamationmark.triangle.fill" : "exclamationmark.triangle")
-            : (recording ? "record.circle.fill" : "record.circle")
-        let iconKey = "\(symbol) \(colored) \(problem)"
+        let mark: MenuBarIcon.Mark = paused ? .pause : problem ? .problem : recording ? .record : .none
+        // The picture is chosen in settings → "Основные" (dot, camera on a tripod, monitor).
+        let icon = MenuBarIcon.current
+        let iconKey = "\(icon.rawValue) \(mark) \(colored)"
         if iconKey != statusIconKey {
             statusIconKey = iconKey
-            let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "MeetRec")
-            image?.isTemplate = !colored
-            let tint: NSColor = paused ? .systemOrange : problem ? .systemYellow : .systemRed
-            button.image = colored ? image?.withSymbolConfiguration(.init(paletteColors: [tint])) : image
+            button.image = icon.image(mark: mark, colored: colored)
             button.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         }
         if !recording, let countdown = RecordingCountdownTitle.text(RecorderModel.shared.countdown) {

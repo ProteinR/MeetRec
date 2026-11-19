@@ -222,6 +222,13 @@ What MeetRec does instead:
 - Words: Teams = "встреча", browser/Telegram = "звонок"; "Запись сохранена"; "транскрипт" for the
   result, "транскрибация" for the process. Alerts during a recording have no sound; "hide from screen
   sharing" is on by default; the island only shows on a notched main screen.
+- Menu bar icon picture (settings → "Основные", `MenuBarIcon.swift`, setting `menuBarIcon`, since
+  0.17.0): "Точка" (the record dot, SF Symbols, default), "Камера" (a camera on a tripod) or
+  "Монитор" (the app icon's monitor with a small dot), because someone who does not know the dot
+  forgets what it is. Camera and monitor are drawn in code (18 pt, one stroke layer so the joins
+  of the semi-transparent menu bar colour do not show darker); the record dot, pause bars or "!"
+  sit inside the camera's body / on the monitor's screen in red, orange, yellow; idle and the
+  discreet style are template images. The appearance page's menu bar preview shows the chosen one.
 - "Значок в меню": the menu bar look while recording (red icon + timer / red icon only / discreet:
   monochrome icon, filled while recording, no timer, no auto-opening of the panel), and "Прятать
   MeetRec при показе экрана" (`sharingType = .none` on the status item and panel windows; whether a
