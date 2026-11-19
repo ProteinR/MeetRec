@@ -329,6 +329,7 @@ func transcribeCommand(_ options: TranscribeOptions) async throws {
     var speakersSummary: [[String: Any]] = []
     var lines: [(start: Double, text: String)]
     var dropped = 0
+    var sole: String?
     var usedEngine = engine
     if let diarization {
         var (names, scores) = matchSpeakers(diarization.embeddings, loadSpeakers(options.speakers), threshold: options.threshold)
@@ -358,12 +359,12 @@ func transcribeCommand(_ options: TranscribeOptions) async throws {
         }
         names = merged
         if let mine {
-            (lines, dropped) = buildSplitLines(segments, mine.segments, diarization.turns, names, me: me)
+            (lines, dropped, sole) = buildSplitLines(segments, mine.segments, diarization.turns, names, me: me)
             let mineSeconds = chunks!.reduce(0) { $0 + $1.1 - $1.0 }
             speakersSummary.append(["label": "microphone", "name": me, "minutes": rounded(mineSeconds / 60, 1), "best": me, "score": 1.0])
             log("microphone: \(me) (\(Int(mineSeconds.rounded()))s in \(chunks!.count) pieces, \(mine.segments.count) phrase(s), language \(mine.language ?? "-"), \(Int(mine.seconds.rounded()))s)")
         } else {
-            (lines, dropped) = buildLines(segments, diarization.turns, names, me: me, levels: levels)
+            (lines, dropped, sole) = buildLines(segments, diarization.turns, names, me: me, levels: levels)
         }
         for label in stableSorted(speaking.keys.sorted(), by: { speaking[$0]! > speaking[$1]! }) {
             let match = scores[label] ?? Score(name: nil, score: -1)
@@ -392,7 +393,8 @@ func transcribeCommand(_ options: TranscribeOptions) async throws {
         "- Date: \(date.string(from: Date()))",
         "- Engine: \(usedEngine)",
         "- Language: \(language)",
-    ]
+    ] + (sole.map { ["- Speaker: \($0)"] } ?? [])
+    if let sole { log("One speaker (\(sole)): lines without the name") }
     try FileManager.default.createDirectory(at: options.output.deletingLastPathComponent(), withIntermediateDirectories: true)
     try (header.joined(separator: "\n") + "\n\n" + text.joined(separator: "\n\n") + "\n")
         .write(to: options.output, atomically: true, encoding: .utf8)

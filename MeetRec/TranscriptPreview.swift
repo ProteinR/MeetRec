@@ -61,7 +61,8 @@ struct TranscriptPreview: Equatable {
                 continue
             }
             let line = parseLine(trimmed)
-            if line.speaker != nil { words += line.text.split(whereSeparator: \.isWhitespace).count }
+            // Spoken lines have a time; a monologue's have no speaker (it is in the header).
+            if line.time != nil { words += line.text.split(whereSeparator: \.isWhitespace).count }
             spoken.append(line)
         }
         let query = query.trimmingCharacters(in: .whitespaces)
@@ -74,13 +75,15 @@ struct TranscriptPreview: Equatable {
         return TranscriptPreview(lines: Array(spoken.prefix(maxLines)), words: words, engine: engine)
     }
 
-    /// "[00:12:34] Name: text" → time, speaker, text; anything else (markers, mutes) is text.
+    /// "[00:12:34] Name: text" → time, speaker, text; "[00:12:34] text" (one speaker) → time, text; anything
+    /// else (markers, mutes) is text. A name has no punctuation: "Так, значит: …" is text.
     static func parseLine(_ row: String) -> Line {
         guard row.hasPrefix("["), let close = row.firstIndex(of: "]") else { return Line(text: row) }
         let time = String(row[row.index(after: row.startIndex)..<close])
         guard time.allSatisfy({ $0.isNumber || $0 == ":" }) else { return Line(text: row) }
         let rest = row[row.index(after: close)...].trimmingCharacters(in: .whitespaces)
-        if let colon = rest.range(of: ": "), rest.distance(from: rest.startIndex, to: colon.lowerBound) <= 40 {
+        if let colon = rest.range(of: ": "), rest.distance(from: rest.startIndex, to: colon.lowerBound) <= 40,
+           rest[..<colon.lowerBound].rangeOfCharacter(from: CharacterSet(charactersIn: ",.!?…;\"«»")) == nil {
             return Line(time: time, speaker: String(rest[..<colon.lowerBound]), text: String(rest[colon.upperBound...]))
         }
         return Line(time: time, text: rest)

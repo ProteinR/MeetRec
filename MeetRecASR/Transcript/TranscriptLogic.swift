@@ -518,6 +518,7 @@ func withoutMe(_ names: [String: String], me: String) -> [String: String] {
 /// A word with its speaker. `group` tells which recognised phrase it came from.
 struct NamedWord {
     var start: Double
+    var end: Double
     var name: String
     var text: String
     var mine: Bool
@@ -532,7 +533,7 @@ func wordNames(_ segment: Segment, group: Int, label: String?, _ turns: [Turn], 
         let mine = !me.isEmpty && levels.map { wordSpokenIntoMicrophone(word, $0) } == true
         let wordLabel = assignSpeaker(word.start, word.end, turns) ?? label
         let name = mine || wordLabel == nil ? me : names[wordLabel!] ?? wordLabel!
-        return NamedWord(start: word.start, name: name, text: word.text, mine: mine, group: group)
+        return NamedWord(start: word.start, end: word.end, name: name, text: word.text, mine: mine, group: group)
     }
 }
 
@@ -558,10 +559,6 @@ func speakerRuns(_ words: [NamedWord]) -> [Range<Int>] {
 ///   case, same phrase), to them: the next speaker's first word left with the previous one
 ///   ("Julius: …reinfolgen. / Falk: Das / Julius: ist ja praktisch…").
 func smoothShortRuns(_ words: inout [NamedWord], maxWords: Int = 2) {
-    func endsSentence(_ text: String) -> Bool {
-        let t = trimmed(text)
-        return t.hasSuffix(".") || t.hasSuffix("?") || t.hasSuffix("!") || t.hasSuffix("…")
-    }
     func movable(_ run: Range<Int>) -> Bool {
         run.count <= maxWords && !run.contains { words[$0].mine } && !endsSentence(words[run.upperBound - 1].text)
     }
@@ -586,18 +583,56 @@ func smoothShortRuns(_ words: inout [NamedWord], maxWords: Int = 2) {
     }
 }
 
-/// A speaker's words joined into one line until someone else speaks. A line starts with a capital:
-/// a phrase cut by a pause goes on in lower case ("then I have to…").
-func joinLines(_ words: [NamedWord]) -> [(start: Double, text: String)] {
+/// A new line of the same speaker after this pause, or once the line is this long and a sentence
+/// ends: a long monologue as one line gave a 5-minute speech one time, [00:00:00] (2026-11-20).
+let linePause = 5.0
+let lineLongest = 60.0
+/// When only one person speaks, lines follow the phrases more closely: the times are what tells
+/// which moment of the video "this one here" means.
+let monologuePause = 2.0
+let monologueLongest = 20.0
+
+func endsSentence(_ text: String) -> Bool {
+    matches("[.?!…]$", trimmed(text))
+}
+
+/// A speaker's words joined into one line until someone else speaks, they pause for `pause` seconds,
+/// or the line is `longest` seconds long and a sentence ends. A line starts with a capital: a phrase
+/// cut by a pause goes on in lower case ("then I have to…"). Without `named` lines have no name.
+func joinLines(_ words: [NamedWord], pause: Double = linePause, longest: Double = lineLongest,
+               named: Bool = true) -> [(start: Double, text: String)] {
     var lines: [(start: Double, name: String, text: String)] = []
+    var previous: NamedWord?
     for word in words {
-        if let last = lines.last, last.name == word.name {
+        if let last = lines.last, let previous, last.name == word.name, word.start - previous.end <= pause,
+           !(word.start - last.start >= longest && endsSentence(previous.text)) {
             lines[lines.count - 1].text += " " + word.text
         } else {
             lines.append((word.start, word.name, word.text))
         }
+        previous = word
     }
-    return lines.map { ($0.start, "[\(formatTime($0.start))] \($0.name): \(capitalized(collapsed($0.text)))") }
+    return lines.map { line in
+        let text = capitalized(collapsed(line.text))
+        return (line.start, named ? "[\(formatTime(line.start))] \(line.name): \(text)" : "[\(formatTime(line.start))] \(text)")
+    }
+}
+
+/// The one person who speaks in the whole recording, when they have a name ("Speaker 1" stays on
+/// every line so it can still be named in the transcript).
+func soleSpeaker(_ words: [NamedWord]) -> String? {
+    let names = Set(words.map(\.name))
+    guard names.count == 1, let name = names.first, !name.isEmpty, !name.hasPrefix("Speaker ") else { return nil }
+    return name
+}
+
+/// Lines of a conversation, or of a monologue: then without the name (it goes to the header) and
+/// cut closer, at phrases.
+func speakerLines(_ words: [NamedWord]) -> (lines: [(start: Double, text: String)], sole: String?) {
+    if let sole = soleSpeaker(words) {
+        return (joinLines(words, pause: monologuePause, longest: monologueLongest, named: false), sole)
+    }
+    return (joinLines(words), nil)
 }
 
 /// Transcript lines, a speaker's words joined until someone else speaks; with the user's name and
@@ -606,7 +641,7 @@ func joinLines(_ words: [NamedWord]) -> [(start: Double, text: String)] {
 /// Parakeet does not write text into silence, and FluidAudio's turns leave short phrases
 /// ("Let me check.") outside (2026-11-17).
 func buildLines(_ segments: [Segment], _ turns: [Turn], _ names: [String: String], me: String = "",
-                levels: Levels? = nil, near: Double = .infinity) -> (lines: [(start: Double, text: String)], dropped: Int) {
+                levels: Levels? = nil, near: Double = .infinity) -> (lines: [(start: Double, text: String)], dropped: Int, sole: String?) {
     var words: [NamedWord] = [], dropped = 0
     for (index, segment) in segments.enumerated() {
         let label = assignSpeaker(segment.start, segment.end, turns) ?? nearestSpeaker(segment.start, segment.end, turns, within: near)
@@ -617,14 +652,15 @@ func buildLines(_ segments: [Segment], _ turns: [Turn], _ names: [String: String
         words += wordNames(segment, group: index, label: label, turns, names, me: me, levels: levels)
     }
     smoothShortRuns(&words)
-    return (joinLines(words), dropped)
+    let built = speakerLines(words)
+    return (built.lines, dropped, built.sole)
 }
 
 /// Transcript lines when the user's microphone track was transcribed apart (`mine`): the other
 /// side's words get their diarized speakers, the user's words are the user's, and both are put in
 /// order of time. A phrase outside every turn goes to a speaker at most `near` seconds away.
 func buildSplitLines(_ segments: [Segment], _ mine: [Segment], _ turns: [Turn], _ names: [String: String],
-                     me: String, near: Double = .infinity) -> (lines: [(start: Double, text: String)], dropped: Int) {
+                     me: String, near: Double = .infinity) -> (lines: [(start: Double, text: String)], dropped: Int, sole: String?) {
     var words: [NamedWord] = [], dropped = 0
     for (index, segment) in segments.enumerated() {
         guard let label = assignSpeaker(segment.start, segment.end, turns)
@@ -640,7 +676,7 @@ func buildSplitLines(_ segments: [Segment], _ mine: [Segment], _ turns: [Turn], 
     for (index, segment) in mine.enumerated() {
         let group = segments.count + index
         phraseStart[group] = segment.start
-        words += segment.wordList.map { NamedWord(start: $0.start, name: me, text: $0.text, mine: true, group: group) }
+        words += segment.wordList.map { NamedWord(start: $0.start, end: $0.end, name: me, text: $0.text, mine: true, group: group) }
     }
     func key(_ word: NamedWord) -> (Double, Int, Double) {
         if word.mine { return (phraseStart[word.group]!, 0, word.start) }
@@ -652,5 +688,6 @@ func buildSplitLines(_ segments: [Segment], _ mine: [Segment], _ turns: [Turn], 
         return ka != kb ? ka < kb : a.offset < b.offset
     }.map(\.element)
     smoothShortRuns(&words)
-    return (joinLines(words), dropped)
+    let built = speakerLines(words)
+    return (built.lines, dropped, built.sole)
 }

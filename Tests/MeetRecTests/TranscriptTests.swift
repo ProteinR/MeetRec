@@ -6,6 +6,10 @@ final class TranscriptTests: XCTestCase {
     private func w(_ start: Double, _ end: Double, _ text: String) -> Word { Word(start: start, end: end, text: text) }
     private func turn(_ start: Double, _ end: Double, _ speaker: String) -> Turn { Turn(start: start, end: end, speaker: speaker) }
     private func texts(_ lines: [(start: Double, text: String)]) -> [String] { lines.map(\.text) }
+    /// Lines with the speaker's name even when only one person spoke (then it is in the header).
+    private func withNames(_ built: (lines: [(start: Double, text: String)], dropped: Int, sole: String?)) -> [String] {
+        built.lines.map { line in built.sole.map { line.text.replacingOccurrences(of: "] ", with: "] \($0): ", options: [], range: line.text.range(of: "] ")) } ?? line.text }
+    }
     private func marker(_ time: Double, _ note: String? = nil) -> TranscriptMarker { TranscriptMarker(time: time, kind: .note(note)) }
 
     private func folder() throws -> URL {
@@ -109,8 +113,9 @@ final class TranscriptTests: XCTestCase {
             Segment(start: 20, end: 21, text: "Thank you."), // outside every turn: the nearest speaker
         ]
         let turns = [turn(0, 4.5, "S0"), turn(4.5, 7, "S1")]
-        let (lines, dropped) = buildLines(segments, turns, ["S0": "Dima", "S1": "Speaker 1"])
-        XCTAssertEqual(texts(lines), ["[00:00:00] Dima: Hello there", "[00:00:05] Speaker 1: Hi Thank you."])
+        let (lines, dropped, _) = buildLines(segments, turns, ["S0": "Dima", "S1": "Speaker 1"])
+        // "Thank you." 14 s after "hi": a pause that long starts a new line of the same speaker.
+        XCTAssertEqual(texts(lines), ["[00:00:00] Dima: Hello there", "[00:00:05] Speaker 1: Hi", "[00:00:20] Speaker 1: Thank you."])
         XCTAssertEqual(dropped, 0)
     }
 
@@ -141,7 +146,7 @@ final class TranscriptTests: XCTestCase {
         let levels = Levels(microphone: Array(repeating: -25, count: 40) + Array(repeating: -60, count: 40),
                             system: Array(repeating: -80, count: 40) + Array(repeating: -20, count: 40))
         let segments = [Segment(start: 0, end: 2, text: "test"), Segment(start: 2, end: 4, text: "test")]
-        let (lines, _) = buildLines(segments, [turn(0, 4, "A")], ["A": "Speaker 1"], me: "Dima", levels: levels)
+        let (lines, _, _) = buildLines(segments, [turn(0, 4, "A")], ["A": "Speaker 1"], me: "Dima", levels: levels)
         XCTAssertEqual(texts(lines), ["[00:00:00] Dima: Test", "[00:00:02] Speaker 1: Test"])
     }
 
@@ -152,7 +157,7 @@ final class TranscriptTests: XCTestCase {
                             system: Array(repeating: -20, count: 20) + Array(repeating: -70, count: 20) + Array(repeating: -20, count: 20))
         let words = [w(0, 1, " Thanks."), w(1, 2, " Bye."), w(2, 2.5, " Have"), w(2.5, 2.8, " a"), w(2.8, 3, " nice day.")]
         let segments = [Segment(start: 0, end: 3, text: "Thanks. Bye. Have a nice day.", words: words)]
-        let (lines, _) = buildLines(segments, [turn(0, 3, "A")], ["A": "Falk"], me: "Dima", levels: levels)
+        let (lines, _, _) = buildLines(segments, [turn(0, 3, "A")], ["A": "Falk"], me: "Dima", levels: levels)
         XCTAssertEqual(texts(lines), ["[00:00:00] Falk: Thanks.", "[00:00:01] Dima: Bye.", "[00:00:02] Falk: Have a nice day."])
     }
 
@@ -171,7 +176,7 @@ final class TranscriptTests: XCTestCase {
     func testWordsFollowDiarizationTurns() {
         let segments = [Segment(start: 0, end: 1.4, text: "Hi. Hello, Falk.",
                                 words: [w(0, 0.5, " Hi."), w(0.6, 1, " Hello,"), w(1, 1.4, " Falk.")])]
-        let (lines, _) = buildLines(segments, [turn(0, 0.55, "A"), turn(0.55, 1.5, "B")], ["A": "Falk", "B": "Julius"])
+        let (lines, _, _) = buildLines(segments, [turn(0, 0.55, "A"), turn(0.55, 1.5, "B")], ["A": "Falk", "B": "Julius"])
         XCTAssertEqual(texts(lines), ["[00:00:00] Falk: Hi.", "[00:00:00] Julius: Hello, Falk."])
     }
 
@@ -179,7 +184,7 @@ final class TranscriptTests: XCTestCase {
         // Word times are approximate: one word just over a turn edge is not a change of speaker.
         let segments = [Segment(start: 0, end: 1.5, text: "we can go", words: [w(0, 0.5, " we"), w(0.5, 0.9, " can"), w(0.9, 1.5, " go")])]
         let turns = [turn(0, 0.5, "A"), turn(0.5, 0.9, "B"), turn(0.9, 1.5, "A")]
-        XCTAssertEqual(texts(buildLines(segments, turns, ["A": "Falk", "B": "Julius"]).lines), ["[00:00:00] Falk: We can go"])
+        XCTAssertEqual(withNames(buildLines(segments, turns, ["A": "Falk", "B": "Julius"])), ["[00:00:00] Falk: We can go"])
     }
 
     private func numbered(_ items: [String]) -> [Word] {
@@ -191,18 +196,18 @@ final class TranscriptTests: XCTestCase {
         // "ok but are | you finished | in this branch?": the middle went to B by mistake.
         var segments = [Segment(start: 0, end: 7, text: "", words: numbered(["ok", "but", "are", "you", "finished", "in", "branch?"]))]
         var turns = [turn(0, 3, "A"), turn(3, 5, "B"), turn(5, 7, "A")]
-        XCTAssertEqual(texts(buildLines(segments, turns, names).lines), ["[00:00:00] Julius: Ok but are you finished in branch?"])
+        XCTAssertEqual(withNames(buildLines(segments, turns, names)), ["[00:00:00] Julius: Ok but are you finished in branch?"])
         // "Is it done? | Yes. | Good.": a reply of its own stays.
         segments = [Segment(start: 0, end: 5, text: "", words: numbered(["Is", "it", "done?", "Yes.", "Good."]))]
         turns = [turn(0, 3, "A"), turn(3, 4, "B"), turn(4, 5, "A")]
-        XCTAssertEqual(texts(buildLines(segments, turns, names).lines),
+        XCTAssertEqual(withNames(buildLines(segments, turns, names)),
                        ["[00:00:00] Julius: Is it done?", "[00:00:03] Dima: Yes.", "[00:00:04] Julius: Good."])
     }
 
     func testTheNextSpeakersFirstWordGoesToThem() {
         let segments = [Segment(start: 0, end: 5, text: "", words: numbered(["Ja.", "Das", "ist", "ja", "praktisch."]))]
         let turns = [turn(0, 1, "B"), turn(1, 2, "A"), turn(2, 5, "B")]
-        XCTAssertEqual(texts(buildLines(segments, turns, ["A": "Falk", "B": "Julius"]).lines),
+        XCTAssertEqual(withNames(buildLines(segments, turns, ["A": "Falk", "B": "Julius"])),
                        ["[00:00:00] Julius: Ja. Das ist ja praktisch."])
     }
 
@@ -227,7 +232,7 @@ final class TranscriptTests: XCTestCase {
     func testSplitLinesPutBothSidesInTimeOrder() {
         let others = [Segment(start: 0, end: 4, text: "", words: [w(0, 0.5, " So"), w(0.5, 1, " the"), w(1, 1.5, " scanner"), w(3, 4, " works.")])]
         let mine = [Segment(start: 1.6, end: 2.4, text: "In the web?", words: [w(1.6, 1.9, " In"), w(1.9, 2.1, " the"), w(2.1, 2.4, " web?")])]
-        let (lines, dropped) = buildSplitLines(others, mine, [turn(0, 4, "A")], ["A": "Falk"], me: "Dima")
+        let (lines, dropped, _) = buildSplitLines(others, mine, [turn(0, 4, "A")], ["A": "Falk"], me: "Dima")
         XCTAssertEqual(texts(lines), ["[00:00:00] Falk: So the scanner", "[00:00:01] Dima: In the web?", "[00:00:03] Falk: Works."])
         XCTAssertEqual(dropped, 0)
     }
@@ -236,7 +241,7 @@ final class TranscriptTests: XCTestCase {
         let others = [Segment(start: 0, end: 3, text: "", words: [w(0, 0.8, " Thanks."), w(1.3, 1.6, " Bye."), w(2.5, 3, " Bye.")])]
         let mine = [Segment(start: 1, end: 2.2, text: "Have a good day.",
                             words: [w(1, 1.2, " Have"), w(1.2, 1.5, " a"), w(1.5, 1.8, " good"), w(1.8, 2.2, " day.")])]
-        let (lines, _) = buildSplitLines(others, mine, [turn(0, 3, "A")], ["A": "Falk"], me: "Dima")
+        let (lines, _, _) = buildSplitLines(others, mine, [turn(0, 3, "A")], ["A": "Falk"], me: "Dima")
         XCTAssertEqual(texts(lines), ["[00:00:00] Falk: Thanks.", "[00:00:01] Dima: Have a good day.", "[00:00:01] Falk: Bye. Bye."])
     }
 
@@ -328,9 +333,9 @@ final class TranscriptTests: XCTestCase {
         XCTAssertEqual(nearestSpeaker(12, 13, turns), "B")
         let segment = Segment(start: 5.2, end: 5.4, text: "Okay.", words: [w(5.2, 5.4, "Okay.")])
         XCTAssertEqual(buildLines([segment], turns, ["A": "Anna", "B": "Ben"], near: 0).dropped, 1)
-        let (lines, dropped) = buildLines([segment], turns, ["A": "Anna", "B": "Ben"])
+        let (_, dropped, sole) = buildLines([segment], turns, ["A": "Anna", "B": "Ben"])
         XCTAssertEqual(dropped, 0)
-        XCTAssertTrue(lines[0].text.contains("Anna"))
+        XCTAssertEqual(sole, "Anna")
     }
 
     func testWithoutMyNameNothingChanges() {
@@ -364,8 +369,45 @@ final class TranscriptTests: XCTestCase {
     }
 
     func testLinesStartWithACapital() {
-        let lines = joinLines([NamedWord(start: 5, name: "Elena", text: "then I have to", mine: false, group: 0)])
+        let lines = joinLines([NamedWord(start: 5, end: 6, name: "Elena", text: "then I have to", mine: false, group: 0)])
         XCTAssertEqual(lines.map(\.start), [5])
         XCTAssertEqual(lines.map(\.text), ["[00:00:05] Elena: Then I have to"])
+    }
+
+    // MARK: - Line breaks
+
+    private func named(_ start: Double, _ text: String, _ name: String = "Elena") -> NamedWord {
+        NamedWord(start: start, end: start + 0.4, name: name, text: text, mine: false, group: 0)
+    }
+
+    func testLongPauseStartsANewLine() {
+        let lines = joinLines([named(0, "one"), named(1, "two."), named(5.5, "three"), named(12, "four")])
+        XCTAssertEqual(texts(lines), ["[00:00:00] Elena: One two. three", "[00:00:12] Elena: Four"])
+    }
+
+    func testLongLineIsCutAtASentenceEnd() {
+        // Words every second, no pause: past a minute the line goes on until a sentence ends.
+        var words = (0..<70).map { named(Double($0), "word") }
+        words[64].text = "end."
+        let lines = joinLines(words)
+        XCTAssertEqual(lines.map(\.start), [0, 65])
+    }
+
+    func testMonologueHasNoNameAndFollowsThePhrases() {
+        let mine = [
+            Segment(start: 0, end: 3, text: "", words: [w(0, 1, " Отсюда"), w(1, 2, " можно"), w(2, 3, " взять.")]),
+            Segment(start: 4, end: 5, text: "", words: [w(4, 5, " Потом")]),
+            Segment(start: 12, end: 14, text: "", words: [w(12, 13, " вот"), w(13, 14, " этот.")]),
+        ]
+        let (lines, _, sole) = buildSplitLines([], mine, [], [:], me: "Dima")
+        XCTAssertEqual(sole, "Dima")
+        XCTAssertEqual(texts(lines), ["[00:00:00] Отсюда можно взять. Потом", "[00:00:12] Вот этот."])
+    }
+
+    func testOneUnknownSpeakerKeepsTheName() {
+        let segments = [Segment(start: 0, end: 1, text: "hello"), Segment(start: 30, end: 31, text: "again")]
+        let (lines, _, sole) = buildLines(segments, [turn(0, 40, "A")], ["A": "Speaker 1"])
+        XCTAssertNil(sole)
+        XCTAssertEqual(texts(lines), ["[00:00:00] Speaker 1: Hello", "[00:00:30] Speaker 1: Again"])
     }
 }

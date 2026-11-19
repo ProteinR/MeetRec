@@ -29,6 +29,18 @@ final class TranscriptAndRulesTests: XCTestCase {
         XCTAssertTrue(result.hasSuffix("\n"))
     }
 
+    func testRenameKeepsLinesThatWereApart() {
+        let text = "[00:00:00] Dima: hi\n\n[00:00:02] Speaker 1: one\n\n[00:01:30] Speaker 1: two\n"
+        XCTAssertEqual(SpeakerNaming.rename("Speaker 1", to: "Dima", in: text),
+                       "[00:00:00] Dima: hi one\n\n[00:01:30] Dima: two\n")
+    }
+
+    func testRenameTheOneSpeakerInTheHeader() {
+        let text = "# Transcription: x.mov\n- Language: ru\n- Speaker: Dima\n\n[00:00:00] Привет\n"
+        XCTAssertEqual(SpeakerNaming.rename("Dima", to: "Анна", in: text),
+                       "# Transcription: x.mov\n- Language: ru\n- Speaker: Анна\n\n[00:00:00] Привет\n")
+    }
+
     func testRenameSpeakerLeavesOthersAlone() {
         let result = SpeakerNaming.rename("Speaker 3", to: "Falk", in: transcript)
         XCTAssertEqual(result, transcript)

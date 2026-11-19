@@ -216,7 +216,8 @@ What MeetRec does instead:
 - Naming speakers after the fact: "Подписать спикеров…" in a recording's menu lists the diarized
   speakers (`run.json` in its folder: names, scores, turns, voice embeddings), with their first words
   and closest known voice. A name given there adds that speaker's embedding to `speakers.json` (new
-  person or extra sample) and renames them in the transcript, joining neighbouring lines; the meetings
+  person or extra sample) and renames them in the transcript, joining lines that become neighbours
+  of one person (lines of one speaker that were already apart stay apart); the meetings
   copy is updated only if it is still identical to the transcript. The run file follows renames.
 
 - Words: Teams = "встреча", browser/Telegram = "звонок"; "Запись сохранена"; "транскрипт" for the
@@ -525,6 +526,12 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
   If the microphone hears the other side (`echo_ratio` > 25 %: the Mac's speakers, ScreenCaptureKit
   gives the raw microphone) or `--mixed` is passed, the mixed way above is used. The log lists the
   user's phrases (`microphone [hh:mm:ss]: …`).
+  Transcript lines: a speaker's words make one line until someone else speaks, they pause for 5 s,
+  or the line is a minute long and a sentence ends (before 2026-11-20 a 5-minute monologue was one
+  line at [00:00:00], so nobody could tell which moment of the video "this one here" meant). When
+  one named person speaks in the whole recording (a screen walkthrough), lines have no name (the
+  header gets "- Speaker: Dima") and are cut closer: 2 s pause, 20 s. "Speaker N" alone keeps the
+  name on every line so it can still be named.
   Gentle on the Mac: the helper runs at Darwin background priority (`taskpolicy -b`: efficiency
   cores, low GPU/disk priority), recognition and diarization one after the other, each in its own
   process; nothing waits for it.

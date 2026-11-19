@@ -120,8 +120,10 @@ enum SpeakerNaming {
         }
     }
 
-    /// "[00:01:02] Speaker 1: …" → "[00:01:02] Dima: …", then joins neighbouring lines of one speaker,
-    /// as the transcript does when it is written.
+    /// "[00:01:02] Speaker 1: …" → "[00:01:02] Dima: …", then joins lines that became neighbours of one
+    /// speaker (two voices that turn out to be one person). Lines of one speaker that were already
+    /// apart (MeetRecASR cuts at long pauses and long lines) stay apart. A one-speaker transcript has
+    /// the name only in the header ("- Speaker: Dima").
     static func rename(_ oldName: String, to newName: String, in text: String) -> String {
         let prefix = try! NSRegularExpression(pattern: #"^\[\d{2}:\d{2}:\d{2}\] (.+?): "#)
         func parse(_ line: String) -> (speaker: String, nameRange: Range<String.Index>, body: Substring)? {
@@ -132,6 +134,8 @@ enum SpeakerNaming {
         }
         var paragraphs: [String] = []
         var previousSpeaker: String?
+        var previousOriginal: String?
+        let header = try! NSRegularExpression(pattern: #"(?m)^- Speaker: "# + NSRegularExpression.escapedPattern(for: oldName) + #"$"#)
         // The summary ("## Резюме") speaks of "Speaker 2" too: the name is replaced there as a word.
         var inSummary = false
         let word = try! NSRegularExpression(pattern: #"(?<![\p{L}\p{N}])"# + NSRegularExpression.escapedPattern(for: oldName) + #"(?![\p{L}\p{N}])"#)
@@ -145,22 +149,26 @@ enum SpeakerNaming {
                 continue
             }
             guard var parsed = parse(paragraph) else {
-                paragraphs.append(paragraph)
+                paragraphs.append(header.stringByReplacingMatches(in: paragraph, range: NSRange(paragraph.startIndex..., in: paragraph),
+                                                                  withTemplate: NSRegularExpression.escapedTemplate(for: "- Speaker: " + newName)))
                 previousSpeaker = nil
+                previousOriginal = nil
                 continue
             }
+            let original = parsed.speaker
             var line = paragraph
             if parsed.speaker == oldName {
                 line.replaceSubrange(parsed.nameRange, with: newName)
                 guard let reparsed = parse(line) else { paragraphs.append(line); continue }
                 parsed = reparsed
             }
-            if parsed.speaker == previousSpeaker, let last = paragraphs.popLast() {
+            if parsed.speaker == previousSpeaker, original != previousOriginal, let last = paragraphs.popLast() {
                 paragraphs.append(last.trimmingCharacters(in: .newlines) + " " + parsed.body.trimmingCharacters(in: .newlines))
             } else {
                 paragraphs.append(line)
             }
             previousSpeaker = parsed.speaker
+            previousOriginal = original
         }
         let result = paragraphs.joined(separator: "\n\n")
         return text.hasSuffix("\n") && !result.hasSuffix("\n") ? result + "\n" : result

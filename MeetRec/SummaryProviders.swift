@@ -296,7 +296,8 @@ enum SummaryClient {
         You summarize meeting and call transcripts for the person who recorded them.
 
         The transcript is Markdown made by local speech recognition. Lines look like \
-        "[hh:mm:ss] Name: text". "Speaker N" is a person whose name is unknown. The person who \
+        "[hh:mm:ss] Name: text"; when one person speaks the whole time, lines are "[hh:mm:ss] text" and \
+        the header's "- Speaker:" names them. "Speaker N" is a person whose name is unknown. The person who \
         recorded is \(myName.isEmpty ? "the speaker who talks into the microphone" : "\"\(myName)\""). \
         Lines with ⭐ are moments they marked as important during the meeting; lines with 🔇 are \
         times their microphone was muted; ⏸ is a pause in the recording. Recognition makes mistakes: \

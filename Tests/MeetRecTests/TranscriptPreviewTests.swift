@@ -28,6 +28,13 @@ final class TranscriptPreviewTests: XCTestCase {
         XCTAssertEqual(preview.words, 6 + 7 + 6)
     }
 
+    func testMonologueLinesHaveNoSpeaker() {
+        let text = "# Transcription: x.mov\n- Speaker: Dima\n\n[00:00:00] Так, значит: вот этот\n\n[00:00:12] Ещё один\n"
+        let preview = TranscriptPreview.parse(text)
+        XCTAssertEqual(preview.lines, [.init(time: "00:00:00", text: "Так, значит: вот этот"), .init(time: "00:00:12", text: "Ещё один")])
+        XCTAssertEqual(preview.words, 4 + 2)
+    }
+
     func testStartsAtSearchHit() {
         let preview = TranscriptPreview.parse(transcript, query: "RULES")
         XCTAssertEqual(preview.lines.map(\.speaker), ["Мария"])
