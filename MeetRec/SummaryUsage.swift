@@ -1,7 +1,7 @@
 import Foundation
 
 /// What one summary took: model, tokens and money. Kept per recording in `summary.json` in its
-/// folder (`<stem>.summary.json` next to a flat recording), one entry per run ("Сделать резюме
+/// folder (`<stem>.summary.json` next to a flat recording), one entry per run ("Сделать суммаризацию
 /// заново" adds one), and as a line under the summary's heading in the transcript.
 struct SummaryUsage: Codable, Equatable {
     var date: Date
@@ -32,7 +32,7 @@ struct SummaryUsage: Codable, Equatable {
         return provider == SummaryProvider.local.rawValue ? String(localized: "локально, бесплатно") : Self.money(costUSD)
     }
 
-    /// The line under "## Резюме" in the transcript (Markdown quote, skipped by the tip's preview).
+    /// The line under "## Суммаризация" in the transcript (Markdown quote, skipped by the tip's preview).
     var metaLine: String {
         let name = modelName == model ? model : "\(modelName) (\(model))"
         return String(localized: "MeetRec \(appVersion) · \(name) · токены: \(Self.tokens(inputTokens)) на входе, \(Self.tokens(outputTokens)) на выходе · \(costText)")

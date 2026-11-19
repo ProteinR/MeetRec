@@ -195,7 +195,7 @@ enum SummaryClient {
         switch provider {
         case .anthropic:
             let stop = json["stop_reason"] as? String
-            if stop == "refusal" { throw Failure(message: String(localized: "Модель отказалась писать резюме")) }
+            if stop == "refusal" { throw Failure(message: String(localized: "Модель отказалась делать суммаризацию")) }
             let blocks = json["content"] as? [[String: Any]] ?? []
             let text = blocks.filter { $0["type"] as? String == "text" }.compactMap { $0["text"] as? String }.joined()
             let usage = json["usage"] as? [String: Any]

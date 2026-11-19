@@ -136,7 +136,7 @@ enum SpeakerNaming {
         var previousSpeaker: String?
         var previousOriginal: String?
         let header = try! NSRegularExpression(pattern: #"(?m)^- Speaker: "# + NSRegularExpression.escapedPattern(for: oldName) + #"$"#)
-        // The summary ("## Резюме") speaks of "Speaker 2" too: the name is replaced there as a word.
+        // The summary ("## Суммаризация") speaks of "Speaker 2" too: the name is replaced there as a word.
         var inSummary = false
         let word = try! NSRegularExpression(pattern: #"(?<![\p{L}\p{N}])"# + NSRegularExpression.escapedPattern(for: oldName) + #"(?![\p{L}\p{N}])"#)
         for paragraph in text.components(separatedBy: "\n\n") {

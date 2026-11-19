@@ -2,7 +2,7 @@ import Foundation
 
 /// The start of a transcript for a recording's tip: the lines people said, without the file's
 /// header ("# Transcription: …", "- Date: …"). Where the search query is found, the lines start
-/// there. A summary section ("## Резюме", "## Summary": written by `Summarizer` or by hand) comes
+/// there. A summary section ("## Суммаризация", "## Summary": written by `Summarizer` or by hand) comes
 /// first when the file has one.
 struct TranscriptPreview: Equatable {
     struct Line: Equatable {

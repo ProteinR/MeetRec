@@ -16,19 +16,27 @@ final class SummaryTests: XCTestCase {
 
     func testInsertsSummaryUnderHeaderWithTranscriptHeading() {
         let result = SummaryText.inserting("Release on Friday.\n\n### Decisions\n- Ship it", into: transcript,
-                                           heading: "Резюме", transcriptHeading: "Транскрипт")
+                                           heading: "Суммаризация", transcriptHeading: "Транскрипт")
         let lines = result.components(separatedBy: "\n")
         XCTAssertEqual(lines[4], "")
-        XCTAssertEqual(lines[5], "## Резюме")
+        XCTAssertEqual(lines[5], "## Суммаризация")
         XCTAssertTrue(result.contains("### Decisions\n- Ship it\n\n## Транскрипт\n\n[00:00:01] Dima: Hi, let's start."))
         XCTAssertTrue(result.hasPrefix("# Transcription: 2026-11-19 10-00-00 Sync.mov\n- Date:"))
         XCTAssertEqual(SummaryText.summary(of: result), "Release on Friday.\n\n### Decisions\n- Ship it")
     }
 
+    func testRerunReplacesAnOldResumeHeading() {
+        let old = SummaryText.inserting("Old.", into: transcript, heading: "Резюме", transcriptHeading: "Транскрипт")
+        let new = SummaryText.inserting("New.", into: old, heading: "Суммаризация", transcriptHeading: "Транскрипт")
+        XCTAssertFalse(new.contains("## Резюме"))
+        XCTAssertFalse(new.contains("Old."))
+        XCTAssertEqual(SummaryText.summary(of: new), "New.")
+    }
+
     func testReplacingKeepsOneSummaryAndOneTranscriptHeading() {
-        let first = SummaryText.inserting("Old.", into: transcript, heading: "Резюме", transcriptHeading: "Транскрипт")
-        let second = SummaryText.inserting("New.", into: first, heading: "Резюме", transcriptHeading: "Транскрипт")
-        XCTAssertEqual(second.components(separatedBy: "## Резюме").count, 2)
+        let first = SummaryText.inserting("Old.", into: transcript, heading: "Суммаризация", transcriptHeading: "Транскрипт")
+        let second = SummaryText.inserting("New.", into: first, heading: "Суммаризация", transcriptHeading: "Транскрипт")
+        XCTAssertEqual(second.components(separatedBy: "## Суммаризация").count, 2)
         XCTAssertEqual(second.components(separatedBy: "## Транскрипт").count, 2)
         XCTAssertFalse(second.contains("Old."))
         XCTAssertEqual(SummaryText.summary(of: second), "New.")
@@ -50,7 +58,7 @@ final class SummaryTests: XCTestCase {
 
     func testSpeakerRenameReachesSummary() {
         let text = SummaryText.inserting("- **Speaker 2**: ships on Friday; Speaker 21 does not.", into: transcript,
-                                         heading: "Резюме", transcriptHeading: "Транскрипт")
+                                         heading: "Суммаризация", transcriptHeading: "Транскрипт")
         let renamed = SpeakerNaming.rename("Speaker 2", to: "Anna", in: text)
         XCTAssertTrue(renamed.contains("- **Anna**: ships on Friday; Speaker 21 does not."))
         XCTAssertTrue(renamed.contains("[00:00:05] Anna: Sure"))
@@ -119,13 +127,13 @@ final class SummaryTests: XCTestCase {
 
         let usage = SummaryUsage(date: Date(), appVersion: "0.16.0", provider: "anthropic", model: "claude-opus-5-5",
                                  modelName: "Claude Opus 5.5", inputTokens: 14230, outputTokens: 812, costUSD: 0.07316)
-        let text = SummaryText.inserting("Short.", into: transcript, heading: "Резюме", transcriptHeading: "Транскрипт", meta: usage.metaLine)
-        XCTAssertTrue(text.contains("## Резюме\n\n> MeetRec 0.16.0 · Claude Opus 5.5 (claude-opus-5-5) · "))
+        let text = SummaryText.inserting("Short.", into: transcript, heading: "Суммаризация", transcriptHeading: "Транскрипт", meta: usage.metaLine)
+        XCTAssertTrue(text.contains("## Суммаризация\n\n> MeetRec 0.16.0 · Claude Opus 5.5 (claude-opus-5-5) · "))
         XCTAssertTrue(text.contains("$0.073\n\nShort.\n\n## Транскрипт"))
         XCTAssertEqual(TranscriptPreview.parse(text).lines.map(\.text), ["Short."])
         XCTAssertEqual(TranscriptPreview.parse(text).engine, "Parakeet Ultra")
         // A rerun replaces the meta line with the summary.
-        let again = SummaryText.inserting("Again.", into: text, heading: "Резюме", transcriptHeading: "Транскрипт", meta: "x")
+        let again = SummaryText.inserting("Again.", into: text, heading: "Суммаризация", transcriptHeading: "Транскрипт", meta: "x")
         XCTAssertFalse(again.contains("MeetRec 0.16.0"))
     }
 

@@ -99,7 +99,7 @@ are never copied. Known voices live in `~/Library/Application Support/MeetRec/sp
 
 ## Meeting summary
 
-A summary written by a language model goes into the transcript as `## Summary` / `## Резюме` under
+A summary written by a language model goes into the transcript as `## Summary` / `## Суммаризация` under
 its header (then `## Transcript` before the spoken lines). Cloud providers get the transcript with
 your own key; a local OpenAI-compatible server (Ollama, LM Studio) keeps everything on the Mac.
 

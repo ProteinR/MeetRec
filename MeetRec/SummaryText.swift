@@ -8,7 +8,7 @@ import Foundation
 ///     # Transcription: …
 ///     - Date: …
 ///
-///     ## Резюме
+///     ## Суммаризация
 ///
 ///     <summary>
 ///
@@ -17,11 +17,11 @@ import Foundation
 ///     [00:00:01] Dima: …
 enum SummaryText {
     /// Titles that make a level-2 heading the summary (also written by hand or by other tools).
-    static let summaryTitles = ["резюме", "summary", "meeting summary", "краткое содержание", "итоги"]
+    static let summaryTitles = ["суммаризация", "резюме", "summary", "meeting summary", "краткое содержание", "итоги"]
     /// Titles of the heading put before the spoken lines when a summary is added.
     static let transcriptTitles = ["транскрипт", "transcript", "transcription"]
 
-    /// The title of a level-2 heading ("## Резюме" → "резюме"); nil for any other line, "###" included.
+    /// The title of a level-2 heading ("## Суммаризация" → "суммаризация"); nil for any other line, "###" included.
     static func level2Title(_ line: String) -> String? {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix("## ") else { return nil }
@@ -48,7 +48,7 @@ enum SummaryText {
         return kept.joined(separator: "\n")
     }
 
-    /// The summary only ("## Резюме" up to the next level-2 heading), without its heading.
+    /// The summary only ("## Суммаризация" up to the next level-2 heading), without its heading.
     static func summary(of text: String) -> String? {
         var lines: [String] = []
         var inSummary = false
@@ -105,7 +105,7 @@ enum SummaryText {
             lines.removeFirst()
             if lines.last?.trimmingCharacters(in: .whitespaces) == "```" { lines.removeLast() }
         }
-        // "# Summary" / "## Резюме" at the top would end the section early or repeat its heading.
+        // "# Summary" / "## Суммаризация" at the top would end the section early or repeat its heading.
         while let first = lines.first, first.hasPrefix("# ") || level2Title(first) != nil
                 || first.trimmingCharacters(in: .whitespaces).isEmpty {
             lines.removeFirst()

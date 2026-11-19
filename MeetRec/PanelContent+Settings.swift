@@ -197,7 +197,7 @@ extension ContentView {
             var parts = [transcriber.transcribeAfterRecording ? String(localized: "После записи: вкл") : String(localized: "После записи: выкл")]
             if transcriber.diarization { parts.append(String(localized: "по ролям")) }
             if Summarizer.shared.summarizeAfterTranscription && Summarizer.shared.isConfigured {
-                parts.append(String(localized: "резюме: \(Summarizer.shared.provider.title)"))
+                parts.append(String(localized: "суммаризация: \(Summarizer.shared.provider.title)"))
             }
             return parts.joined(separator: " · ")
         }

@@ -85,7 +85,7 @@ What MeetRec does instead:
   under the row. The transcript badge (bottom left, a larger hit area around it) gets a blue outline
   on hover and turns the tip into the transcript at the preview's size (`TranscriptPreview.swift`:
   no file header, grey time, bold speaker, the lines that do not fit fade out; while searching it
-  starts at the hit, marked; a "## Резюме" / "## Summary" section is shown instead when the file has
+  starts at the hit, marked; a "## Суммаризация" / "## Summary" section is shown instead when the file has
   one, for a future summary); a click on it opens the `.md` in the default app. While transcribing,
   the badge's tip gives the percent. Each tab's count is grey in the tab bar ("Записи 236",
   "12 из 236" while searching); the tab not shown gets its count from a quick listing.
@@ -188,9 +188,10 @@ What MeetRec does instead:
 
 - Meeting summary (since 0.16.0, `Summarizer.swift`, `SummaryProviders.swift`, `SummaryText.swift`;
   settings at the bottom of "Транскрибация"): a language model writes a short summary (paragraph,
-  key points, decisions, action items, open questions) into the transcript as "## Резюме" /
+  key points, decisions, action items, open questions) into the transcript as "## Суммаризация" /
   "## Summary" under its header, with "## Транскрипт" / "## Transcript" before the spoken lines; a
-  rerun replaces it. Providers: Anthropic (Messages API, default `claude-opus-5-5`, server-side
+  rerun replaces it (also an older "## Резюме": the Russian word was changed to "суммаризация" on
+  2026-11-20, since "резюме" reads as a CV). Providers: Anthropic (Messages API, default `claude-opus-5-5`, server-side
   refusal fallbacks), OpenAI, OpenRouter (default `openrouter/auto`) and a local OpenAI-compatible
   server (Ollama `http://localhost:11434/v1`, LM Studio); the model is chosen from a drop-down
   filled from the provider's `/models` (readable names from Anthropic and OpenRouter; loaded when
@@ -200,14 +201,14 @@ What MeetRec does instead:
   want password prompts, and an ad-hoc build from source is a new app to the keychain after every
   rebuild, so macOS would ask for the login password to read the key. "Сразу после
   транскрибации" (off by default) summarises transcripts of 40+ words before the copy rules copy
-  them; the next transcription does not wait. Any recording: "Сделать резюме" / "Сделать резюме
+  them; the next transcription does not wait. Any recording: "Сделать суммаризацию" / "Сделать суммаризацию
   заново" in its menu (before set-up it opens the settings). Failures of the automatic run are a
-  notification; the tip says "резюме не написано: …". Language: as in the meeting (default) or
+  notification; the tip says "суммаризация не сделана: …". Language: as in the meeting (default) or
   MeetRec's. Speaker naming also renames "Speaker N" inside the summary. The tip shows the summary
   instead of the first lines (`TranscriptPreview`). Usage (`SummaryUsage.swift`): every run's model,
   tokens and price go to the recording's `summary.json` (a companion: renamed, migrated and trashed
-  with it), to a "> MeetRec 0.16.0 · model · tokens · price" line under "## Резюме" (the tip skips
-  it), to the recording's tip ("Резюме: Claude Opus 5.5 · токены: … · $0.073"; the transcript
+  with it), to a "> MeetRec 0.16.0 · model · tokens · price" line under "## Суммаризация" (the tip skips
+  it), to the recording's tip ("Суммаризация: Claude Opus 5.5 · токены: … · $0.073"; the transcript
   badge's tip also names the transcription engine from the header) and to a running total in the
   settings ("Потрачено: …", "Сбросить"). Prices: OpenRouter reports the cost (`usage.include`),
   Anthropic's list prices are in `SummaryPricing.anthropic` (update it with new models), OpenAI's

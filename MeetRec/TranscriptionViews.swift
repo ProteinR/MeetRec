@@ -180,7 +180,7 @@ struct CopyRulesEditor: View {
     }
 }
 
-/// "Резюме встречи": provider, API key (kept in a file only this user reads), model, language, after transcription.
+/// "Суммаризация встречи": provider, API key (kept in a file only this user reads), model, language, after transcription.
 struct SummarySettings: View {
     @EnvironmentObject private var summarizer: Summarizer
     @State private var keyDraft = ""
@@ -189,14 +189,14 @@ struct SummarySettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Резюме встречи").font(.callout.weight(.medium))
+            Text("Суммаризация встречи").font(.callout.weight(.medium))
             Picker("Сервис", selection: Binding(get: { summarizer.provider }, set: { summarizer.provider = $0; keyDraft = "" })) {
                 ForEach(SummaryProvider.allCases) { Text($0.title).tag($0) }
             }
             .fixedSize()
             if provider.needsKey { key } else { server }
             modelRow
-            Picker("Язык резюме", selection: $summarizer.language) {
+            Picker("Язык суммаризации", selection: $summarizer.language) {
                 Text("Как во встрече").tag("meeting")
                 Text("Язык MeetRec").tag("app")
             }
@@ -204,10 +204,10 @@ struct SummarySettings: View {
             spent
             Toggle("Сразу после транскрибации", isOn: $summarizer.summarizeAfterTranscription)
                 .disabled(!summarizer.isConfigured)
-                .help("Писать резюме каждой записи, как только готов её транскрипт")
+                .help("Делать суммаризацию каждой записи, как только готов её транскрипт")
             Text(provider.needsKey
-                 ? String(localized: "Транскрипт отправляется в \(provider.title) по вашему ключу; видео и звук остаются на Mac. Резюме встаёт в начало транскрипта. Для любой записи — «Сделать резюме» в её меню.")
-                 : String(localized: "Ничего не уходит с Mac: модель работает на этом компьютере (Ollama, LM Studio). Резюме встаёт в начало транскрипта. Для любой записи — «Сделать резюме» в её меню."))
+                 ? String(localized: "Транскрипт отправляется в \(provider.title) по вашему ключу; видео и звук остаются на Mac. Суммаризация встаёт в начало транскрипта. Для любой записи — «Сделать суммаризацию» в её меню.")
+                 : String(localized: "Ничего не уходит с Mac: модель работает на этом компьютере (Ollama, LM Studio). Суммаризация встаёт в начало транскрипта. Для любой записи — «Сделать суммаризацию» в её меню."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -220,7 +220,7 @@ struct SummarySettings: View {
         if summarizer.summaryRuns > 0 {
             HStack(spacing: 6) {
                 Image(systemName: "dollarsign.circle").foregroundStyle(.secondary)
-                Text(String(localized: "Потрачено: \(SummaryUsage.money(summarizer.spentUSD)) · токены: \(SummaryUsage.tokens(summarizer.spentTokens)) · резюме: \(summarizer.summaryRuns)"))
+                Text(String(localized: "Потрачено: \(SummaryUsage.money(summarizer.spentUSD)) · токены: \(SummaryUsage.tokens(summarizer.spentTokens)) · суммаризаций: \(summarizer.summaryRuns)"))
                     .font(.callout)
                 if summarizer.unpricedRuns > 0 {
                     Text(String(localized: "(без цены: \(summarizer.unpricedRuns))"))

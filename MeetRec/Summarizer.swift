@@ -3,7 +3,7 @@ import Foundation
 import SwiftUI
 
 /// Meeting summaries by a language model: after a transcript is written (if turned on) or from a
-/// recording's menu. The summary goes into the transcript itself as "## Резюме" under its header
+/// recording's menu. The summary goes into the transcript itself as "## Суммаризация" under its header
 /// (`SummaryText`). The transcript is sent to the chosen provider with the user's own key; with a
 /// local model nothing leaves the Mac.
 @MainActor
@@ -148,7 +148,7 @@ final class Summarizer: ObservableObject {
         defer { running.remove(key) }
         let title = recording.deletingPathExtension().lastPathComponent
         let modelName = (modelCache[provider] ?? []).first { $0.id == model }?.name ?? model
-        RecorderModel.shared.showToast(Toast(kind: .summary, title: String(localized: "Пишу резюме…"),
+        RecorderModel.shared.showToast(Toast(kind: .summary, title: String(localized: "Делаю суммаризацию…"),
                                              detail: String(localized: "\(title) · \(modelName), обычно до минуты")))
 
         let body = SummaryText.removingSummary(original)
@@ -166,17 +166,17 @@ final class Summarizer: ObservableObject {
 
             // The file may have changed meanwhile (speakers named): insert into what is there now.
             guard let current = try? String(contentsOf: transcript, encoding: .utf8) else {
-                throw SummaryClient.Failure(message: String(localized: "Транскрипт пропал, пока писалось резюме"))
+                throw SummaryClient.Failure(message: String(localized: "Транскрипт пропал, пока делалась суммаризация"))
             }
             let usage = await usage(of: answer, provider: provider, requested: model)
             let russian = (Bundle.main.preferredLocalizations.first ?? "ru") == "ru"
             let updated = SummaryText.inserting(summary, into: current,
-                                                heading: russian ? "Резюме" : "Summary",
+                                                heading: russian ? "Суммаризация" : "Summary",
                                                 transcriptHeading: russian ? "Транскрипт" : "Transcript",
                                                 meta: usage.metaLine)
             try updated.write(to: transcript, atomically: true, encoding: .utf8)
             record(usage, for: recording)
-            RecorderModel.shared.showToast(Toast(kind: .summary, title: String(localized: "Резюме готово"),
+            RecorderModel.shared.showToast(Toast(kind: .summary, title: String(localized: "Суммаризация готова"),
                                                  detail: "\(title) · \(usage.shortText)", file: transcript))
             Log.info("Summary written to \(transcript.path) in \(Int(Date().timeIntervalSince(started)))s: \(usage.model), \(answer.usage), \(usage.costUSD.map(SummaryUsage.money) ?? "price unknown")", "summary")
             Transcriber.shared.transcriptChanged()
@@ -235,10 +235,10 @@ final class Summarizer: ObservableObject {
         Log.error("Summary failed for \(recording.lastPathComponent): \(message)", "summary")
         if !notify {
             // Asked for from the menu: the answer comes where the user is looking.
-            RecorderModel.shared.showToast(Toast(kind: .problem, title: String(localized: "Резюме не написано"), detail: message))
+            RecorderModel.shared.showToast(Toast(kind: .problem, title: String(localized: "Суммаризация не сделана"), detail: message))
         } else {
-            Notifier.shared.send(id: "meetrec-summary-failed", title: String(localized: "Резюме не написано"),
-                                 body: String(localized: "\(recording.deletingPathExtension().lastPathComponent): \(message). Транскрипт готов, резюме можно сделать из меню записи."))
+            Notifier.shared.send(id: "meetrec-summary-failed", title: String(localized: "Суммаризация не сделана"),
+                                 body: String(localized: "\(recording.deletingPathExtension().lastPathComponent): \(message). Транскрипт готов, суммаризацию можно сделать из меню записи."))
         }
     }
 

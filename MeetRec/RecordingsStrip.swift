@@ -347,7 +347,7 @@ struct RecordingTile: View {
             TileBadge { Image(systemName: "clock") }
         } else if summarizer.running.contains(item.url.path) {
             // No animation: it would redraw the whole card every frame.
-            TileBadge { Label("резюме…", systemImage: "sparkles").labelStyle(.titleAndIcon) }
+            TileBadge { Label("суммаризация…", systemImage: "sparkles").labelStyle(.titleAndIcon) }
         } else if Transcriber.existingTranscript(for: item.url) != nil {
             TileBadge { Image(systemName: "doc.text") }
         } else if transcriber.failures[item.url.path] != nil {
@@ -397,15 +397,15 @@ struct RecordingTile: View {
             .disabled(isBusy)
     }
 
-    /// "Сделать резюме" (or again); before a provider is set up it opens that part of the settings.
+    /// "Сделать суммаризацию" (or again); before a provider is set up it opens that part of the settings.
     @ViewBuilder
     private var summaryItem: some View {
         if summarizer.running.contains(item.url.path) {
-            Button("Пишу резюме…") {}.disabled(true)
+            Button("Делаю суммаризацию…") {}.disabled(true)
         } else if !summarizer.isConfigured {
-            Button("Сделать резюме… (настроить ИИ)") { model.requestSettings(.transcription) }
+            Button("Сделать суммаризацию… (настроить ИИ)") { model.requestSettings(.transcription) }
         } else {
-            Button(Summarizer.hasSummary(item.url) ? String(localized: "Сделать резюме заново") : String(localized: "Сделать резюме")) {
+            Button(Summarizer.hasSummary(item.url) ? String(localized: "Сделать суммаризацию заново") : String(localized: "Сделать суммаризацию")) {
                 Task { await summarizer.summarize(item.url) }
             }
             .disabled(isBusy)
@@ -509,7 +509,7 @@ struct RecordingTile: View {
         lines.append(facts.joined(separator: " · "))
         lines.append(transcriptState)
         if let last = summaryRuns.last {
-            var line = String(localized: "Резюме: \(last.shortText)")
+            var line = String(localized: "Суммаризация: \(last.shortText)")
             if summaryRuns.count > 1 {
                 let total = summaryRuns.compactMap(\.costUSD).reduce(0, +)
                 line += " " + String(localized: "(запусков: \(summaryRuns.count), всего \(SummaryUsage.money(total)))")
@@ -524,7 +524,7 @@ struct RecordingTile: View {
             var facts = [words]
             if let engine = transcript.engine { facts.append(engine) }
             if transcript.isSummary, let last = summaryRuns.last { facts.append(last.shortText) }
-            return HoverTipContent(title: transcript.isSummary ? String(localized: "Резюме") : String(localized: "Транскрипт"),
+            return HoverTipContent(title: transcript.isSummary ? String(localized: "Суммаризация") : String(localized: "Транскрипт"),
                                    lines: [], hint: (facts + [String(localized: "клик — открыть")]).joined(separator: " · "),
                                    transcript: transcript, highlight: query.isEmpty ? nil : query)
         }
@@ -543,9 +543,9 @@ struct RecordingTile: View {
             return transcriber.progress.map { String(localized: "Транскрибируется: \(Int($0 * 100))%") } ?? String(localized: "Транскрибируется")
         }
         if transcriber.queue.contains(item.url) { return String(localized: "В очереди на транскрибацию") }
-        if summarizer.running.contains(item.url.path) { return String(localized: "Транскрипт готов, пишу резюме…") }
+        if summarizer.running.contains(item.url.path) { return String(localized: "Транскрипт готов, делаю суммаризацию…") }
         if Transcriber.existingTranscript(for: item.url) != nil {
-            if let failure = summarizer.failures[item.url.path] { return String(localized: "Транскрипт готов; резюме не написано: \(failure)") }
+            if let failure = summarizer.failures[item.url.path] { return String(localized: "Транскрипт готов; суммаризация не сделана: \(failure)") }
             return String(localized: "Транскрипт готов")
         }
         if let failure = transcriber.failures[item.url.path] { return String(localized: "Ошибка транскрибации: \(failure)") }
