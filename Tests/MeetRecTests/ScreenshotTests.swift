@@ -132,9 +132,9 @@ final class ScreenshotTests: XCTestCase {
             try FileManager.default.setAttributes([.creationDate: Date(timeIntervalSince1970: Double(minute) * 60)], ofItemAtPath: url.path)
         }
         FileManager.default.createFile(atPath: folder.appendingPathComponent("notes.txt").path, contents: Data())
-        let list = ScreenshotFiles.list(in: folder)
+        let list = ScreenshotFiles.list(in: folder, limit: 5)
         XCTAssertEqual(list.total, 7)
-        XCTAssertEqual(list.items.count, ScreenshotFiles.panelLimit)
+        XCTAssertEqual(list.items.count, 5)
         XCTAssertEqual(list.items.first?.date, Date(timeIntervalSince1970: 360))
     }
 

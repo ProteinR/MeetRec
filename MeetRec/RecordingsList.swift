@@ -17,6 +17,13 @@ enum RecordingsStore {
     /// The newest recordings in the output folder (`<stem>/<stem>.mov` and flat `.mov`/`.mp4`); all of
     /// them when `limit` is nil.
     static func load(from folder: URL, limit: Int? = RecordingsStore.limit) -> [RecordingItem] {
+        page(from: folder, limit: limit).items
+    }
+
+    /// The newest `limit` recordings (all when nil), how many there are in all and how many of
+    /// them have a transcript. Only the returned ones read their markers, so a folder with hundreds
+    /// of recordings lists quickly.
+    static func page(from folder: URL, limit: Int?) -> (items: [RecordingItem], total: Int, transcribed: Int) {
         let keys: [URLResourceKey] = [.creationDateKey, .contentModificationDateKey, .fileSizeKey, .isDirectoryKey]
         let entries = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: keys,
                                                                      options: [.skipsHiddenFiles])) ?? []
@@ -29,13 +36,19 @@ enum RecordingsStore {
         }
         let items = files
             .filter(isVideo)
-            .compactMap { url -> RecordingItem? in
+            .map { url -> RecordingItem in
                 let values = try? url.resourceValues(forKeys: Set(keys))
                 let date = values?.creationDate ?? values?.contentModificationDate ?? .distantPast
-                return RecordingItem(url: url, date: date, size: Int64(values?.fileSize ?? 0), markers: MarkerFile.load(for: url))
+                return RecordingItem(url: url, date: date, size: Int64(values?.fileSize ?? 0))
             }
             .sorted { $0.date > $1.date }
-        return limit.map { Array(items.prefix($0)) } ?? items
+        let transcribed = items.filter { Transcriber.existingTranscript(for: $0.url) != nil }.count
+        let shown = (limit.map { Array(items.prefix($0)) } ?? items).map { item -> RecordingItem in
+            var item = item
+            item.markers = MarkerFile.load(for: item.url)
+            return item
+        }
+        return (shown, items.count, transcribed)
     }
 
     /// Recordings whose name or transcripts contain `query` (case-insensitive), newest first.
@@ -66,353 +79,6 @@ enum RecordingsStore {
             line = "…" + line[line.index(offset, offsetBy: -30)...]
         }
         return line
-    }
-}
-
-/// Recent recordings with their transcription state: done (opens the transcript), progress while
-/// running, queued, failed (retry), or a button to transcribe. A collapsible card; the summary line
-/// shows the count, how many are transcribed and a running transcription's progress. The search field
-/// looks through file names and the text of all transcripts.
-struct RecordingsSection: View {
-    @Binding var isExpanded: Bool
-    @EnvironmentObject private var model: RecorderModel
-    @EnvironmentObject private var transcriber: Transcriber
-    @State private var items: [RecordingItem] = []
-    @State private var query = ""
-    @State private var searchTask: Task<Void, Never>?
-
-    var body: some View {
-        CollapsibleSection(title: String(localized: "Записи"), icon: "film.stack", summary: summary, isExpanded: $isExpanded) {
-            VStack(spacing: 6) {
-                HStack(spacing: 8) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                        TextField("Поиск по названиям и транскриптам", text: $query)
-                            .textFieldStyle(.plain)
-                        if !query.isEmpty {
-                            Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
-                                .buttonStyle(.borderless)
-                        }
-                    }
-                    .padding(.horizontal, 6).padding(.vertical, 4)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
-                    Button { model.openFolder() } label: {
-                        Image(systemName: "folder")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Открыть папку «\(model.folderURL.lastPathComponent)» в Finder")
-                }
-
-                if items.isEmpty {
-                    Text(query.isEmpty ? String(localized: "Пока нет записей в папке «\(model.folderURL.lastPathComponent)»") : String(localized: "Ничего не найдено"))
-                        .font(.caption).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 2) {
-                            ForEach(items) { item in
-                                RecordingRow(item: item, onChange: reload)
-                            }
-                        }
-                    }
-                    .frame(height: min(CGFloat(items.count) * 42, 230))
-                }
-            }
-        }
-        .onAppear(perform: reload)
-        // Files may have been renamed, moved or deleted in Finder since the list was read.
-        .onChange(of: model.panelVisible) { if model.panelVisible { reload() } }
-        .onChange(of: isExpanded) { if isExpanded { reload() } }
-        .onChange(of: model.lastFile) { reload() }
-        .onChange(of: model.folderPath) { reload() }
-        .onChange(of: transcriber.transcriptsVersion) { reload() }
-        .onChange(of: query) { reload() }
-    }
-
-    private var summary: String {
-        guard !items.isEmpty || !query.isEmpty else { return String(localized: "Пока пусто") }
-        if let running = transcriber.runningFile, items.contains(where: { $0.url == running }) {
-            let percent = transcriber.progress.map { " \(Int($0 * 100))%" } ?? ""
-            return String(localized: "Транскрибируется\(percent) · всего \(countText)")
-        }
-        if !query.isEmpty { return String(localized: "Найдено: \(items.count)") }
-        let transcribed = items.filter { Transcriber.existingTranscript(for: $0.url) != nil }.count
-        return String(localized: "\(countText) · с текстом: \(transcribed)")
-    }
-
-    private var countText: String {
-        "\(items.count)\(items.count == RecordingsStore.limit ? "+" : "")"
-    }
-
-    private func reload() {
-        let text = query.trimmingCharacters(in: .whitespaces)
-        searchTask?.cancel()
-        guard !text.isEmpty else {
-            items = RecordingsStore.load(from: model.folderURL)
-            return
-        }
-        let folder = model.folderURL
-        // Reading every transcript takes a moment with many recordings: debounce and search off the main thread.
-        searchTask = Task {
-            try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled else { return }
-            let found = await Task.detached(priority: .userInitiated) { RecordingsStore.search(text, in: folder) }.value
-            guard !Task.isCancelled else { return }
-            items = found
-        }
-    }
-}
-
-struct RecordingRow: View {
-    let item: RecordingItem
-    /// Called after the file was renamed or moved to the Trash.
-    let onChange: () -> Void
-    @EnvironmentObject private var model: RecorderModel
-    @EnvironmentObject private var transcriber: Transcriber
-    @State private var hovering = false
-    @State private var renaming = false
-    @State private var newTitle = ""
-    @State private var error: String?
-    @State private var namingSpeakers = false
-    @State private var showingMarkers = false
-    @State private var addingChapters = false
-    @FocusState private var titleFocused: Bool
-
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        // The app's own language (Russian or English), not the system region.
-        formatter.locale = Locale(identifier: Bundle.main.preferredLocalizations.first ?? "ru")
-        formatter.dateFormat = "d MMM, HH:mm"
-        return formatter
-    }()
-
-    var body: some View {
-        VStack(spacing: 4) {
-            row
-            if showingMarkers {
-                markersList
-            }
-            if namingSpeakers {
-                SpeakersEditor(recording: item.url) {
-                    namingSpeakers = false
-                    onChange()
-                }
-            }
-        }
-    }
-
-    private var row: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "film")
-                .foregroundStyle(.secondary)
-                .frame(width: 16)
-            VStack(alignment: .leading, spacing: 1) {
-                if renaming {
-                    TextField("Название", text: $newTitle)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.callout)
-                        .focused($titleFocused)
-                        .onSubmit(commitRename)
-                        .onExitCommand { renaming = false }
-                } else {
-                    Text(title).font(.callout).lineLimit(1).truncationMode(.middle)
-                }
-                Text(error ?? subtitle)
-                    .font(.caption2)
-                    .foregroundStyle(error == nil ? Color.secondary : Color.red)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            Spacer(minLength: 4)
-            if !renaming, !item.markers.isEmpty {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { showingMarkers.toggle() }
-                } label: {
-                    Text(markerCountText).font(.caption).monospacedDigit()
-                }
-                .buttonStyle(.borderless)
-                .help("Отметки: открыть видео на нужном моменте")
-            }
-            if !renaming { status }
-        }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 6)
-        .background(RoundedRectangle(cornerRadius: 6).fill(hovering ? Color.primary.opacity(0.07) : .clear))
-        .contentShape(Rectangle())
-        .onHover { hovering = $0 }
-        .onTapGesture { if !renaming { NSWorkspace.shared.open(item.url) } }
-        .help("Открыть видео")
-        .contextMenu {
-            Button("Открыть видео") { NSWorkspace.shared.open(item.url) }
-            Button("Показать в Finder") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
-            if let transcript = Transcriber.existingTranscript(for: item.url) {
-                Divider()
-                Button("Просмотреть транскрипт") { QuickLookPresenter.shared.preview(transcript) }
-                Button("Открыть транскрипт в редакторе") { NSWorkspace.shared.open(transcript) }
-                Button("Подписать спикеров…") { namingSpeakers = true }
-                    .disabled(!SpeakerNaming.hasSpeakers(item.url) || isBusy)
-                Button("Транскрибировать заново") { transcriber.enqueue(item.url) }
-                    .disabled(transcriber.modelsState != .ready || isBusy)
-            } else {
-                Button("Транскрибировать") { transcriber.enqueue(item.url) }
-                    .disabled(transcriber.modelsState != .ready || isBusy)
-            }
-            if transcriber.runningFile == item.url {
-                Button("Остановить транскрибацию") { transcriber.cancelCurrent() }
-            }
-            if !item.markers.isEmpty {
-                Divider()
-                Button(addingChapters ? String(localized: "Добавляю главы…") : String(localized: "Добавить отметки в видео как главы")) { addChapters() }
-                    .disabled(addingChapters || isBusy)
-            }
-            Divider()
-            Button("Переименовать…", action: startRename)
-                .disabled(isLocked)
-            Button("Удалить", action: moveToTrash)
-                .help("В Корзину вместе с транскриптом и отметками; оттуда можно вернуть")
-                .disabled(isLocked)
-        }
-    }
-
-    @ViewBuilder
-    private var status: some View {
-        if transcriber.runningFile == item.url {
-            HStack(spacing: 4) {
-                if let progress = transcriber.progress {
-                    Text("\(Int(progress * 100))%").font(.caption).monospacedDigit().foregroundStyle(.secondary)
-                    ProgressView(value: progress).progressViewStyle(.circular).controlSize(.small)
-                } else {
-                    ProgressView().controlSize(.small)
-                }
-            }
-            .help("Транскрибируется")
-        } else if transcriber.queue.contains(item.url) {
-            Image(systemName: "clock").foregroundStyle(.secondary).help("В очереди на транскрибацию")
-        } else if let transcript = Transcriber.existingTranscript(for: item.url) {
-            Button {
-                QuickLookPresenter.shared.preview(transcript)
-            } label: {
-                Image(systemName: "doc.text.fill").foregroundStyle(.green)
-            }
-            .buttonStyle(.borderless)
-            .help("Просмотреть транскрипт; открыть в редакторе — в меню записи (правый клик по строке)")
-        } else if let failure = transcriber.failures[item.url.path] {
-            Button {
-                transcriber.enqueue(item.url)
-            } label: {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-            }
-            .buttonStyle(.borderless)
-            .help("Ошибка: \(failure). Нажмите, чтобы повторить")
-        } else if transcriber.modelsState == .ready && !isBeingRecorded {
-            Button {
-                transcriber.enqueue(item.url)
-            } label: {
-                Image(systemName: "text.badge.plus").foregroundStyle(.secondary)
-            }
-            .buttonStyle(.borderless)
-            .help("Транскрибировать")
-        }
-    }
-
-    // MARK: - Actions
-
-    private var isBeingRecorded: Bool { model.recordingFile == item.url }
-    private var isBusy: Bool { transcriber.runningFile == item.url || transcriber.queue.contains(item.url) || isBeingRecorded }
-    /// Renaming or deleting a file that is being written or transcribed would break that job.
-    private var isLocked: Bool { isBusy }
-
-    private func startRename() {
-        newTitle = parts.title
-        error = nil
-        renaming = true
-        DispatchQueue.main.async { titleFocused = true }
-    }
-
-    /// Applies the new title; the recording's date and time stay at the end of the name.
-    private func commitRename() {
-        renaming = false
-        let title = RecordingFiles.sanitize(newTitle)
-        let stem = RecordingFiles.stem(timestamp: parts.timestamp, title: title)
-        guard !stem.isEmpty, !isLocked else { return }
-        do {
-            let renamed = try RecordingFiles.rename(item.url, to: stem)
-            model.recordingMoved(from: item.url, to: renamed)
-            onChange()
-        } catch {
-            self.error = String(localized: "Не удалось переименовать: \(error.localizedDescription)")
-            Log.error("Rename of \(item.url.lastPathComponent) failed: \(Log.describe(error))", "files")
-        }
-    }
-
-    /// "⭐ 3", "⭐ 3 · ⏸ 1", "⏸ 1".
-    private var markerCountText: String {
-        let pauses = item.markers.filter(\.isPause).count
-        let stars = item.markers.count - pauses
-        return [stars > 0 ? "⭐ \(stars)" : nil, pauses > 0 ? "⏸ \(pauses)" : nil].compactMap { $0 }.joined(separator: " · ")
-    }
-
-    /// Marked moments as buttons; each opens the video in QuickTime at that time.
-    private var markersList: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 6)], alignment: .leading, spacing: 6) {
-            ForEach(Array(item.markers.enumerated()), id: \.offset) { _, marker in
-                Button {
-                    QuickTimeOpener.open(item.url, at: marker.time)
-                } label: {
-                    Text(marker.label).font(.caption).monospacedDigit()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Открыть видео на \(marker.timeText)")
-            }
-        }
-        .padding(.leading, 30)
-        .padding(.bottom, 4)
-    }
-
-    /// For recordings made before markers became chapters automatically.
-    private func addChapters() {
-        addingChapters = true
-        Task {
-            do {
-                try await ChapterWriter.addChapters(item.markers, to: item.url)
-            } catch {
-                self.error = String(localized: "Главы не добавлены: \(error.localizedDescription)")
-                Log.warning("Chapters not added to \(item.url.lastPathComponent): \(Log.describe(error))", "files")
-            }
-            addingChapters = false
-        }
-    }
-
-    private func moveToTrash() {
-        guard !isLocked else { return }
-        do {
-            try RecordingFiles.trash(item.url)
-            model.recordingMoved(from: item.url, to: nil)
-            onChange()
-        } catch {
-            self.error = String(localized: "Не удалось удалить: \(error.localizedDescription)")
-            Log.error("Trash of \(item.url.lastPathComponent) failed: \(Log.describe(error))", "files")
-        }
-    }
-
-    // MARK: - Text
-
-    private var parts: (title: String, timestamp: String?) {
-        RecordingFiles.split(item.url.deletingPathExtension().lastPathComponent)
-    }
-
-    private var title: String {
-        // "yyyy-MM-dd HH-mm-ss" alone (MeetRec / OBS default) reads better as a date.
-        parts.title.isEmpty ? Self.dateFormatter.string(from: item.date) : parts.title
-    }
-
-    private var subtitle: String {
-        let size = ByteCountFormatter.string(fromByteCount: item.size, countStyle: .file)
-        if let snippet = item.snippet { return snippet }
-        let teams = RecordingTag.meetingApp(of: item.url) == "teams" ? "Teams · " : ""
-        // Date-only names already show the date as the title.
-        return teams + (parts.title.isEmpty ? size : "\(Self.dateFormatter.string(from: item.date)) · \(size)")
     }
 }
 

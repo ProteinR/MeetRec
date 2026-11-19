@@ -6,6 +6,8 @@ struct CollapsibleSection<Content: View>: View {
     let title: String
     let icon: String
     var summary: String?
+    /// How many items the section holds ("236"), grey next to the title, folded or open.
+    var count: String?
     @Binding var isExpanded: Bool
     @ViewBuilder var content: () -> Content
 
@@ -25,7 +27,16 @@ struct CollapsibleSection<Content: View>: View {
                         .frame(width: 24, height: 24)
                         .background(RoundedRectangle(cornerRadius: 6).fill(Color.accentColor.gradient))
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(title).font(.callout.weight(.medium))
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(title).font(.callout.weight(.medium))
+                            if let count {
+                                Text(count)
+                                    .font(.callout)
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                                    .contentTransition(.numericText())
+                            }
+                        }
                         if let summary, !isExpanded {
                             Text(summary)
                                 .font(.caption)

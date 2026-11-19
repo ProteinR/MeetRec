@@ -6,7 +6,8 @@ import Vision
 /// Files and pixels: PNG with the screen's scale in its DPI (Preview shows it at point size), the
 /// clipboard, the list for the panel, text recognition.
 enum ScreenshotFiles {
-    static let panelLimit = 5
+    /// Thumbnails loaded at a time in the panel's row; more follow while scrolling.
+    static let pageSize = 30
     static let imageExtensions: Set<String> = ["png", "jpg", "jpeg"]
     /// In "Авто", JPEG is used when it is at most this share of the PNG: photos and gradients shrink a
     /// lot, while text and flat UI stay PNG and sharp.
@@ -19,7 +20,7 @@ enum ScreenshotFiles {
     }
 
     /// The newest PNGs in `folder` and how many there are in all.
-    static func list(in folder: URL, limit: Int = panelLimit) -> (items: [Item], total: Int) {
+    static func list(in folder: URL, limit: Int = pageSize) -> (items: [Item], total: Int) {
         let keys: [URLResourceKey] = [.creationDateKey, .contentModificationDateKey]
         let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: keys,
                                                                    options: [.skipsHiddenFiles])) ?? []

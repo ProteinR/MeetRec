@@ -16,6 +16,10 @@ struct ContentView: View {
     @StateObject private var displayPreview = DisplayPreview()
     @StateObject private var windowPreview = WindowPreview()
     @State private var openSection: String?
+    /// "Записи" and "Скриншоты" stay open or folded as they were left, each on its own (the other
+    /// sections fold on every opening, one open at a time).
+    @AppStorage("panelRecordingsExpanded") private var recordingsExpanded = false
+    @AppStorage("panelScreenshotsExpanded") private var screenshotsExpanded = false
     @State var showingSettings = false
     /// The settings tab last looked at, kept across openings.
     @AppStorage(SettingsTab.storageKey) private var settingsTabRaw = SettingsTab.recording.rawValue
@@ -81,6 +85,7 @@ struct ContentView: View {
         // Every opening starts on the main page with all sections folded; reset while hidden, so
         // nothing animates.
         .onChange(of: model.panelVisible) { _, visible in
+            if !visible { HoverTip.shared.hide() }
             guard !visible, openSection != nil || showingSettings || frozenLayout != nil else { return }
             var transaction = Transaction()
             transaction.disablesAnimations = true
@@ -134,8 +139,8 @@ struct ContentView: View {
                 // Transcription progress is shown per recording in the list, not here.
                 // The recordings folder opens from the search row inside; quitting is in the menu bar
                 // item's right-click menu.
-                RecordingsSection(isExpanded: expanded("recordings"))
-                ScreenshotsSection(isExpanded: expanded("screenshots"), close: close)
+                RecordingsSection(isExpanded: $recordingsExpanded)
+                ScreenshotsSection(isExpanded: $screenshotsExpanded, close: close)
             }
             if !recordingLayout, frozenLayout == nil {
                 UpdateBanner()

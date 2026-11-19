@@ -1,8 +1,10 @@
 import AppKit
 import Carbon
+import ImageIO
 import SwiftUI
 
-/// "Скриншоты" under "Записи": a button for an area shot, the folder, and the last five as thumbnails.
+/// "Скриншоты" under "Записи": a button for an area shot, the folder, and the screenshots as a row of
+/// thumbnails, newest first, loaded a page at a time while scrolling.
 /// A click opens the editor; right click: edit, copy, recognise text, show in Finder, Trash. A
 /// thumbnail can be dragged into a chat.
 struct ScreenshotsSection: View {
@@ -11,11 +13,16 @@ struct ScreenshotsSection: View {
     let close: () -> Void
     @EnvironmentObject private var model: RecorderModel
     @ObservedObject private var shots = Screenshotter.shared
-    @State private var items: [ScreenshotFiles.Item] = []
-    @State private var total = 0
+    // Starts with the last list (see RecordingsSection).
+    @State private var items: [ScreenshotFiles.Item] = ScreenshotsSection.last.items
+    @State private var total = ScreenshotsSection.last.total
+    @State private var shown = max(ScreenshotFiles.pageSize, ScreenshotsSection.last.items.count)
+    private static var last: (items: [ScreenshotFiles.Item], total: Int) = ([], 0)
+    @State private var loadTask: Task<Void, Never>?
 
     var body: some View {
-        CollapsibleSection(title: String(localized: "Скриншоты"), icon: "camera.viewfinder", summary: summary, isExpanded: $isExpanded) {
+        CollapsibleSection(title: String(localized: "Скриншоты"), icon: "camera.viewfinder", summary: summary,
+                           count: total > 0 ? total.formatted() : nil, isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     captureButton(.screenshot, icon: "plus.viewfinder", title: String(localized: "Скриншот"))
@@ -32,12 +39,10 @@ struct ScreenshotsSection: View {
                                             : String(localized: "Сохранение в папку выключено: снимки только копируются"))
                         .font(.caption).foregroundStyle(.secondary)
                 } else {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: ScreenshotFiles.panelLimit),
-                              spacing: 6) {
-                        ForEach(items) { item in
-                            ScreenshotThumbnail(item: item, close: close)
-                        }
+                    HorizontalStrip(items: items, tileWidth: Thumbnails.screenshotSize.width, spacing: 6, onReachEnd: loadMore) { item in
+                        ScreenshotThumbnail(item: item, close: close)
                     }
+                    .frame(height: Thumbnails.screenshotSize.height + 2)
                 }
             }
         }
@@ -65,7 +70,7 @@ struct ScreenshotsSection: View {
 
     private var summary: String {
         guard let last = items.first else { return Shortcuts.shared.hint(.screenshot).map { String(localized: "\($0) — скриншот") } ?? String(localized: "Пока пусто") }
-        return String(localized: "\(total) · последний \(Self.when(last.date))")
+        return String(localized: "последний \(Self.when(last.date))")
     }
 
     /// "14:03", "вчера 18:20", "14 окт".
@@ -76,10 +81,23 @@ struct ScreenshotsSection: View {
         return date.formatted(.dateTime.day().month(.abbreviated))
     }
 
+    private func loadMore() {
+        guard items.count < total, items.count >= shown else { return }
+        shown += ScreenshotFiles.pageSize
+        reload()
+    }
+
+    /// Off the main thread: a folder of thousands of screenshots takes a moment to list.
     private func reload() {
-        let list = ScreenshotFiles.list(in: shots.folderURL)
-        items = list.items
-        total = list.total
+        let folder = shots.folderURL, limit = shown
+        loadTask?.cancel()
+        loadTask = Task {
+            let list = await Task.detached(priority: .userInitiated) { ScreenshotFiles.list(in: folder, limit: limit) }.value
+            guard !Task.isCancelled else { return }
+            items = list.items
+            total = list.total
+            Self.last = list
+        }
     }
 }
 
@@ -88,14 +106,20 @@ private struct ScreenshotThumbnail: View {
     let close: () -> Void
     @ObservedObject private var shots = Screenshotter.shared
     @State private var image: NSImage?
+
+    init(item: ScreenshotFiles.Item, close: @escaping () -> Void) {
+        self.item = item
+        self.close = close
+        _image = State(initialValue: Thumbnails.cachedScreenshot(item.url))
+    }
+    @State private var info: ScreenshotInfo?
     @State private var hovering = false
 
     var body: some View {
         // The cell sets the size and the picture fills it as an overlay: a filled image laid out on its
         // own is wider than the cell and covered the neighbour's frame.
         Color.primary.opacity(0.06)
-            .frame(maxWidth: .infinity)
-            .frame(height: 54)
+            .frame(width: Thumbnails.screenshotSize.width, height: Thumbnails.screenshotSize.height)
             .overlay {
                 if let image {
                     Image(nsImage: image)
@@ -106,12 +130,11 @@ private struct ScreenshotThumbnail: View {
             .clipShape(RoundedRectangle(cornerRadius: 5))
             .overlay(RoundedRectangle(cornerRadius: 5)
                 .strokeBorder(hovering ? Color.accentColor : Color.primary.opacity(0.12), lineWidth: hovering ? 2 : 0.5))
-            .zIndex(hovering ? 1 : 0)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .onTapGesture { edit() }
         .onDrag { NSItemProvider(contentsOf: item.url) ?? NSItemProvider() }
-        .help("\(ScreenshotsSection.when(item.date)) · клик — редактировать, правый клик — ещё")
+        .hoverTip(tip, id: "screenshot:\(item.id)")
         .contextMenu {
             Button("Редактировать") { edit() }
             Button("Копировать") { Screenshotter.shared.copy(item.url) }
@@ -130,14 +153,44 @@ private struct ScreenshotThumbnail: View {
         // Reloaded after an edit too (the file keeps its name).
         .task(id: "\(item.id)#\(shots.version)") {
             // Decoding a 5K PNG takes a moment; not on the main thread while the panel opens.
-            let url = item.url
-            image = await Task.detached(priority: .userInitiated) { ScreenshotFiles.thumbnail(url) }.value
+            image = await Thumbnails.screenshot(item.url)
+            info = await Task.detached(priority: .utility) { [url = item.url] in ScreenshotInfo.read(url) }.value
         }
     }
 
     private func edit() {
         close()
         ScreenshotEditor.open(item.url)
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: Bundle.main.preferredLocalizations.first ?? "ru")
+        formatter.dateFormat = "d MMM yyyy, HH:mm:ss"
+        return formatter
+    }()
+
+    private var tip: HoverTipContent {
+        let facts = [info.map { "\($0.width)×\($0.height)" }, item.url.pathExtension.uppercased(),
+                     info.map { ByteCountFormatter.string(fromByteCount: $0.bytes, countStyle: .file) }].compactMap { $0 }
+        return HoverTipContent(title: Self.dateFormatter.string(from: item.date), lines: [facts.joined(separator: " · ")],
+                               hint: String(localized: "Клик — редактировать, правый клик — ещё"))
+    }
+}
+
+/// Pixel size and file size for a screenshot's tip (read from the header, not the pixels).
+struct ScreenshotInfo: Equatable {
+    let width: Int
+    let height: Int
+    let bytes: Int64
+
+    static func read(_ url: URL) -> ScreenshotInfo? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int else { return nil }
+        let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+        return ScreenshotInfo(width: width, height: height, bytes: Int64(bytes))
     }
 }
 

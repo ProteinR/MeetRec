@@ -141,5 +141,6 @@ defaults write com.dmemruk.MeetRec pauseHotKey -bool true
 
 ## Internal (do not edit)
 
-`lastRecording`, `lastCrashRecovery`, `settingsTab` and launch-at-login (managed by macOS through
-`SMAppService`) are state, not settings.
+`lastRecording`, `lastCrashRecovery`, `settingsTab`, `panelRecordingsExpanded` /
+`panelScreenshotsExpanded` (whether "Записи" and "Скриншоты" are open on the main page) and
+launch-at-login (managed by macOS through `SMAppService`) are state, not settings.

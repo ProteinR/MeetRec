@@ -40,32 +40,12 @@
         }
       }
     },
-    "%@ · клик — редактировать, правый клик — ещё" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ · click to edit, right-click for more"
-          }
-        }
-      }
-    },
     "%@ · мало места: %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ · low disk space: %@"
-          }
-        }
-      }
-    },
-    "%@ · с текстом: %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ · transcribed: %2$lld"
           }
         }
       }
@@ -106,6 +86,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ is taken by another app or macOS. Free it there or set another one, then click “Retry”."
+          }
+        }
+      }
+    },
+    "%@ из %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ of %2$@"
           }
         }
       }
@@ -283,16 +273,6 @@
     "%lld" : {
       "shouldTranslate" : false
     },
-    "%lld · последний %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld · latest %2$@"
-          }
-        }
-      }
-    },
     "%lld к/с · %@ · %@" : {
       "localizations" : {
         "en" : {
@@ -348,6 +328,58 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld реплики"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld слов" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld word"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld words"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld слова"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld слов"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld слово"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld слова"
                 }
               }
             }
@@ -634,6 +666,16 @@
         }
       }
     },
+    "Без транскрипта" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No transcript"
+          }
+        }
+      }
+    },
     "Браузер" : {
       "localizations" : {
         "en" : {
@@ -650,16 +692,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Browser (all)"
-          }
-        }
-      }
-    },
-    "В Корзину вместе с транскриптом и отметками; оттуда можно вернуть" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Moves it to the Trash with its transcript and markers; you can restore it from there"
           }
         }
       }
@@ -1240,6 +1272,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The disk is almost full. The recording stops by itself when less than %@ is left."
+          }
+        }
+      }
+    },
+    "Закрыть" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
           }
         }
       }
@@ -2118,6 +2160,26 @@
         }
       }
     },
+    "Клик — открыть, правый клик — ещё" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click to open, right-click for more"
+          }
+        }
+      }
+    },
+    "Клик — редактировать, правый клик — ещё" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click to edit, right-click for more"
+          }
+        }
+      }
+    },
     "Кликай по порядку: 1, 2, 3…" : {
       "localizations" : {
         "en" : {
@@ -2554,16 +2616,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Give “Speaker N” real names; the voices are remembered for future meetings"
-          }
-        }
-      }
-    },
-    "Найдено: %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Found: %lld"
           }
         }
       }
@@ -3388,16 +3440,6 @@
         }
       }
     },
-    "Открыть видео на %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open video at %@"
-          }
-        }
-      }
-    },
     "Открыть настройки" : {
       "localizations" : {
         "en" : {
@@ -3508,12 +3550,12 @@
         }
       }
     },
-    "Отметки: открыть видео на нужном моменте" : {
+    "Отметки (%lld)" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Markers: open the video at that moment"
+            "value" : "Markers (%lld)"
           }
         }
       }
@@ -3548,12 +3590,12 @@
         }
       }
     },
-    "Ошибка: %@. Нажмите, чтобы повторить" : {
+    "Ошибка транскрибации: %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Error: %@. Click to retry"
+            "value" : "Transcription failed: %@"
           }
         }
       }
@@ -3948,16 +3990,6 @@
         }
       }
     },
-    "Просмотреть транскрипт; открыть в редакторе — в меню записи (правый клик по строке)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preview the transcript; to open it in an editor, right-click the recording"
-          }
-        }
-      }
-    },
     "Процессор %lld%%" : {
       "localizations" : {
         "en" : {
@@ -4118,6 +4150,16 @@
         }
       }
     },
+    "Резюме" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summary"
+          }
+        }
+      }
+    },
     "С микрофона не идёт звук" : {
       "localizations" : {
         "en" : {
@@ -4254,6 +4296,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Copy the picture with marks to the clipboard, save it to the same file and close (⌘C). Closing the window saves too"
+          }
+        }
+      }
+    },
+    "Скопировать путь к видео" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy path to video"
+          }
+        }
+      }
+    },
+    "Скопировать путь к папке записи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy path to recording folder"
           }
         }
       }
@@ -4720,12 +4782,32 @@
         }
       }
     },
-    "Транскрибируется%@ · всего %@" : {
+    "Транскрибируется%@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Transcribing%1$@ · %2$@ in total"
+            "value" : "Transcribing%@"
+          }
+        }
+      }
+    },
+    "Транскрибируется: %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcribing: %lld%%"
+          }
+        }
+      }
+    },
+    "Транскрипт" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcript"
           }
         }
       }
@@ -4746,6 +4828,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Transcript ready"
+          }
+        }
+      }
+    },
+    "Транскрипт пуст" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The transcript is empty"
           }
         }
       }
@@ -5301,6 +5393,16 @@
         }
       }
     },
+    "клик — открыть" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "click to open"
+          }
+        }
+      }
+    },
     "можно несколько через запятую" : {
       "localizations" : {
         "en" : {
@@ -5401,6 +5503,16 @@
         }
       }
     },
+    "последний %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "last %@"
+          }
+        }
+      }
+    },
     "последняя, проверено в %@" : {
       "localizations" : {
         "en" : {
@@ -5427,6 +5539,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "checking…"
+          }
+        }
+      }
+    },
+    "с текстом: %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "transcribed: %lld"
           }
         }
       }
@@ -5480,6 +5602,9 @@
           }
         }
       }
+    },
+    "…" : {
+      "shouldTranslate" : false
     },
     "⏸ Пауза · %@" : {
       "localizations" : {

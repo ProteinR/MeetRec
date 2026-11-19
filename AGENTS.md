@@ -63,6 +63,31 @@ What MeetRec does instead:
   which always comes first so Finder sorts by time: `2026-10-16 14-03-22 Weekly sync.mov`. The
   recordings list can rename (keeping the timestamp first), move to Trash, re-transcribe (new `name (2).md`, old kept) and search
   names and transcript text.
+- "Записи" and "Скриншоты" on the main page are rows of previews scrolled sideways (`HorizontalStrip`:
+  only the tiles in view exist, 30 per page, the next page when the last tile shows; a vertical
+  wheel or swipe over the row scrolls it sideways). The row is plain SwiftUI moved by an offset, not
+  a `ScrollView`: that AppKit view stood in place while the page slid in back from the settings.
+  The sections start with the last list and the previews already in memory, so nothing pops in
+  during that slide. A recording's tile (`RecordingsStrip.swift`) shows a frame from the middle of
+  the video (a quarter or three quarters in when the middle is black), the duration, ⭐ markers and
+  the transcript state, with "name · date" under it; with the pointer on it, its tip plays 10 frames
+  from the whole recording in turn in a bigger preview (320×180 pt) with a thin progress line. Previews and those frames are cached as small
+  JPEGs in `~/Library/Caches/MeetRec/Thumbnails` (`Thumbnails.swift`), keyed by the file itself
+  (volume, inode, size, modification date, so a rename keeps them and an edit makes new ones), made
+  two at a time in the background, removed after 60 days unused. Screenshots use the same cache.
+  Instead of the system tooltip a tile has its own (`HoverTip.swift`): a click-through window that
+  appears at once and follows the pointer, with name, start–end time, duration, size, markers and
+  transcript state (screenshots: time, pixels, format, size). The right-click menu has "Скопировать
+  путь к папке записи" (the recording's folder, so an agent finds the transcript and the rest too;
+  for a flat recording the video's path), the markers as a submenu, rename and speaker naming open
+  under the row. The transcript badge (bottom left, a larger hit area around it) gets a blue outline
+  on hover and turns the tip into the transcript at the preview's size (`TranscriptPreview.swift`:
+  no file header, grey time, bold speaker, the lines that do not fit fade out; while searching it
+  starts at the hit, marked; a "## Резюме" / "## Summary" section is shown instead when the file has
+  one, for a future summary); a click on it opens the `.md` in the default app. While transcribing,
+  the badge's tip gives the percent. Next to each section's title its count in grey ("Записи 236",
+  "12 из 236" while searching). Both sections remember whether they are open (`panelRecordingsExpanded`,
+  `panelScreenshotsExpanded`), each on its own.
 - One folder per recording (`RecordingFiles`): `<stem>/<stem>.mov`, transcripts `<stem>.md`,
   `<stem> (2).md`…, `markers.json`, `mutes.json`, `run.json` (speakers). A rename renames the folder,
   the video and the transcripts; Trash takes the whole folder. The older flat layout (`<stem>.mov` with
@@ -301,7 +326,7 @@ What MeetRec does instead:
   uploaded and the page opens in the browser. Both use the sites' own upload forms (no official
   API), so they may break when a site changes: the log has "Image search in …". OCR runs
   without language correction (it broke code and e-mails). The main page has "Скриншоты" under
-  "Записи": "Скриншот" and "OCR" buttons, the last five as thumbnails by creation date (Shottr's
+  "Записи": "Скриншот" and "OCR" buttons, a row of thumbnails by creation date scrolled sideways (Shottr's
   `SCR-…` files mix in; an edit keeps the creation date; click edits, drag into a chat, right
   click: edit, copy, OCR, Finder, Удалить). The editor: arrow (A; a middle point bends it, off
   centre the bend moves towards that end, back onto the line it snaps straight), rectangle (R),
@@ -329,7 +354,7 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
 - `MeetRec/MeetRecApp.swift` + `MenuPanel.swift`: `AppDelegate` owns an `NSStatusItem` and a
   borderless, transparent, fixed-size panel window; the visible card (blur, corners, shadow) is drawn
   by SwiftUI (`PanelCard`) and hugs the content, so accordion sections (`CollapsibleSection`: Video,
-  Transcription, Recordings; one open at a time) animate their height smoothly. Do not make the window
+  Transcription, the display; one open at a time; "Записи" and "Скриншоты" open on their own) animate their height smoothly. Do not make the window
   follow SwiftUI's size again: that caused jumps and, with Auto Layout, a launch crash. Clicking the
   item or reopening the app shows the panel; clicks outside (including the transparent part, which is
   click-through), Esc or ⌘W close it. If Ice hides the item (it moves hidden items off screen), the
@@ -339,7 +364,9 @@ dependable over feature-rich. Prefer fewer features, and never risk losing a rec
     `AppDelegate+QuickMenu.swift`, `QuickMenuItem.swift`, `MenuPanel.swift` (window),
     `PanelContent.swift` (`ContentView`: main page), `PanelContent+Settings.swift` (settings page),
     `PanelStatus.swift` (live status while recording), `PanelBanners.swift` (call question,
-    countdowns, last-recording notice), `RecordButton.swift`, `CollapsibleSection.swift`.
+    countdowns, last-recording notice), `RecordButton.swift`, `CollapsibleSection.swift`,
+    `RecordingsStrip.swift` ("Записи"), `RecordingsList.swift` (the list, search, speakers editor),
+    `HorizontalStrip.swift`, `Thumbnails.swift` (preview cache), `HoverTip.swift`.
   - Recording state (`RecorderModel`, the one `ObservableObject` the UI watches):
     `RecorderModel.swift` (settings, device lists, start/stop, lifecycle), `+Meetings` (detector,
     countdowns, ask-first apps, browser rules, meeting window, file title), `+Microphone` (the

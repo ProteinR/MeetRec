@@ -141,7 +141,7 @@ final class Transcriber: ObservableObject {
 
     /// Newest transcript of a recording: `<name>.md` next to it, or `<name> (2).md`… after
     /// "Транскрибировать заново" (older versions are kept, never overwritten).
-    static func existingTranscript(for recording: URL) -> URL? {
+    nonisolated static func existingTranscript(for recording: URL) -> URL? {
         let base = recording.deletingPathExtension()
         var found: URL?
         var candidate = base.appendingPathExtension("md")
