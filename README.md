@@ -38,6 +38,9 @@ welcome (`MeetRec/Localizable.xcstrings`).
   on the Neural Engine, nothing leaves the Mac):
   your own speech is found through the microphone track, other voices are recognised from enrolled
   samples.
+- **Meeting summaries** (optional): key points, decisions and action items at the top of the
+  transcript, written by Claude, OpenAI or any model on OpenRouter with your own API key, or by a
+  local model (Ollama, LM Studio) so nothing leaves the Mac.
 - **Screenshots** (⇧⌘4) with a frozen screen, window shots on wallpaper, an annotation editor
   (arrows, boxes, steps, blur, crop), OCR (⇧⌘2) and reverse image search.
 - Window recording, display picker with live thumbnails, a recording island at the notch, a camera
@@ -78,7 +81,7 @@ local transcript with names. If you need something else, the others below are go
 | Joins the call as a bot | No | No | Yes (OtterPilot) | No | No |
 | Transcription | On your Mac | — | Cloud | Cloud | On your Mac |
 | Speaker names | ✅ from voice samples | — | ✅ | ✅ | ✅ (Pro) |
-| AI summaries | — | — | ✅ | ✅ | ✅ (your API key) |
+| AI summaries | ✅ your API key or a local model | — | ✅ | ✅ | ✅ (your API key) |
 | Screenshots, annotations, OCR | ✅ | — | — | — | — |
 | Price / source | Free, MIT | Free, GPL | Subscription | Subscription | Paid |
 

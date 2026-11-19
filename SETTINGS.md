@@ -97,6 +97,39 @@ Only recordings of 2+ minutes are copied, an existing file is never overwritten,
 are never copied. Known voices live in `~/Library/Application Support/MeetRec/speakers.json`
 (name → list of voice embeddings); add names through the app ("Подписать спикеров…").
 
+## Meeting summary
+
+A summary written by a language model goes into the transcript as `## Summary` / `## Резюме` under
+its header (then `## Transcript` before the spoken lines). Cloud providers get the transcript with
+your own key; a local OpenAI-compatible server (Ollama, LM Studio) keeps everything on the Mac.
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `summarizeAfterTranscription` | bool | `false` | Summarize every transcript of 40+ words right after transcription (before it is copied by the copy rules). |
+| `summaryProvider` | string | `anthropic` | `anthropic`, `openai`, `openrouter` or `local`. |
+| `summaryModel.<provider>` | string | per provider | Model id (chosen from the provider's list in the app), e.g. `summaryModel.anthropic` = `claude-opus-5-5`, `summaryModel.openai` = `gpt-5`, `summaryModel.openrouter` = `openrouter/auto`, `summaryModel.local` = a model your server has. |
+| `summaryLocalURL` | string | `http://localhost:11434/v1` | Base URL of the local server (`/chat/completions` and `/models` are added). |
+| `summaryLanguage` | string | `meeting` | `meeting`: the language the meeting was held in; `app`: MeetRec's language. |
+| `summarySpentUSD` | float | `0` | Running total of all summaries in US dollars (since "Сбросить"). |
+| `summaryTokens` | int | `0` | Running total of tokens (input + output). |
+| `summaryRuns` | int | `0` | How many summaries were written. |
+| `summaryUnpricedRuns` | int | `0` | Runs whose model price was unknown (not in `summarySpentUSD`). |
+
+Each recording keeps what its summaries took in `summary.json` in its folder
+(`<stem>.summary.json` next to a flat recording): `{"runs": [{date, appVersion, provider, model,
+modelName, inputTokens, outputTokens, costUSD}]}`, one entry per run. The same facts are the
+`> MeetRec 0.16.0 · model · tokens · price` line under the summary's heading. Prices: OpenRouter
+reports them; Anthropic's come from a list in the app (`SummaryPricing`); OpenAI's from
+OpenRouter's public model catalog; a local model is free.
+
+API keys are not in user defaults: they are in `~/Library/Application Support/MeetRec/api-keys.json`
+(mode 0600, readable only by your user), `{"provider id": "key"}`:
+
+```bash
+f=~/Library/Application\ Support/MeetRec/api-keys.json
+printf '{"anthropic": "%s"}' "$ANTHROPIC_API_KEY" > "$f" && chmod 600 "$f"
+```
+
 ## Look while recording
 
 | Key | Type | Default | Meaning |

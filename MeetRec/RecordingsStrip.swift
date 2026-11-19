@@ -201,6 +201,7 @@ struct RecordingTile: View {
     let show: (RecordingsSection.Detail?, String?) -> Void
     @EnvironmentObject private var model: RecorderModel
     @EnvironmentObject private var transcriber: Transcriber
+    @EnvironmentObject private var summarizer: Summarizer
     @State private var poster: NSImage?
     @State private var duration: Double?
 
@@ -223,6 +224,8 @@ struct RecordingTile: View {
     /// opens it.
     @State private var overBadge = false
     @State private var transcript: TranscriptPreview?
+    /// What the summaries of this recording took (`summary.json`), read when the pointer comes.
+    @State private var summaryRuns: [SummaryUsage] = []
 
     private static let size = Thumbnails.videoSize
 
@@ -249,6 +252,11 @@ struct RecordingTile: View {
             duration = video.duration
         }
         // Frames from the whole recording in the tip while the pointer stays on the tile.
+        .task(id: "\(hovering)#\(transcriber.transcriptsVersion)") {
+            guard hovering else { return }
+            let url = item.url
+            summaryRuns = await Task.detached(priority: .userInitiated) { SummaryUsageFile.load(for: url) }.value
+        }
         .task(id: hovering) {
             guard hovering, !isBeingRecorded else {
                 frames = []
@@ -337,6 +345,9 @@ struct RecordingTile: View {
             TileBadge { Text(transcriber.progress.map { "\(Int($0 * 100))%" } ?? "…") }
         } else if transcriber.queue.contains(item.url) {
             TileBadge { Image(systemName: "clock") }
+        } else if summarizer.running.contains(item.url.path) {
+            // No animation: it would redraw the whole card every frame.
+            TileBadge { Label("резюме…", systemImage: "sparkles").labelStyle(.titleAndIcon) }
         } else if Transcriber.existingTranscript(for: item.url) != nil {
             TileBadge { Image(systemName: "doc.text") }
         } else if transcriber.failures[item.url.path] != nil {
@@ -358,6 +369,7 @@ struct RecordingTile: View {
             Button("Открыть транскрипт в редакторе") { NSWorkspace.shared.open(transcript) }
             Button("Подписать спикеров…") { show(.speakers(item), nil) }
                 .disabled(!SpeakerNaming.hasSpeakers(item.url) || isBusy)
+            summaryItem
             Button("Транскрибировать заново") { transcriber.enqueue(item.url) }
                 .disabled(transcriber.modelsState != .ready || isBusy)
         } else {
@@ -383,6 +395,21 @@ struct RecordingTile: View {
             .disabled(isBusy)
         Button("Удалить", action: moveToTrash)
             .disabled(isBusy)
+    }
+
+    /// "Сделать резюме" (or again); before a provider is set up it opens that part of the settings.
+    @ViewBuilder
+    private var summaryItem: some View {
+        if summarizer.running.contains(item.url.path) {
+            Button("Пишу резюме…") {}.disabled(true)
+        } else if !summarizer.isConfigured {
+            Button("Сделать резюме… (настроить ИИ)") { model.requestSettings(.transcription) }
+        } else {
+            Button(Summarizer.hasSummary(item.url) ? String(localized: "Сделать резюме заново") : String(localized: "Сделать резюме")) {
+                Task { await summarizer.summarize(item.url) }
+            }
+            .disabled(isBusy)
+        }
     }
 
     /// The recording's own folder (video, transcripts, markers, speakers), so an agent given the path
@@ -481,13 +508,24 @@ struct RecordingTile: View {
         if pauses > 0 { facts.append("⏸ \(pauses)") }
         lines.append(facts.joined(separator: " · "))
         lines.append(transcriptState)
+        if let last = summaryRuns.last {
+            var line = String(localized: "Резюме: \(last.shortText)")
+            if summaryRuns.count > 1 {
+                let total = summaryRuns.compactMap(\.costUSD).reduce(0, +)
+                line += " " + String(localized: "(запусков: \(summaryRuns.count), всего \(SummaryUsage.money(total)))")
+            }
+            lines.append(line)
+        }
         if overBadge, transcriber.runningFile == item.url {
             return HoverTipContent(title: Self.title(of: item), lines: [transcriptState])
         }
         if overBadge, let transcript {
             let words = String(localized: "\(transcript.words) слов")
+            var facts = [words]
+            if let engine = transcript.engine { facts.append(engine) }
+            if transcript.isSummary, let last = summaryRuns.last { facts.append(last.shortText) }
             return HoverTipContent(title: transcript.isSummary ? String(localized: "Резюме") : String(localized: "Транскрипт"),
-                                   lines: [], hint: "\(words) · " + String(localized: "клик — открыть"),
+                                   lines: [], hint: (facts + [String(localized: "клик — открыть")]).joined(separator: " · "),
                                    transcript: transcript, highlight: query.isEmpty ? nil : query)
         }
         if let snippet = item.snippet { lines.append("«\(snippet)»") }
@@ -505,7 +543,11 @@ struct RecordingTile: View {
             return transcriber.progress.map { String(localized: "Транскрибируется: \(Int($0 * 100))%") } ?? String(localized: "Транскрибируется")
         }
         if transcriber.queue.contains(item.url) { return String(localized: "В очереди на транскрибацию") }
-        if Transcriber.existingTranscript(for: item.url) != nil { return String(localized: "Транскрипт готов") }
+        if summarizer.running.contains(item.url.path) { return String(localized: "Транскрипт готов, пишу резюме…") }
+        if Transcriber.existingTranscript(for: item.url) != nil {
+            if let failure = summarizer.failures[item.url.path] { return String(localized: "Транскрипт готов; резюме не написано: \(failure)") }
+            return String(localized: "Транскрипт готов")
+        }
         if let failure = transcriber.failures[item.url.path] { return String(localized: "Ошибка транскрибации: \(failure)") }
         return String(localized: "Без транскрипта")
     }

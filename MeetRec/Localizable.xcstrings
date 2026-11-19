@@ -30,6 +30,16 @@
         }
       }
     },
+    "%@ · %@, обычно до минуты" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@, usually under a minute"
+          }
+        }
+      }
+    },
     "%@ · %lld×%lld · %lld к/с" : {
       "localizations" : {
         "en" : {
@@ -66,6 +76,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ · hidden when sharing the screen"
+          }
+        }
+      }
+    },
+    "%@ · токены: %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · tokens: %2$@ · %3$@"
           }
         }
       }
@@ -216,6 +236,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@. What was recorded is saved; recording continues in a new file."
+          }
+        }
+      }
+    },
+    "%@: %@. Транскрипт готов, резюме можно сделать из меню записи." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$@. The transcript is ready; a summary can be made from the recording's menu."
           }
         }
       }
@@ -380,6 +410,26 @@
     "%lld%%" : {
       "shouldTranslate" : false
     },
+    "(без цены: %lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(no price: %lld)"
+          }
+        }
+      }
+    },
+    "(запусков: %lld, всего %@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(runs: %1$lld, total %2$@)"
+          }
+        }
+      }
+    },
     "12:34" : {
       "shouldTranslate" : false
     },
@@ -419,6 +469,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "MeetRec"
+          }
+        }
+      }
+    },
+    "MeetRec %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MeetRec %@"
+          }
+        }
+      }
+    },
+    "MeetRec %@ · %@ · токены: %@ на входе, %@ на выходе · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MeetRec %1$@ · %2$@ · tokens: %3$@ in, %4$@ out · %5$@"
           }
         }
       }
@@ -553,6 +623,16 @@
         }
       }
     },
+    "github.com/ProteinR" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "github.com/ProteinR"
+          }
+        }
+      }
+    },
     "px" : {
       "localizations" : {
         "en" : {
@@ -682,6 +762,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Auto-recording is off"
+          }
+        }
+      }
+    },
+    "Автор MeetRec на GitHub" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The author of MeetRec on GitHub"
+          }
+        }
+      }
+    },
+    "Адрес сервера" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Server address"
           }
         }
       }
@@ -1046,6 +1146,16 @@
         }
       }
     },
+    "Вставьте ключ API — список моделей загрузится сам" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste an API key — the list of models loads by itself"
+          }
+        }
+      }
+    },
     "Встреча Teams на мониторе «%@», а записывается «%@»." : {
       "localizations" : {
         "en" : {
@@ -1242,6 +1352,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Off"
+          }
+        }
+      }
+    },
+    "Где взять ключ" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get a key"
           }
         }
       }
@@ -1462,6 +1582,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Quit MeetRec"
+          }
+        }
+      }
+    },
+    "Загружаю список…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading the list…"
           }
         }
       }
@@ -2350,6 +2480,16 @@
         }
       }
     },
+    "Как во встрече" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As in the meeting"
+          }
+        }
+      }
+    },
     "Как у монитора" : {
       "localizations" : {
         "en" : {
@@ -2456,6 +2596,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Click where the caption goes; Enter when done"
+          }
+        }
+      }
+    },
+    "Ключ API" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API key"
+          }
+        }
+      }
+    },
+    "Ключ API не подошёл (%lld): %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The API key was not accepted (%1$lld): %2$@"
+          }
+        }
+      }
+    },
+    "Ключ сохранён в файле %@, который может читать только ваш пользователь" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The key is saved in %@, which only your user can read"
+          }
+        }
+      }
+    },
+    "Ключ сохранён — вставьте новый, чтобы заменить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key saved — paste a new one to replace it"
           }
         }
       }
@@ -2586,6 +2766,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Where to copy"
+          }
+        }
+      }
+    },
+    "Локальная модель" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local model"
+          }
+        }
+      }
+    },
+    "Локальный сервер не отвечает (%@): %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The local server does not respond (%1$@): %2$@"
           }
         }
       }
@@ -2736,6 +2936,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Speech models · ~650 MB"
+          }
+        }
+      }
+    },
+    "Модель" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model"
+          }
+        }
+      }
+    },
+    "Модель вернула пустой ответ" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The model returned an empty answer"
+          }
+        }
+      }
+    },
+    "Модель или адрес не найдены (404): %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model or address not found (404): %@"
+          }
+        }
+      }
+    },
+    "Модель отказалась писать резюме" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The model declined to write the summary"
           }
         }
       }
@@ -3040,6 +3280,16 @@
         }
       }
     },
+    "Не задан ключ API для %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No API key for %@"
+          }
+        }
+      }
+    },
     "Не записывать" : {
       "localizations" : {
         "en" : {
@@ -3220,6 +3470,16 @@
         }
       }
     },
+    "Неверный адрес сервера" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid server address"
+          }
+        }
+      }
+    },
     "Недостаточно места на диске для глав" : {
       "localizations" : {
         "en" : {
@@ -3390,6 +3650,16 @@
         }
       }
     },
+    "Ничего не уходит с Mac: модель работает на этом компьютере (Ollama, LM Studio). Резюме встаёт в начало транскрипта. Для любой записи — «Сделать резюме» в её меню." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing leaves the Mac: the model runs on this computer (Ollama, LM Studio). The summary goes at the top of the transcript. For any recording, use \"Summarize\" in its menu."
+          }
+        }
+      }
+    },
     "Нужен ⌘, ⌥ или ⌃" : {
       "localizations" : {
         "en" : {
@@ -3426,6 +3696,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Update"
+          }
+        }
+      }
+    },
+    "Обновить список моделей" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reload the list of models"
           }
         }
       }
@@ -3900,6 +4180,16 @@
         }
       }
     },
+    "Ошибка сервиса (%lld): %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service error (%1$lld): %2$@"
+          }
+        }
+      }
+    },
     "Ошибка транскрибации: %@" : {
       "localizations" : {
         "en" : {
@@ -4030,12 +4320,32 @@
         }
       }
     },
+    "Писать резюме каждой записи, как только готов её транскрипт" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summarize every recording as soon as its transcript is ready"
+          }
+        }
+      }
+    },
     "Пишется только это окно: другие окна и уведомления в запись не попадут." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Only this window is recorded: other windows and notifications stay out of the recording."
+          }
+        }
+      }
+    },
+    "Пишу резюме…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing summary…"
           }
         }
       }
@@ -4206,6 +4516,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Last recording"
+          }
+        }
+      }
+    },
+    "Потрачено: %@ · токены: %@ · резюме: %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spent: %1$@ · tokens: %2$@ · summaries: %3$lld"
           }
         }
       }
@@ -4550,6 +4870,46 @@
         }
       }
     },
+    "Резюме встречи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meeting summary"
+          }
+        }
+      }
+    },
+    "Резюме готово" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summary ready"
+          }
+        }
+      }
+    },
+    "Резюме не написано" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summary not written"
+          }
+        }
+      }
+    },
+    "Резюме: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summary: %@"
+          }
+        }
+      }
+    },
     "С микрофона не идёт звук" : {
       "localizations" : {
         "en" : {
@@ -4590,12 +4950,82 @@
         }
       }
     },
+    "Сбросить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset"
+          }
+        }
+      }
+    },
     "Свободно %@. Запись остановится сама, если останется меньше %@." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ free. Recording stops by itself if less than %2$@ is left."
+          }
+        }
+      }
+    },
+    "Сделать резюме" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summarize"
+          }
+        }
+      }
+    },
+    "Сделать резюме заново" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summarize again"
+          }
+        }
+      }
+    },
+    "Сделать резюме… (настроить ИИ)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summarize… (set up AI)"
+          }
+        }
+      }
+    },
+    "Сервер с OpenAI-совместимым API: Ollama — http://localhost:11434/v1, LM Studio — http://localhost:1234/v1" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A server with an OpenAI-compatible API: Ollama — http://localhost:11434/v1, LM Studio — http://localhost:1234/v1"
+          }
+        }
+      }
+    },
+    "Сервис" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service"
+          }
+        }
+      }
+    },
+    "Сервис вернул не JSON" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The service did not return JSON"
           }
         }
       }
@@ -4840,6 +5270,16 @@
         }
       }
     },
+    "Слишком много запросов или кончился баланс (429): %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too many requests or out of credit (429): %@"
+          }
+        }
+      }
+    },
     "Сначала скачайте модели" : {
       "localizations" : {
         "en" : {
@@ -5010,6 +5450,16 @@
         }
       }
     },
+    "Список моделей пуст" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The list of models is empty"
+          }
+        }
+      }
+    },
     "Спрашивать" : {
       "localizations" : {
         "en" : {
@@ -5046,6 +5496,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Right after recording"
+          }
+        }
+      }
+    },
+    "Сразу после транскрибации" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right after transcription"
           }
         }
       }
@@ -5312,12 +5772,62 @@
         }
       }
     },
+    "Транскрипт готов, пишу резюме…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcript ready, writing summary…"
+          }
+        }
+      }
+    },
+    "Транскрипт готов; резюме не написано: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcript ready; summary not written: %@"
+          }
+        }
+      }
+    },
+    "Транскрипт отправляется в %@ по вашему ключу; видео и звук остаются на Mac. Резюме встаёт в начало транскрипта. Для любой записи — «Сделать резюме» в её меню." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The transcript is sent to %@ with your key; video and audio stay on the Mac. The summary goes at the top of the transcript. For any recording, use \"Summarize\" in its menu."
+          }
+        }
+      }
+    },
+    "Транскрипт пропал, пока писалось резюме" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The transcript disappeared while the summary was being written"
+          }
+        }
+      }
+    },
     "Транскрипт пуст" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "The transcript is empty"
+          }
+        }
+      }
+    },
+    "Транскрипта нет" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No transcript"
           }
         }
       }
@@ -5388,6 +5898,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Move to Trash"
+          }
+        }
+      }
+    },
+    "Удалить ключ" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove key"
           }
         }
       }
@@ -5498,6 +6018,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Format"
+          }
+        }
+      }
+    },
+    "Цена этих моделей неизвестна, они не вошли в сумму" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These models' price is unknown; they are not in the total"
           }
         }
       }
@@ -5648,6 +6178,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Language"
+          }
+        }
+      }
+    },
+    "Язык MeetRec" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MeetRec's language"
+          }
+        }
+      }
+    },
+    "Язык резюме" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summary language"
           }
         }
       }
@@ -5973,6 +6523,16 @@
         }
       }
     },
+    "локально, бесплатно" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "local, free"
+          }
+        }
+      }
+    },
     "можно несколько через запятую" : {
       "localizations" : {
         "en" : {
@@ -6123,6 +6683,26 @@
         }
       }
     },
+    "резюме: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "summary: %@"
+          }
+        }
+      }
+    },
+    "резюме…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "summary…"
+          }
+        }
+      }
+    },
     "скоро" : {
       "localizations" : {
         "en" : {
@@ -6159,6 +6739,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "the transcript will appear next to the video"
+          }
+        }
+      }
+    },
+    "цена неизвестна" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "price unknown"
           }
         }
       }

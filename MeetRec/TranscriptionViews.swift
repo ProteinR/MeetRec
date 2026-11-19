@@ -21,6 +21,8 @@ struct TranscriptionSettings: View {
             if transcriber.diarization {
                 voice
             }
+            Divider().padding(.vertical, 4)
+            SummarySettings()
         }
     }
 
@@ -175,5 +177,151 @@ struct CopyRulesEditor: View {
         guard let index = rules.firstIndex(where: { $0.id == rule.id }) else { return }
         change(&rules[index])
         transcriber.copyRules = rules
+    }
+}
+
+/// "Резюме встречи": provider, API key (kept in a file only this user reads), model, language, after transcription.
+struct SummarySettings: View {
+    @EnvironmentObject private var summarizer: Summarizer
+    @State private var keyDraft = ""
+
+    private var provider: SummaryProvider { summarizer.provider }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Резюме встречи").font(.callout.weight(.medium))
+            Picker("Сервис", selection: Binding(get: { summarizer.provider }, set: { summarizer.provider = $0; keyDraft = "" })) {
+                ForEach(SummaryProvider.allCases) { Text($0.title).tag($0) }
+            }
+            .fixedSize()
+            if provider.needsKey { key } else { server }
+            modelRow
+            Picker("Язык резюме", selection: $summarizer.language) {
+                Text("Как во встрече").tag("meeting")
+                Text("Язык MeetRec").tag("app")
+            }
+            .fixedSize()
+            spent
+            Toggle("Сразу после транскрибации", isOn: $summarizer.summarizeAfterTranscription)
+                .disabled(!summarizer.isConfigured)
+                .help("Писать резюме каждой записи, как только готов её транскрипт")
+            Text(provider.needsKey
+                 ? String(localized: "Транскрипт отправляется в \(provider.title) по вашему ключу; видео и звук остаются на Mac. Резюме встаёт в начало транскрипта. Для любой записи — «Сделать резюме» в её меню.")
+                 : String(localized: "Ничего не уходит с Mac: модель работает на этом компьютере (Ollama, LM Studio). Резюме встаёт в начало транскрипта. Для любой записи — «Сделать резюме» в её меню."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The running total of every summary: money, tokens, how many.
+    @ViewBuilder
+    private var spent: some View {
+        if summarizer.summaryRuns > 0 {
+            HStack(spacing: 6) {
+                Image(systemName: "dollarsign.circle").foregroundStyle(.secondary)
+                Text(String(localized: "Потрачено: \(SummaryUsage.money(summarizer.spentUSD)) · токены: \(SummaryUsage.tokens(summarizer.spentTokens)) · резюме: \(summarizer.summaryRuns)"))
+                    .font(.callout)
+                if summarizer.unpricedRuns > 0 {
+                    Text(String(localized: "(без цены: \(summarizer.unpricedRuns))"))
+                        .font(.caption).foregroundStyle(.secondary)
+                        .help("Цена этих моделей неизвестна, они не вошли в сумму")
+                }
+                Spacer(minLength: 4)
+                Button("Сбросить") { summarizer.resetTotals() }
+                    .buttonStyle(.borderless).font(.caption)
+            }
+        }
+    }
+
+    private var key: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                SecureField(summarizer.hasKey(provider) ? String(localized: "Ключ сохранён — вставьте новый, чтобы заменить") : String(localized: "Ключ API"),
+                            text: $keyDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(saveKey)
+                Button("Сохранить", action: saveKey)
+                    .disabled(keyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            HStack(spacing: 10) {
+                if let masked = summarizer.maskedKey(provider) {
+                    Label {
+                        Text(masked).font(.caption.monospaced()).textSelection(.enabled)
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    }
+                    .help(String(localized: "Ключ сохранён в файле \(APIKeyStore.file.path), который может читать только ваш пользователь"))
+                    Button("Удалить ключ") { summarizer.saveKey("", for: provider) }
+                        .buttonStyle(.borderless)
+                }
+                if let page = provider.keyPage {
+                    Link("Где взять ключ", destination: page)
+                }
+            }
+            .font(.caption)
+        }
+    }
+
+    private var server: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text("Адрес сервера")
+                TextField(SummaryProvider.local.defaultBaseURL, text: $summarizer.localURL)
+                    .textFieldStyle(.roundedBorder)
+            }
+            Text("Сервер с OpenAI-совместимым API: Ollama — http://localhost:11434/v1, LM Studio — http://localhost:1234/v1")
+                .font(.caption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// Models come from the provider itself, so nobody has to know their names.
+    private var modelRow: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                if summarizer.models.isEmpty {
+                    Text("Модель")
+                    Text(summarizer.loadingModels ? String(localized: "Загружаю список…") : summarizer.model(for: provider))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else {
+                    Picker("Модель", selection: Binding(get: { summarizer.model(for: provider) },
+                                                        set: { summarizer.setModel($0, for: provider) })) {
+                        ForEach(summarizer.models) { Text($0.name).tag($0.id) }
+                        // The saved one, if the service no longer lists it (the picker needs a tag for it).
+                        if !summarizer.models.contains(where: { $0.id == summarizer.model(for: provider) }) {
+                            Text(summarizer.model(for: provider)).tag(summarizer.model(for: provider))
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+                if summarizer.loadingModels {
+                    ProgressView().controlSize(.small).frame(width: 16, height: 16)
+                } else {
+                    Button {
+                        summarizer.loadModels()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(provider.needsKey && !summarizer.hasKey(provider))
+                    .help("Обновить список моделей")
+                }
+            }
+            if let message = summarizer.modelsMessage {
+                Text(message).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .onAppear { summarizer.loadModelsIfNeeded() }
+        .onChange(of: summarizer.localURL) { if provider == .local { summarizer.invalidateModels() } }
+    }
+
+    private func saveKey() {
+        let value = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        summarizer.saveKey(value, for: provider)
+        keyDraft = ""
     }
 }

@@ -1,5 +1,10 @@
 import SwiftUI
 
+/// The author's pages, at the bottom of the settings list. A landing page will join them later.
+enum Links {
+    static let author = URL(string: "https://github.com/ProteinR")!
+}
+
 /// The settings behind the gear: a list of sections, each opening as its own page.
 extension ContentView {
     var settingsPage: some View {
@@ -40,8 +45,7 @@ extension ContentView {
 
     private var settingsList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            settingsHeader(back: String(localized: "Назад"), title: String(localized: "Настройки"),
-                           trailing: "MeetRec \(RecorderModel.appVersion)") { showingSettings = false }
+            settingsHeader(back: String(localized: "Назад"), title: String(localized: "Настройки")) { showingSettings = false }
             ForEach(Array(SettingsPage.groups.enumerated()), id: \.offset) { _, group in
                 SettingsGroup {
                     ForEach(Array(group.enumerated()), id: \.element) { index, page in
@@ -60,6 +64,26 @@ extension ContentView {
             }
             .buttonStyle(.borderless)
             .frame(maxWidth: .infinity)
+            aboutFooter
+        }
+    }
+
+    /// The version and the author's page, as in the owner's other apps (Genius Typer).
+    private var aboutFooter: some View {
+        VStack(spacing: 4) {
+            Divider()
+            HStack(spacing: 10) {
+                Text("MeetRec \(RecorderModel.appVersion)")
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                Spacer(minLength: 4)
+                Link(destination: Links.author) {
+                    Label("github.com/ProteinR", systemImage: "arrow.up.right.square")
+                }
+                .help("Автор MeetRec на GitHub")
+            }
+            .font(.caption)
+            .padding(.horizontal, 4)
         }
     }
 
@@ -171,6 +195,9 @@ extension ContentView {
         case .ready:
             var parts = [transcriber.transcribeAfterRecording ? String(localized: "После записи: вкл") : String(localized: "После записи: выкл")]
             if transcriber.diarization { parts.append(String(localized: "по ролям")) }
+            if Summarizer.shared.summarizeAfterTranscription && Summarizer.shared.isConfigured {
+                parts.append(String(localized: "резюме: \(Summarizer.shared.provider.title)"))
+            }
             return parts.joined(separator: " · ")
         }
     }

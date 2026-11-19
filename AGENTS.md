@@ -109,7 +109,7 @@ What MeetRec does instead:
   "Экран" opens the display/window choice under the row), then the recordings. "Скриншоты": big
   "Область", "Весь экран" (`captureFullScreen`: the screen under the pointer, no selection) and
   "OCR" buttons for those who do not use the shortcuts, then the recent screenshots; while
-  recording, the stop button is there too. The version is in the settings header, not on the main page.
+  recording, the stop button is there too. The version is at the bottom of the settings list, with a link to the author's GitHub (`Links.author`; a landing page will be added there later), not on the main page.
 - First launch (`Onboarding.swift`, in the panel until `onboardingDone`): permissions (asks macOS,
   then opens the right System Settings pane, checks every second, offers a relaunch for screen
   recording), when to record each calling app installed here ("Сразу записывать" / "Спрашивать" /
@@ -186,6 +186,33 @@ What MeetRec does instead:
   detector), but not after a second crash within 3 minutes. Quitting while recording finishes the
   file first; `install.sh` quits gracefully so the watchdog does not relaunch the old copy.
 
+- Meeting summary (since 0.16.0, `Summarizer.swift`, `SummaryProviders.swift`, `SummaryText.swift`;
+  settings at the bottom of "Транскрибация"): a language model writes a short summary (paragraph,
+  key points, decisions, action items, open questions) into the transcript as "## Резюме" /
+  "## Summary" under its header, with "## Транскрипт" / "## Transcript" before the spoken lines; a
+  rerun replaces it. Providers: Anthropic (Messages API, default `claude-opus-5-5`, server-side
+  refusal fallbacks), OpenAI, OpenRouter (default `openrouter/auto`) and a local OpenAI-compatible
+  server (Ollama `http://localhost:11434/v1`, LM Studio); the model is chosen from a drop-down
+  filled from the provider's `/models` (readable names from Anthropic and OpenRouter; loaded when
+  the page shows, once per launch, ↻ reloads; also checks the key; a default the provider does not
+  list is replaced by its first model). Keys live in `~/Library/Application Support/MeetRec/
+  api-keys.json` (mode 0600), never in defaults or the log. Not the keychain: the owner did not
+  want password prompts, and an ad-hoc build from source is a new app to the keychain after every
+  rebuild, so macOS would ask for the login password to read the key. "Сразу после
+  транскрибации" (off by default) summarises transcripts of 40+ words before the copy rules copy
+  them; the next transcription does not wait. Any recording: "Сделать резюме" / "Сделать резюме
+  заново" in its menu (before set-up it opens the settings). Failures of the automatic run are a
+  notification; the tip says "резюме не написано: …". Language: as in the meeting (default) or
+  MeetRec's. Speaker naming also renames "Speaker N" inside the summary. The tip shows the summary
+  instead of the first lines (`TranscriptPreview`). Usage (`SummaryUsage.swift`): every run's model,
+  tokens and price go to the recording's `summary.json` (a companion: renamed, migrated and trashed
+  with it), to a "> MeetRec 0.16.0 · model · tokens · price" line under "## Резюме" (the tip skips
+  it), to the recording's tip ("Резюме: Claude Opus 5.5 · токены: … · $0.073"; the transcript
+  badge's tip also names the transcription engine from the header) and to a running total in the
+  settings ("Потрачено: …", "Сбросить"). Prices: OpenRouter reports the cost (`usage.include`),
+  Anthropic's list prices are in `SummaryPricing.anthropic` (update it with new models), OpenAI's
+  come from OpenRouter's public catalog; local is $0. The saved key shows as its start and end
+  ("sk-ant-api03…xyz9").
 - Naming speakers after the fact: "Подписать спикеров…" in a recording's menu lists the diarized
   speakers (`run.json` in its folder: names, scores, turns, voice embeddings), with their first words
   and closest known voice. A name given there adds that speaker's embedding to `speakers.json` (new
@@ -577,8 +604,8 @@ then launch, grant again, and relaunch after granting Screen Recording.
   (`scripts/git-hooks/pre-commit`; enable once per clone: `git config core.hooksPath scripts/git-hooks`)
   does it when a commit touches the app: `CURRENT_PROJECT_VERSION` +1 and the patch
   (0.3.1 → 0.3.2). For a new feature bump the minor by hand before committing
-  (`MARKETING_VERSION: "0.4.0"`); the hook keeps a hand-made bump. The version is shown in the
-  settings header; the log's launch line also has the build number.
+  (`MARKETING_VERSION: "0.4.0"`); the hook keeps a hand-made bump. The version is shown at the
+  bottom of the settings list; the log's launch line also has the build number.
 - Do not add an App Sandbox, hardened runtime or a team id: the local signing setup depends on it.
 - Never reinstall while a recording is running (`install.sh` kills the app): check the log's last
   "Recording state" line first.

@@ -62,7 +62,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                           closeAnimated: { [weak self] in self?.panel.closeAnimated() })
             .environmentObject(model)
             .environmentObject(model.live)
-            .environmentObject(Transcriber.shared))
+            .environmentObject(Transcriber.shared)
+            .environmentObject(Summarizer.shared))
         panel.onVisibilityChange = { visible in model.panelVisible = visible }
         island = IslandController(model: model)
         Shortcuts.shared.start()

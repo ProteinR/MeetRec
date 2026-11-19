@@ -56,6 +56,7 @@ enum RecordingsMigration {
             switch rest {
             case ".markers.json": return (file, folder.appendingPathComponent("markers.json"))
             case ".mutes.json": return (file, folder.appendingPathComponent("mutes.json"))
+            case ".summary.json": return (file, folder.appendingPathComponent("summary.json"))
             default: return (file, folder.appendingPathComponent(file.lastPathComponent))
             }
         }

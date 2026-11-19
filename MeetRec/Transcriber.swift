@@ -207,7 +207,12 @@ final class Transcriber: ObservableObject {
                 progress = nil
                 transcriptsVersion += 1
                 Log.info("Transcription finished: \(output.path) — \(summary ?? "")", "transcribe")
-                await copyMeetingTranscript(output, of: file)
+                // The summary (a network call, or a slow local model) goes into the transcript
+                // before it is copied; the next recording's transcription does not wait for it.
+                Task {
+                    await Summarizer.shared.summarizeAfterTranscript(output, of: file)
+                    await copyMeetingTranscript(output, of: file)
+                }
             case .failure(let message):
                 job = .failed(message)
                 progress = nil
@@ -217,6 +222,9 @@ final class Transcriber: ObservableObject {
             startNextIfIdle()
         }
     }
+
+    /// A transcript was edited (a summary added): views re-read it.
+    func transcriptChanged() { transcriptsVersion += 1 }
 
     // MARK: - Copy rules
 

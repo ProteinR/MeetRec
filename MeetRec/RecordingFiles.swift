@@ -200,10 +200,10 @@ enum RecordingFiles {
         let names = Set((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [])
         let own = ownFolder(of: recording) != nil
         return names.filter { name in
-            if own, ["markers.json", "mutes.json", "run.json"].contains(name) { return true }
+            if own, ["markers.json", "mutes.json", "run.json", "summary.json"].contains(name) { return true }
             guard name.hasPrefix(stem) else { return false }
             let rest = String(name.dropFirst(stem.count))
-            if rest == ".md" || rest == ".markers.json" || rest == ".mutes.json" { return true }
+            if [".md", ".markers.json", ".mutes.json", ".summary.json"].contains(rest) { return true }
             // "name (2).md" is a second transcript, unless "name (2)" is a separate recording.
             guard rest.range(of: #"^ \(\d+\)\.md$"#, options: .regularExpression) != nil else { return false }
             let otherStem = String(name.dropLast(3))

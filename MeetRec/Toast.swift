@@ -6,7 +6,7 @@ import SwiftUI
 /// recording saved. Problems (silent microphone, disk full) go to macOS notifications instead,
 /// because those stay in Notification Center.
 struct Toast: Equatable, Identifiable {
-    enum Kind: Equatable { case started, stopped, info, screenshot }
+    enum Kind: Equatable { case started, stopped, info, screenshot, summary, problem }
     enum Action: Equatable { case switchMicrophone(uid: String) }
 
     let id = UUID()
@@ -353,7 +353,7 @@ struct ToastView: View {
             } else {
                 Image(systemName: icon(toast.kind))
                     .font(.system(size: 22))
-                    .foregroundStyle(toast.kind == .started ? Color.red : toast.kind == .info ? Color.accentColor : Color.green)
+                    .foregroundStyle(iconColor(toast.kind))
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(toast.title).font(.callout.weight(.semibold))
@@ -366,6 +366,13 @@ struct ToastView: View {
                 Button("Переключить") { model.performToastAction(action) }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+            } else if toast.kind == .summary, let file = toast.file {
+                Button("Открыть") {
+                    NSWorkspace.shared.open(file)
+                    model.dismissToast()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
             } else if toast.kind == .stopped, let file = toast.file {
                 Button("Показать в Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([file])
@@ -400,6 +407,18 @@ struct ToastView: View {
         case .info: return "mic.fill"
         case .stopped: return "checkmark.circle.fill"
         case .screenshot: return "camera.viewfinder"
+        case .summary: return "sparkles"
+        case .problem: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private func iconColor(_ kind: Toast.Kind) -> Color {
+        switch kind {
+        case .started: .red
+        case .info: .accentColor
+        case .summary: .purple
+        case .problem: .orange
+        default: .green
         }
     }
 

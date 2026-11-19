@@ -132,7 +132,18 @@ enum SpeakerNaming {
         }
         var paragraphs: [String] = []
         var previousSpeaker: String?
+        // The summary ("## Резюме") speaks of "Speaker 2" too: the name is replaced there as a word.
+        var inSummary = false
+        let word = try! NSRegularExpression(pattern: #"(?<![\p{L}\p{N}])"# + NSRegularExpression.escapedPattern(for: oldName) + #"(?![\p{L}\p{N}])"#)
         for paragraph in text.components(separatedBy: "\n\n") {
+            if let title = SummaryText.level2Title(paragraph.components(separatedBy: "\n").first ?? "") {
+                inSummary = SummaryText.summaryTitles.contains(title)
+            } else if inSummary {
+                paragraphs.append(word.stringByReplacingMatches(in: paragraph, range: NSRange(paragraph.startIndex..., in: paragraph),
+                                                                withTemplate: NSRegularExpression.escapedTemplate(for: newName)))
+                previousSpeaker = nil
+                continue
+            }
             guard var parsed = parse(paragraph) else {
                 paragraphs.append(paragraph)
                 previousSpeaker = nil
