@@ -177,13 +177,14 @@ final class Screenshotter: ObservableObject {
         // Says it is in the clipboard already, so there is no urge to copy it again.
         let title = copy && saved != nil ? String(localized: "Скопирован и сохранён")
             : copy || saved == nil ? String(localized: "Скриншот скопирован") : String(localized: "Скриншот сохранён")
-        let detail = saved != nil ? String(localized: "Папка «\(folderURL.lastPathComponent)»")
-            : (saveToFolder ? String(localized: "В папку сохранить не удалось") : nil)
+        // Only a problem goes under it: the card shows the shot itself, not where it went.
+        let detail = saved == nil && saveToFolder ? String(localized: "В папку сохранить не удалось") : nil
         // Something to drag out of the toast even when nothing was saved.
         let dragFile = saved ?? ScreenshotFiles.dragCopy(image, scale: scale)
-        // A small copy: the toast shows 72×48 points, no need to keep the full picture for it.
-        let preview = ScreenshotFiles.downscaled(image, maxPixels: 400).map { NSImage(cgImage: $0, size: NSSize(width: $0.width, height: $0.height)) }
-        RecorderModel.shared.showToast(Toast(kind: .screenshot, title: title, detail: detail, file: dragFile, preview: preview))
+        // A small copy: the toast shows at most 300×170 points, no need to keep the full picture for it.
+        let preview = ScreenshotFiles.downscaled(image, maxPixels: 640).map { NSImage(cgImage: $0, size: NSSize(width: $0.width, height: $0.height)) }
+        RecorderModel.shared.showToast(Toast(kind: .screenshot, title: title, detail: detail, file: dragFile, preview: preview,
+                                             copied: copy || saved == nil, saved: saved != nil))
     }
 
     // MARK: - Actions on saved screenshots

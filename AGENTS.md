@@ -367,14 +367,23 @@ What MeetRec does instead:
   scale in its DPI (format "Авто (PNG/JPEG)", the default: JPEG q 0.9 when it is ≤ 40 % of the PNG,
   i.e. photos and gradients; text stays PNG; edits keep the file's format; the clipboard always gets
   PNG), to `~/Pictures/screenshots` (Shottr's folder, so the history stays in one place; changeable);
-  macOS's own shutter sound ("Screen Capture.aif") plays the moment an area or window is chosen (not for OCR; "Звук затвора"); copy, save, sound and the toast are switchable (with both off it is still copied). The toast says
-  "Скопирован и сохранён" (the owner used to press "copy" in Shottr anyway) and shows a preview:
-  drag it into a chat or a browser's upload field (the file itself; unsaved shots get a temporary
+  macOS's own shutter sound ("Screen Capture.aif") plays the moment an area or window is chosen (not for OCR; "Звук затвора"); copy, save, sound and the toast are switchable (with both off it is still copied). The toast
+  is the shot itself, like Shottr's thumbnail (`ScreenshotToast.swift`, since 0.17.3: the picture
+  fills a small card of the same size for every shot (280×170 pt, the shot fitted inside), no text), with a quiet chip on it saying
+  "Скопирован и сохранён" (the owner used to press "copy" in Shottr anyway; a failed save shows in
+  orange instead). Drag it into a chat or a browser's upload field (the file itself; unsaved shots get a temporary
   copy in `$TMPDIR/MeetRec Screenshots`, cleared at launch); it stays while dragging and goes after
-  a drop; a click or "Редактировать" (✎) edits, "OCR" copies the text of the whole shot (both
-  big, tinted buttons in a row under the preview). Every message toast has a ✕ at its top left and a
-  thin line along its bottom showing the time left (`ToastCountdown`: stops while hovered, runs out
-  over the last 2 s after the pointer leaves). In a row under them ("Найти:", the hovered service named after the icons: the toast is never key, so `.help` tooltips do not show there), image search buttons (Google
+  a drop; a click edits. With the pointer on it the picture darkens and shows the actions: in the
+  middle pills "Копировать" (or "✓ Скопировано" when copying is on or after a click; a click copies
+  again), "Редактировать" (spelled out: a bare pencil in a corner was not noticed or understood) and
+  "Текст" (OCR of the whole shot); in the corners Finder (top right, saved shots only) and the image
+  search icons (bottom right). Several shots in a row stack in a column under the menu bar item,
+  newest on top, at most 3 (`RecorderModel.shotToasts`, `maxShotToasts`; a message toast stays above
+  them); each card has its own ✕ and countdown, and a drop or an action takes only that card away.
+  Every message toast and card has a ✕ at its top left and a
+  thin line along its bottom showing the time left (`ToastCountdown`, one per card in `ToastTimers`:
+  all stop while any card is hovered; after the pointer leaves the message goes in 2 s, then the
+  cards from the oldest, 0.6 s apart). The window does not move to another screen while cards are up. The image search buttons (the hovered service named above the icons: the toast is never key, so `.help` tooltips do not show there; Google
   Lens, Яндекс; `ImageSearch.swift`): the app only knows the `ImageSearchProvider` protocol (picture
   in, results page out), each service is its own provider in `ImageSearch.all`, switchable in
   "Скриншоты" (setting `imageSearchProviders`). Every place with search uses the same views

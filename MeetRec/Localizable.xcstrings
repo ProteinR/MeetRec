@@ -1426,12 +1426,32 @@
         }
       }
     },
+    "Делать суммаризацию каждой записи, как только готов её транскрипт" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summarize every recording as soon as its transcript is ready"
+          }
+        }
+      }
+    },
     "Делать транскрипт после каждой записи" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Transcribe after every recording"
+          }
+        }
+      }
+    },
+    "Делаю суммаризацию…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing summary…"
           }
         }
       }
@@ -3231,6 +3251,7 @@
       }
     },
     "Найти:" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4231,6 +4252,7 @@
       }
     },
     "Папка «%@»" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4341,21 +4363,12 @@
       }
     },
     "Перетащите в чат или в поле загрузки; клик — редактировать" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Drag into a chat or an upload field; click to edit"
-          }
-        }
-      }
-    },
-    "Делать суммаризацию каждой записи, как только готов её транскрипт" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Summarize every recording as soon as its transcript is ready"
           }
         }
       }
@@ -4366,16 +4379,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Only this window is recorded: other windows and notifications stay out of the recording."
-          }
-        }
-      }
-    },
-    "Делаю суммаризацию…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Writing summary…"
           }
         }
       }
@@ -4861,6 +4864,7 @@
       }
     },
     "Распознать текст на снимке и скопировать его" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4886,56 +4890,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Edit"
-          }
-        }
-      }
-    },
-    "Суммаризация" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Summary"
-          }
-        }
-      }
-    },
-    "Суммаризация встречи" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Meeting summary"
-          }
-        }
-      }
-    },
-    "Суммаризация готова" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Summary ready"
-          }
-        }
-      }
-    },
-    "Суммаризация не сделана" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Summary not written"
-          }
-        }
-      }
-    },
-    "Суммаризация: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Summary: %@"
           }
         }
       }
@@ -5570,6 +5524,56 @@
         }
       }
     },
+    "Суммаризация" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summary"
+          }
+        }
+      }
+    },
+    "Суммаризация встречи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meeting summary"
+          }
+        }
+      }
+    },
+    "Суммаризация готова" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summary ready"
+          }
+        }
+      }
+    },
+    "Суммаризация не сделана" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summary not written"
+          }
+        }
+      }
+    },
+    "Суммаризация: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summary: %@"
+          }
+        }
+      }
+    },
     "Сходство с ближайшим известным голосом во время транскрибации. Имя ставится автоматически от 70%." : {
       "localizations" : {
         "en" : {
@@ -5586,6 +5590,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Selected in the system"
+          }
+        }
+      }
+    },
+    "Текст" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text"
           }
         }
       }
@@ -6232,16 +6246,6 @@
         }
       }
     },
-    "Язык суммаризации" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Summary language"
-          }
-        }
-      }
-    },
     "Язык сменится после перезапуска" : {
       "localizations" : {
         "en" : {
@@ -6258,6 +6262,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The language changes after a restart — a recording or transcription is running now"
+          }
+        }
+      }
+    },
+    "Язык суммаризации" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summary language"
           }
         }
       }
@@ -6723,6 +6737,16 @@
         }
       }
     },
+    "скоро" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "soon"
+          }
+        }
+      }
+    },
     "суммаризация: %@" : {
       "localizations" : {
         "en" : {
@@ -6739,16 +6763,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "summary…"
-          }
-        }
-      }
-    },
-    "скоро" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "soon"
           }
         }
       }

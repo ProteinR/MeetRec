@@ -61,6 +61,9 @@ final class RecorderModel: ObservableObject {
     @Published var promptIsReminder = false
     /// A short message for a live moment (recording started / saved), shown by `ToastController`.
     @Published var toast: Toast?
+    /// Screenshot cards (`ScreenshotToastCard`), newest first: several shots in a row stack in a
+    /// column instead of replacing each other.
+    @Published var shotToasts: [Toast] = []
     /// Name of the app whose meeting started the current recording; nil for manual recordings.
     @Published private(set) var autoStartedBy: String?
     /// `MeetingApp.id` behind `autoStartedBy`, for the file tag.

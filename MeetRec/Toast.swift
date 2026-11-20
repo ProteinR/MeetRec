@@ -17,11 +17,16 @@ struct Toast: Equatable, Identifiable {
     var file: URL?
     /// A button next to the message ("Переключить").
     var action: Action?
-    /// Screenshot: shown instead of the icon; dragged out it drops `file` into a chat or a browser.
+    /// Screenshot: the toast becomes the shot itself (`ScreenshotToastCard`); dragged out it drops
+    /// `file` into a chat or a browser.
     var preview: NSImage?
+    /// Screenshot: already in the clipboard ("Скопировано" instead of "Копировать").
+    var copied = false
+    /// Screenshot: `file` is the saved one in the folder, not a temporary copy (offers Finder).
+    var saved = false
 
     /// How long it stays when not hovered; a suggestion waits a bit longer.
-    var duration: TimeInterval { action != nil ? 12 : kind == .screenshot ? 5 : (kind == .started ? 4.5 : 7) }
+    var duration: TimeInterval { action != nil ? 12 : kind == .screenshot ? 6 : (kind == .started ? 4.5 : 7) }
 }
 
 /// How much of a toast's time is left, for the thin line along its bottom: runs down while the
@@ -67,9 +72,25 @@ final class ToastCountdown: ObservableObject {
     }
 }
 
-/// Shows the current toast or call question in a small floating window under the menu bar item.
-/// It never takes keyboard focus (typing in the meeting app keeps working) and its transparent
-/// margins let clicks through.
+/// One countdown per card on screen (the message and each screenshot card), so each folds away
+/// on its own time.
+@MainActor
+final class ToastTimers {
+    private var countdowns: [UUID: ToastCountdown] = [:]
+
+    func countdown(_ id: UUID) -> ToastCountdown {
+        if let existing = countdowns[id] { return existing }
+        let new = ToastCountdown()
+        countdowns[id] = new
+        return new
+    }
+
+    func remove(_ id: UUID) { countdowns[id] = nil }
+}
+
+/// Shows the current toast or call question, and the screenshot cards in a column under it, in a
+/// small floating window under the menu bar item. It never takes keyboard focus (typing in the
+/// meeting app keeps working) and its transparent margins let clicks through.
 @MainActor
 final class ToastController {
     private final class ToastPanel: NSPanel {
@@ -77,25 +98,30 @@ final class ToastController {
         override var canBecomeKey: Bool { true }
     }
 
-    /// The card is 328 wide; the rest is a transparent margin wide enough for its shadow (radius 10,
+    /// The card is 328 wide at most; the rest is a transparent margin wide enough for its shadow (radius 10,
     /// reaching about 20 plus the offset), so it fades out instead of being cut off.
     static let margin: CGFloat = 30
     static let width: CGFloat = 328 + 2 * margin
-    static let height: CGFloat = 200
+    /// Room for a message and `RecorderModel.maxShotToasts` screenshot cards (up to 184 pt each).
+    static let height: CGFloat = 720
 
     private let panel: ToastPanel
     private let model: RecorderModel
     private let anchor: () -> NSRect?
-    private var hideWork: DispatchWorkItem?
+    /// The question folding into the panel.
+    private var promptWork: DispatchWorkItem?
+    /// Each card's own fold-away.
+    private var hideWorks: [UUID: DispatchWorkItem] = [:]
+    /// The cards on screen now, to tell the new ones from those already counting down.
+    private var shown: Set<UUID> = []
     private var hovering = false
     /// The question folded away after a while (it stays in the panel); per call.
     private var foldedPrompt: String?
     static let promptVisibleFor: TimeInterval = 25
     private var cancellables: Set<AnyCancellable> = []
-    private let countdown = ToastCountdown()
-    private var shownToast: UUID?
+    private let timers = ToastTimers()
 
-    /// A screenshot preview is being dragged out: the toast stays until the drop.
+    /// A screenshot preview is being dragged out: the cards stay until the drop.
     private var dragging = false
 
     init(model: RecorderModel, anchor: @escaping () -> NSRect?) {
@@ -113,23 +139,25 @@ final class ToastController {
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
 
-        let view = ToastView(onHover: { [weak self] inside in self?.hover(inside) },
-                             onDrag: { [weak self] state in self?.drag(state) })
+        let view = ToastView(timers: timers,
+                             onHover: { [weak self] inside in self?.hover(inside) },
+                             onDrag: { [weak self] id, state in self?.drag(id, state) })
             .environmentObject(model)
-            .environmentObject(countdown)
         let hosting = NSHostingView(rootView: view)
         hosting.sizingOptions = []
         panel.contentView = hosting
 
-        Publishers.CombineLatest(model.$toast.map { $0?.id }.removeDuplicates(), model.$callPrompt.map { $0?.id }.removeDuplicates())
+        Publishers.CombineLatest3(model.$toast.map { $0?.id }.removeDuplicates(),
+                                  model.$callPrompt.map { $0?.id }.removeDuplicates(),
+                                  model.$shotToasts.map { $0.map(\.id) }.removeDuplicates())
             .receive(on: RunLoop.main)
-            .sink { [weak self] _, _ in self?.update() }
+            .sink { [weak self] _, _, _ in self?.update() }
             .store(in: &cancellables)
         // The panel shows everything itself; no toast on top of it.
         model.$panelVisible
             .receive(on: RunLoop.main)
             .sink { [weak self] visible in
-                if visible { self?.model.dismissToast() }
+                if visible { self?.model.dismissAllToasts() }
                 // A pending question moves into the panel and comes back when it folds away.
                 DispatchQueue.main.async { self?.update() }
             }
@@ -140,24 +168,46 @@ final class ToastController {
         if panel.sharingType != type { panel.sharingType = type }
     }
 
+    /// The question is shown instead of a message (it waits for an answer).
+    private var promptShown: Bool { model.callPrompt != nil && !model.isRecording }
+
+    /// The cards that count down: the message (unless the question is up) and the screenshots.
+    private var cardIDs: [UUID] {
+        var ids = model.shotToasts.map(\.id)
+        if let toast = model.toast, !promptShown { ids.insert(toast.id, at: 0) }
+        return ids
+    }
+
+    private func duration(_ id: UUID) -> TimeInterval {
+        if let toast = model.toast, toast.id == id { return toast.duration }
+        return model.shotToasts.first { $0.id == id }?.duration ?? 6
+    }
+
     private func update() {
         if model.callPrompt == nil { foldedPrompt = nil }
         // Not in the discreet style, and only for a while: an unanswered question folds into the panel.
-        let prompt = model.callPrompt != nil && !model.isRecording && MenuBarStyle.current != .discreet
-            && foldedPrompt != model.callPrompt?.id
-        guard (prompt || model.toast != nil) && !model.panelVisible else {
+        let prompt = promptShown && MenuBarStyle.current != .discreet && foldedPrompt != model.callPrompt?.id
+        let ids = cardIDs
+        for id in shown.subtracting(ids) {
+            hideWorks.removeValue(forKey: id)?.cancel()
+            timers.remove(id)
+        }
+        guard (prompt || !ids.isEmpty) && !model.panelVisible else {
+            shown = []
             // Let SwiftUI play the slide-out, then take the window away.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
                 guard let self else { return }
-                let pending = (self.model.toast != nil || self.model.callPrompt != nil) && !self.model.panelVisible
+                let pending = (self.model.toast != nil || self.model.callPrompt != nil || !self.model.shotToasts.isEmpty)
+                    && !self.model.panelVisible
                 if !pending { self.panel.orderOut(nil) }
             }
             return
         }
-        position()
+        // Not moved while cards are up: a new shot taken on another screen would carry the others away.
+        if shown.isEmpty || !panel.isVisible { position() }
         panel.orderFrontRegardless()
-        hideWork?.cancel()
         // Messages fold away on their own; a question after `promptVisibleFor`, staying in the panel.
+        promptWork?.cancel()
         if prompt, let id = model.callPrompt?.id {
             let work = DispatchWorkItem { [weak self] in
                 guard let self, !self.hovering, self.model.callPrompt?.id == id else { return }
@@ -165,53 +215,60 @@ final class ToastController {
                 self.foldedPrompt = id
                 self.update()
             }
-            hideWork = work
+            promptWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.promptVisibleFor, execute: work)
-        } else if let toast = model.toast {
-            if shownToast != toast.id {
-                shownToast = toast.id
-                countdown.reset()
-            }
-            scheduleHide(after: toast.duration)
         }
+        for id in ids where !shown.contains(id) {
+            timers.countdown(id).reset()
+            if !hovering { scheduleHide(id, after: duration(id)) }
+        }
+        shown = Set(ids)
     }
 
-    private func scheduleHide(after delay: TimeInterval) {
-        hideWork?.cancel()
+    private func scheduleHide(_ id: UUID, after delay: TimeInterval) {
+        hideWorks[id]?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self, !self.hovering else { return }
-            self.model.dismissToast()
+            self.dismiss(id)
         }
-        hideWork = work
+        hideWorks[id] = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
-        countdown.run(delay)
+        timers.countdown(id).run(delay)
     }
 
-    /// Dropped somewhere: done, like Shottr's thumbnail; cancelled: the toast folds away as usual.
-    private func drag(_ state: ToastView.DragState) {
+    private func dismiss(_ id: UUID) {
+        if model.toast?.id == id { model.dismissToast() } else { model.dismissShot(id) }
+    }
+
+    /// Dropped somewhere: that card is done, like Shottr's thumbnail; cancelled: they fold away as usual.
+    private func drag(_ id: UUID, _ state: ToastView.DragState) {
         switch state {
         case .began:
             dragging = true
-            hideWork?.cancel()
-            countdown.pause()
+            hover(true)
         case .ended(let dropped):
             dragging = false
             if dropped {
                 Log.info("Screenshot preview dropped into another app", "screenshots")
-                model.dismissToast()
-            } else {
-                hover(false)
+                model.dismissShot(id)
             }
+            hover(false)
         }
     }
 
     private func hover(_ inside: Bool) {
         hovering = inside || dragging
         if hovering {
-            hideWork?.cancel()
-            countdown.pause()
-        } else if model.toast != nil, model.callPrompt == nil {
-            scheduleHide(after: 2)
+            for work in hideWorks.values { work.cancel() }
+            hideWorks = [:]
+            for id in shown { timers.countdown(id).pause() }
+        } else {
+            // The message first, then the oldest shot, the newest last.
+            var delay: TimeInterval = 2
+            for id in [model.toast?.id].compactMap({ $0 }) + model.shotToasts.reversed().map(\.id) where shown.contains(id) {
+                scheduleHide(id, after: delay)
+                delay += 0.6
+            }
         }
     }
 
@@ -231,130 +288,74 @@ final class ToastController {
         guard let screen else { return }
         let visible = screen.visibleFrame
         let top = visible.maxY - 4 + Self.margin
+        let height = min(Self.height, visible.height + Self.margin)
         var x = itemOffset.map { screen.frame.maxX - $0 - Self.width / 2 } ?? (visible.maxX - Self.width + Self.margin - 6)
         x = min(max(x, visible.minX - Self.margin + 6), visible.maxX - Self.width + Self.margin - 6)
-        panel.setFrame(NSRect(x: x, y: top - Self.height, width: Self.width, height: Self.height), display: true)
+        panel.setFrame(NSRect(x: x, y: top - height, width: Self.width, height: height), display: true)
     }
 }
 
 struct ToastView: View {
     enum DragState { case began, ended(dropped: Bool) }
 
+    let timers: ToastTimers
     let onHover: (Bool) -> Void
-    let onDrag: (DragState) -> Void
+    let onDrag: (UUID, DragState) -> Void
     @EnvironmentObject private var model: RecorderModel
-    @EnvironmentObject private var countdown: ToastCountdown
-    /// The image search service under the pointer, named next to the icons.
-    @State private var searchHover: String?
+
+    private static let spring = Animation.spring(response: 0.4, dampingFraction: 0.85)
 
     var body: some View {
-        VStack(spacing: 0) {
-            Group {
-                if let app = model.callPrompt, !model.isRecording {
-                    prompt(app).id("prompt-\(app.id)")
-                } else if let toast = model.toast {
-                    message(toast).id(toast.id)
+        VStack(spacing: 10) {
+            if let app = model.callPrompt, !model.isRecording {
+                prompt(app)
+                    .padding(12)
+                    .frame(width: ToastController.width - 2 * ToastController.margin)
+                    .modifier(ToastChrome(countdown: nil, close: nil))
+                    .onHover(perform: onHover)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .id("prompt-\(app.id)")
+            } else if let toast = model.toast {
+                message(toast)
+                    .padding(12)
+                    .frame(width: ToastController.width - 2 * ToastController.margin)
+                    .modifier(ToastChrome(countdown: timers.countdown(toast.id), close: { model.dismissToast() }))
+                    .onHover(perform: onHover)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .id(toast.id)
+            }
+            // Newest on top; older ones move down.
+            ForEach(model.shotToasts) { shot in
+                if let preview = shot.preview, let file = shot.file {
+                    ScreenshotToastCard(toast: shot, image: preview, file: file, onDrag: { onDrag(shot.id, $0) })
+                        .padding(7)
+                        .modifier(ToastChrome(countdown: timers.countdown(shot.id), close: { model.dismissShot(shot.id) }))
+                        .onHover(perform: onHover)
+                        .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity),
+                                                removal: .scale(scale: 0.9).combined(with: .opacity)))
                 }
             }
-            .padding(12)
-            .frame(width: ToastController.width - 2 * ToastController.margin)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5))
-            .overlay(alignment: .bottom) {
-                // The time left before it folds away.
-                if showsMessage {
-                    Capsule()
-                        .fill(Color.primary.opacity(0.35))
-                        .frame(height: 2)
-                        .scaleEffect(x: countdown.fraction, anchor: .leading)
-                        .padding(.horizontal, 14)
-                        .padding(.bottom, 3)
-                        .allowsHitTesting(false)
-                }
-            }
-            .overlay(alignment: .topLeading) {
-                if showsMessage { closeButton }
-            }
-            .shadow(color: .black.opacity(0.3), radius: 10, y: 4)
-            .onHover(perform: onHover)
-            .transition(.move(edge: .top).combined(with: .opacity))
             Spacer(minLength: 0)
         }
         .padding(.top, ToastController.margin)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.toast?.id)
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.callPrompt?.id)
-    }
-
-    /// A message, not the call question (that one waits for an answer).
-    private var showsMessage: Bool {
-        model.toast != nil && !(model.callPrompt != nil && !model.isRecording)
-    }
-
-    /// Like a notification's: puts the toast away at once.
-    private var closeButton: some View {
-        Button {
-            model.dismissToast()
-        } label: {
-            Image(systemName: "xmark")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(.secondary)
-                .frame(width: 18, height: 18)
-                .background(Circle().fill(.regularMaterial))
-                .overlay(Circle().strokeBorder(Color.primary.opacity(0.18), lineWidth: 0.5))
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .offset(x: -6, y: -6)
-        .help("Закрыть")
-        .accessibilityLabel("Закрыть")
+        .animation(Self.spring, value: model.toast?.id)
+        .animation(Self.spring, value: model.callPrompt?.id)
+        .animation(Self.spring, value: model.shotToasts.map(\.id))
     }
 
     private func message(_ toast: Toast) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            messageRow(toast)
-            if toast.kind == .screenshot, let file = toast.file, toast.preview != nil {
-                HStack(spacing: 8) {
-                    ToastActionButton(icon: "pencil", title: String(localized: "Редактировать")) {
-                        model.dismissToast()
-                        ScreenshotEditor.open(file)
-                    }
-                    ToastActionButton(icon: "text.viewfinder", title: "OCR") {
-                        model.dismissToast()
-                        Screenshotter.shared.recognizeText(file)
-                    }
-                    .help("Распознать текст на снимке и скопировать его")
-                }
-            }
-            // A row of its own: in the button column each new provider made the column wider and
-            // squeezed the title into a narrow, many-line strip.
-            if toast.kind == .screenshot, let file = toast.file, toast.preview != nil {
-                HStack(spacing: 6) {
-                    Text("Найти:").font(.caption).foregroundStyle(.secondary)
-                    ImageSearchButtons(iconSize: 16, onHover: { searchHover = $0?.name }) { ImageSearch.search(file, with: $0) }
-                        .buttonStyle(.borderless)
-                    // After the icons, so they do not move when it appears.
-                    if let searchHover {
-                        Text(searchHover).font(.caption.weight(.medium)).lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
-                }
-            }
-        }
-        .contentShape(Rectangle())
-        // A click just puts it away (the panel is one click on the menu bar icon).
-        .onTapGesture { model.dismissToast() }
+        messageRow(toast)
+            .contentShape(Rectangle())
+            // A click just puts it away (the panel is one click on the menu bar icon).
+            .onTapGesture { model.dismissToast() }
     }
 
     private func messageRow(_ toast: Toast) -> some View {
         HStack(spacing: 10) {
-            if let preview = toast.preview, let file = toast.file {
-                screenshotPreview(preview, file: file)
-            } else {
-                Image(systemName: icon(toast.kind))
-                    .font(.system(size: 22))
-                    .foregroundStyle(iconColor(toast.kind))
-            }
+            Image(systemName: icon(toast.kind))
+                .font(.system(size: 22))
+                .foregroundStyle(iconColor(toast.kind))
             VStack(alignment: .leading, spacing: 2) {
                 Text(toast.title).font(.callout.weight(.semibold))
                 if let detail = toast.detail {
@@ -381,24 +382,6 @@ struct ToastView: View {
                 .controlSize(.small)
             }
         }
-    }
-
-    /// Drag it into a chat or a browser's upload field; a click edits it.
-    private func screenshotPreview(_ image: NSImage, file: URL) -> some View {
-        Image(nsImage: image)
-            .resizable()
-            .aspectRatio(contentMode: .fill)
-            .frame(width: 72, height: 48)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.primary.opacity(0.2), lineWidth: 0.5))
-            .overlay(FileDragSource(file: file, image: image,
-                                    onClick: {
-                                        model.dismissToast()
-                                        ScreenshotEditor.open(file)
-                                    },
-                                    onBegin: { onDrag(.began) },
-                                    onEnd: { onDrag(.ended(dropped: $0)) }))
-            .help("Перетащите в чат или в поле загрузки; клик — редактировать")
     }
 
     private func icon(_ kind: Toast.Kind) -> String {
@@ -458,7 +441,7 @@ struct ToastView: View {
 
 /// An AppKit drag source over the toast's preview: drags the file itself (browsers' upload fields and
 /// messengers take files), works in the non-activating toast window and reports where the drag ended.
-private struct FileDragSource: NSViewRepresentable {
+struct FileDragSource: NSViewRepresentable {
     let file: URL
     let image: NSImage
     let onClick: () -> Void
@@ -515,30 +498,58 @@ private struct FileDragSource: NSViewRepresentable {
     }
 }
 
-/// A screenshot toast's action: big enough to hit at a glance, with an icon, tinted so it does not
-/// melt into the material behind it.
-private struct ToastActionButton: View {
-    let icon: String
-    let title: String
+/// A toast card's look: material, hairline, shadow; for messages also the ✕ at the top left and
+/// the line along the bottom with the time left.
+private struct ToastChrome: ViewModifier {
+    let countdown: ToastCountdown?
+    let close: (() -> Void)?
+
+    func body(content: Content) -> some View {
+        content
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5))
+            .overlay(alignment: .bottom) {
+                if let countdown { CountdownLine(countdown: countdown) }
+            }
+            .overlay(alignment: .topLeading) {
+                if let close { CloseButton(action: close) }
+            }
+            .shadow(color: .black.opacity(0.3), radius: 10, y: 4)
+    }
+}
+
+/// The time left before a card folds away.
+private struct CountdownLine: View {
+    @ObservedObject var countdown: ToastCountdown
+
+    var body: some View {
+        Capsule()
+            .fill(Color.primary.opacity(0.35))
+            .frame(height: 2)
+            .scaleEffect(x: countdown.fraction, anchor: .leading)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 2.5)
+            .allowsHitTesting(false)
+    }
+}
+
+/// Like a notification's: puts the card away at once.
+private struct CloseButton: View {
     let action: () -> Void
-    @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: icon).font(.system(size: 13, weight: .semibold))
-                Text(title).font(.callout.weight(.semibold))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 7)
-            .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Color.accentColor.opacity(hovering ? 0.32 : 0.2)))
-            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .strokeBorder(Color.accentColor.opacity(0.45), lineWidth: 0.5))
-            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            Image(systemName: "xmark")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.secondary)
+                .frame(width: 18, height: 18)
+                .background(Circle().fill(.regularMaterial))
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.18), lineWidth: 0.5))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
+        .offset(x: -6, y: -6)
+        .help("Закрыть")
+        .accessibilityLabel("Закрыть")
     }
 }

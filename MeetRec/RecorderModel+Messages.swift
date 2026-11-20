@@ -39,13 +39,30 @@ extension RecorderModel {
     // MARK: - Toasts
 
     /// Live moments are shown by a small toast, not the panel, and not in the discreet style.
+    /// How many screenshot cards stay up at once; an older one goes when a new one comes.
+    static let maxShotToasts = 3
+
     func showToast(_ toast: Toast) {
         guard MenuBarStyle.current != .discreet else { return }
-        self.toast = toast
+        if toast.preview != nil, toast.file != nil {
+            shotToasts = Array(([toast] + shotToasts).prefix(Self.maxShotToasts))
+        } else {
+            self.toast = toast
+        }
     }
 
     func dismissToast() {
         if toast != nil { toast = nil }
+    }
+
+    func dismissShot(_ id: UUID) {
+        shotToasts.removeAll { $0.id == id }
+    }
+
+    /// The message and every screenshot card (the panel opened and shows everything itself).
+    func dismissAllToasts() {
+        dismissToast()
+        if !shotToasts.isEmpty { shotToasts = [] }
     }
 
     /// Shows the result of the last stop (also used when the panel folds away after "Остановить").
