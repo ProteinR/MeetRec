@@ -106,15 +106,6 @@ struct EditorView: View {
                 .buttonStyle(.plain)
                 .help("\(EditorPalette.names[index]) (\(index + 1))")
             }
-            Divider().frame(height: 20).padding(.horizontal, 6)
-            // What is searched is what would be copied: marks, blur and crop included.
-            ImageSearchButtons(iconSize: 16) { provider in
-                commitCaption()
-                document.applyPendingCrop()
-                guard let result = document.render() else { return }
-                ImageSearch.search(result, scale: document.scale, name: document.url.lastPathComponent, with: provider)
-            }
-            .buttonStyle(.borderless)
             Spacer(minLength: 8)
             if document.tool == .blur || document.selected?.kind == .blur {
                 blurSlider
@@ -249,14 +240,19 @@ struct EditorView: View {
                 }
             }
             if let captionAt {
-                TextField("Надпись", text: $captionText)
+                // The plate being typed is the plate it will become: as wide as one letter when
+                // empty, growing with each letter (a fixed wide field looked absurd).
+                let padding = AnnotationGeometry.captionPadding(scale: document.scale)
+                let typed = AnnotationGeometry.captionSize(captionText.isEmpty ? "М" : captionText, scale: document.scale)
+                TextField("", text: $captionText)
                     .textFieldStyle(.plain)
                     .font(.system(size: AnnotationGeometry.captionFont(scale: document.scale) * zoom, weight: .semibold))
                     .foregroundStyle(EditorPalette.textColor(document.colorIndex))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .frame(width: 240, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 5).fill(EditorPalette.color(document.colorIndex)))
+                    .frame(width: (typed.width - 2 * padding.width) * zoom + 4, alignment: .leading)
+                    .padding(.horizontal, padding.width * zoom)
+                    .padding(.vertical, padding.height * zoom)
+                    .background(RoundedRectangle(cornerRadius: 5 * document.scale * zoom)
+                        .fill(EditorPalette.color(document.colorIndex)))
                     .offset(x: (captionAt.x - document.visibleRect.minX) * zoom,
                             y: (captionAt.y - document.visibleRect.minY) * zoom)
                     .focused($captionFocused)

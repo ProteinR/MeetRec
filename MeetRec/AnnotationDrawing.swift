@@ -18,34 +18,70 @@ enum AnnotationDrawing {
 
         switch annotation.kind {
         case .arrow:
+            // A light, friendly arrow: the shaft swells from a thin round tail towards a head with
+            // swept-back barbs and soft corners (the old one was an even stroke with a sharp triangle).
             let start = view(annotation.start), end = view(annotation.end)
             let control = view(AnnotationGeometry.control(annotation))
             let length = AnnotationGeometry.length(annotation) * zoom
             guard length > 1 else { return }
-            // The head points along the curve's last bit.
-            var tangent = CGPoint(x: end.x - control.x, y: end.y - control.y)
-            if hypot(tangent.x, tangent.y) < 0.5 { tangent = CGPoint(x: end.x - start.x, y: end.y - start.y) }
-            let tangentLength = max(hypot(tangent.x, tangent.y), 0.001)
-            let direction = CGPoint(x: tangent.x / tangentLength, y: tangent.y / tangentLength)
+            let at = { (t: CGFloat) -> CGPoint in
+                let u = 1 - t
+                let a = u * u, b = 2 * u * t, c = t * t
+                let x: CGFloat = a * start.x + b * control.x + c * end.x
+                let y: CGFloat = a * start.y + b * control.y + c * end.y
+                return CGPoint(x: x, y: y)
+            }
+            let unitTangent = { (t: CGFloat) -> CGPoint in
+                let u: CGFloat = 2 * (1 - t), v: CGFloat = 2 * t
+                var dx: CGFloat = u * (control.x - start.x) + v * (end.x - control.x)
+                var dy: CGFloat = u * (control.y - start.y) + v * (end.y - control.y)
+                if hypot(dx, dy) < 0.001 { dx = end.x - start.x; dy = end.y - start.y }
+                let l = max(hypot(dx, dy), 0.001)
+                return CGPoint(x: dx / l, y: dy / l)
+            }
+            let direction = unitTangent(1)
             let normal = CGPoint(x: -direction.y, y: direction.x)
-            let head = min(max(width * 4, 14 * unit), length * 0.7)
-            let back = CGPoint(x: end.x - direction.x * head, y: end.y - direction.y * head)
-            // The shaft stops inside the head, so its round cap does not poke out of the tip.
-            let t = max(0, 1 - head * 0.7 / length)
-            let shaftControl = CGPoint(x: start.x + (control.x - start.x) * t, y: start.y + (control.y - start.y) * t)
-            let shaftEnd = view(AnnotationGeometry.point(annotation, at: t))
-            var shaft = Path()
-            shaft.move(to: start)
-            shaft.addQuadCurve(to: shaftEnd, control: shaftControl)
+            let head = min(max(width * 4.2, 16 * unit), length * 0.75)
+            let local = { (along: CGFloat, across: CGFloat) -> CGPoint in
+                let a: CGFloat = along * head, c: CGFloat = across * head
+                let x: CGFloat = end.x - direction.x * a + normal.x * c
+                let y: CGFloat = end.y - direction.y * a + normal.y * c
+                return CGPoint(x: x, y: y)
+            }
+            // Head: sides bulge a little, the back is notched, corners rounded by a stroke of its colour.
             var tip = Path()
             tip.move(to: end)
-            tip.addLine(to: CGPoint(x: back.x + normal.x * head * 0.5, y: back.y + normal.y * head * 0.5))
-            tip.addLine(to: CGPoint(x: back.x - normal.x * head * 0.5, y: back.y - normal.y * head * 0.5))
+            tip.addQuadCurve(to: local(1, 0.55), control: local(0.5, 0.36))
+            tip.addQuadCurve(to: local(0.62, 0), control: local(0.78, 0.12))
+            tip.addQuadCurve(to: local(1, -0.55), control: local(0.78, -0.12))
+            tip.addQuadCurve(to: end, control: local(0.5, -0.36))
             tip.closeSubpath()
-            context.stroke(shaft, with: halo, style: StrokeStyle(lineWidth: width + 2 * outline, lineCap: .round))
-            context.stroke(tip, with: halo, style: StrokeStyle(lineWidth: 2 * outline, lineJoin: .round))
-            context.stroke(shaft, with: .color(color), style: StrokeStyle(lineWidth: width, lineCap: .round))
+            let corner = max(width * 0.55, 1.5 * unit)
+            // Shaft: tapered outline up to inside the head, with a round tail.
+            let t = max(0, 1 - head * 0.5 / length)
+            let thin = max(width * 0.4, 1.2 * unit), thick = width * 1.2
+            let steps = 24
+            var left: [CGPoint] = [], right: [CGPoint] = []
+            for i in 0...steps {
+                let f = CGFloat(i) / CGFloat(steps), s = t * f
+                let p = at(s), d = unitTangent(s)
+                let ease: CGFloat = f * f * (3 - 2 * f)
+                let w: CGFloat = (thin + (thick - thin) * ease) / 2
+                let ox: CGFloat = -d.y * w, oy: CGFloat = d.x * w
+                left.append(CGPoint(x: p.x + ox, y: p.y + oy))
+                right.append(CGPoint(x: p.x - ox, y: p.y - oy))
+            }
+            var shaft = Path()
+            shaft.addLines(left + right.reversed())
+            shaft.closeSubpath()
+            let tail = Path(ellipseIn: CGRect(x: start.x - thin / 2, y: start.y - thin / 2, width: thin, height: thin))
+            for part in [shaft, tail] {
+                context.stroke(part, with: halo, style: StrokeStyle(lineWidth: 2 * outline, lineJoin: .round))
+            }
+            context.stroke(tip, with: halo, style: StrokeStyle(lineWidth: corner + 2 * outline, lineJoin: .round))
+            for part in [shaft, tail] { context.fill(part, with: .color(color)) }
             context.fill(tip, with: .color(color))
+            context.stroke(tip, with: .color(color), style: StrokeStyle(lineWidth: corner, lineJoin: .round))
 
         case .rectangle, .ellipse:
             guard rect.width > 0, rect.height > 0 else { return }
@@ -104,16 +140,23 @@ enum AnnotationDrawing {
         return (small, region)
     }
 
-    /// Selection: a dashed frame and round handles. Only in the editor, never saved.
+    /// Selection: round handles; marks without handles (caption, step) get a thin outline that
+    /// follows their own shape. No dashed frame. Only in the editor, never saved.
     static func drawSelection(_ annotation: Annotation, in context: GraphicsContext, zoom: CGFloat, scale: CGFloat) {
         let accent = Color.accentColor
         let handles = AnnotationGeometry.handles(annotation)
-        if handles.isEmpty || annotation.kind == .arrow {
+        if handles.isEmpty {
             let bounds = AnnotationGeometry.bounds(annotation, scale: scale)
             let frame = CGRect(x: bounds.minX * zoom, y: bounds.minY * zoom, width: bounds.width * zoom, height: bounds.height * zoom)
-                .insetBy(dx: -5, dy: -5)
-            context.stroke(Path(roundedRect: frame, cornerRadius: 4), with: .color(accent.opacity(0.8)),
-                           style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                .insetBy(dx: -3, dy: -3)
+            let outline: Path
+            if case .step = annotation.kind {
+                outline = Path(ellipseIn: frame)
+            } else {
+                outline = Path(roundedRect: frame, cornerRadius: 5 * scale * zoom + 3, style: .continuous)
+            }
+            context.stroke(outline, with: .color(.white.opacity(0.9)), lineWidth: 3)
+            context.stroke(outline, with: .color(accent), lineWidth: 1.5)
         }
         for handle in handles {
             let p = AnnotationGeometry.point(of: handle, annotation)

@@ -387,9 +387,8 @@ What MeetRec does instead:
   Lens, Яндекс; `ImageSearch.swift`): the app only knows the `ImageSearchProvider` protocol (picture
   in, results page out), each service is its own provider in `ImageSearch.all`, switchable in
   "Скриншоты" (setting `imageSearchProviders`). Every place with search uses the same views
-  (`ImageSearchViews.swift`): the toast, the recent screenshots' right-click menu (one row of icons,
-  `ControlGroup` palette) and the editor toolbar after the colours (the editor searches its result:
-  marks, blur and crop applied), so a provider added or switched off changes all of them. Three kinds (`ImageSearchMethod`): `.upload` (Яндекс,
+  (`ImageSearchViews.swift`): the toast and the recent screenshots' right-click menu (one row of icons,
+  `ControlGroup` palette; the editor has none: not needed while editing), so a provider added or switched off changes all of them. Three kinds (`ImageSearchMethod`): `.upload` (Яндекс,
   TinEye: MeetRec uploads and opens the results), `.uploadInBrowser` (Google Lens: its results page
   shows the picture only to the session that uploaded it, so a link from MeetRec's own upload opened
   an empty search; MeetRec writes a page with the shot in `$TMPDIR/MeetRec Image Search` that posts
@@ -402,12 +401,12 @@ What MeetRec does instead:
   without language correction (it broke code and e-mails). The main page's "Скриншоты" tab:
   "Область", "Весь экран" and "OCR" buttons, a row of thumbnails by creation date scrolled sideways (Shottr's
   `SCR-…` files mix in; an edit keeps the creation date; click edits, drag into a chat, right
-  click: edit, copy, OCR, Finder, Удалить). The editor: arrow (A; a middle point bends it, off
+  click: edit, copy, OCR, Finder, Удалить). The editor: arrow (A; a light, friendly shape since 0.17.4: the shaft swells from a thin round tail to a head with swept-back barbs and soft corners; a middle point bends it, off
   centre the bend moves towards that end, back onto the line it snaps straight), rectangle (R),
   ellipse (O), caption (T), steps (N: numbered circles 1, 2, 3…, renumbered after a delete), blur
   (B: pixelate only that area, averaged squares 6–16 pt, default 8 so text cannot be depixelated;
   slider), crop (C: as in Photoshop, a frame with handles and thirds, movable and resizable; Enter or "Обрезать" cuts to it and the editor shows only that part, Esc or "Отмена" drops the frame, ⌘Z or "Вернуть всё" brings the picture back; a frame left unapplied is applied on copy, close, search or another tool), OCR (X: an area or "Весь текст"), colours 1–4, ⌘Z / ⇧⌘Z. Every mark stays an
-  object: click selects it (lines by their stroke, so one can draw inside a frame), drag moves it,
+  object (selected: its handles only, no dashed frame; a caption or step gets a thin outline of its own shape): click selects it (lines by their stroke, so one can draw inside a frame), drag moves it,
   handles reshape it, a colour recolours it, Delete removes it, Esc deselects or closes the window.
   The keys work by position (Russian layout too) and not while a caption is typed. However the
   editor is left (⌘C "Копировать и сохранить", Esc, ⌘W, the close button), the result is copied and written over
